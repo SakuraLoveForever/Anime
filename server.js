@@ -7,6 +7,7 @@ const path = require('path');
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
 const PORT = 3456;
 const CUSTOM_SOURCES_FILE = path.join(__dirname, 'custom-sources.json');
@@ -502,12 +503,153 @@ app.post('/api/custom-sources', (req, res) => {
   res.json(source);
 });
 
+app.put('/api/custom-sources/:id', (req, res) => {
+  const idx = customSources.findIndex(s => s.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '来源不存在' });
+  const { name, searchUrl } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: '名称不能为空' });
+  if (!searchUrl || !searchUrl.includes('{query}')) {
+    return res.status(400).json({ error: '搜索链接必须包含 {query} 占位符' });
+  }
+  customSources[idx] = {
+    ...customSources[idx],
+    name: name.trim(),
+    searchUrl: searchUrl.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  saveCustomSources(customSources);
+  res.json(customSources[idx]);
+});
+
 app.delete('/api/custom-sources/:id', (req, res) => {
   const idx = customSources.findIndex(s => s.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: '来源不存在' });
   customSources.splice(idx, 1);
   saveCustomSources(customSources);
   res.json({ ok: true });
+});
+
+// ========== Config Storage ==========
+const CONFIG_FILE = path.join(__dirname, 'config.json');
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+  } catch(e) {}
+  return {};
+}
+function saveConfig(cfg) {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
+}
+
+// GET /api/config — get config (API key masked)
+app.get('/api/config', (_req, res) => {
+  const cfg = loadConfig();
+  const key = cfg.deepseekApiKey || '';
+  res.json({ deepseekApiKeySet: !!key, deepseekApiKey: key, deepseekApiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '' });
+});
+
+// POST /api/config — set API key
+app.post('/api/config', (req, res) => {
+  const { deepseekApiKey } = req.body;
+  if (!deepseekApiKey || !deepseekApiKey.trim()) return res.status(400).json({ error: 'API key 不能为空' });
+  const cfg = loadConfig();
+  cfg.deepseekApiKey = deepseekApiKey.trim();
+  saveConfig(cfg);
+  res.json({ ok: true });
+});
+
+// ========== AI Enrich ==========
+async function aiEnrichAnime(query) {
+  const cfg = loadConfig();
+  const apiKey = cfg.deepseekApiKey;
+  if (!apiKey) throw new Error('未配置 DeepSeek API Key');
+
+  const prompt = `请搜索动漫「${query}」的详细信息，返回严格JSON（不要markdown代码块）：
+{
+  "title": "准确的中文名称",
+  "episodes": 集数(纯数字，如12),
+  "synopsis": "剧情简介，200字以内",
+  "score": 评分(1-10的数字，如8.5),
+  "genres": ["标签1", "标签2"],
+  "sourceUrl": "番剧的参考链接"
+}
+如果找不到则返回：{"title":"","episodes":0,"synopsis":"","score":null,"genres":[],"sourceUrl":""}`;
+
+  const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: '你是一个动漫信息助手。用户给你一个番剧名称，你需要返回准确的动漫信息。只返回JSON，不要额外解释。' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 2000,
+    }),
+    signal: AbortSignal.timeout(25000),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `DeepSeek API ${resp.status}`);
+  }
+
+  const json = await resp.json();
+  const content = json.choices?.[0]?.message?.content || '';
+  // Extract JSON from possible markdown
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('AI 返回格式异常');
+  return JSON.parse(jsonMatch[0]);
+}
+
+app.post('/api/ai-enrich', async (req, res) => {
+  const { query } = req.body;
+  if (!query || !query.trim()) return res.status(400).json({ error: '需要番剧名称' });
+  try {
+    const data = await aiEnrichAnime(query.trim());
+
+    // Search built-in sources for real cover images
+    const covers = [];
+    const searchTitle = data.title || query;
+    try {
+      const [malResults, bgmResults] = await Promise.allSettled([
+        searchMal(searchTitle),
+        searchBgm(searchTitle),
+      ]);
+      const addCovers = (results, src) => {
+        if (results && results.length > 0) {
+          const seen = new Set();
+          results.forEach(r => {
+            if (r.cover && !seen.has(r.cover)) {
+              seen.add(r.cover);
+              covers.push({ url: r.cover, source: src, title: r.title });
+            }
+          });
+        }
+      };
+      if (malResults.status === 'fulfilled') addCovers(malResults.value, 'MyAnimeList');
+      if (bgmResults.status === 'fulfilled') addCovers(bgmResults.value, 'Bangumi');
+    } catch(e) {}
+
+    res.json({
+      data: {
+        title: data.title || query,
+        episodes: parseInt(data.episodes) || 0,
+        synopsis: data.synopsis || '',
+        score: data.score || null,
+        genres: data.genres || [],
+        cover: covers.length > 0 ? covers[0].url : '',
+        covers: covers,
+        sourceUrl: data.sourceUrl || '',
+        source: 'DeepSeek AI',
+      },
+    });
+  } catch (e) {
+    console.error('AI enrich error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ========== Test endpoint ==========
@@ -522,8 +664,29 @@ app.post('/api/test-search', async (req, res) => {
   }
 });
 
+// ========== Image Proxy ==========
+app.get('/api/proxy-image', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).send('url required');
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const contentType = resp.headers.get('content-type') || 'image/jpeg';
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    const buf = await resp.arrayBuffer();
+    res.send(Buffer.from(buf));
+  } catch(e) {
+    res.status(500).send(e.message);
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Anime tracker backend running at http://localhost:${PORT}`);
+  console.log(`Open http://localhost:${PORT} in your browser`);
   console.log(`Built-in sources: ${Object.keys(SOURCE_NAMES).join(', ')}`);
   console.log(`Custom sources loaded: ${customSources.length}`);
 });
