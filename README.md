@@ -1,7 +1,46 @@
-## 自定义自己的看番追剧网站，支持添加Deepseek api，添加番剧名字后api自动索取番剧信息填入卡片中
+# 追番管理器
+
+自定义看番追剧管理工具，支持多源搜索、DeepSeek AI 智能填充番剧信息。
 
 ## 食用手册
-1. `git clone`下来
-2. 双击`start.bat`打开网页
-3. 点顶栏 ⚙ 齿轮
-4. 粘贴你的 DeepSeek API Key ，测试成功后保存
+
+### 准备工作
+
+- 安装 [Node.js](https://nodejs.org/)（建议 18 以上版本）
+- 准备一个 [DeepSeek API Key](https://platform.deepseek.com/api_keys)
+
+### 安装 & 启动
+
+```bash
+# 1. 克隆项目
+git clone <repo-url> && cd Anime
+
+# 2. 安装依赖（只需一次）
+npm install
+
+# 3. 启动
+# Windows: 双击 start.bat
+# 其他: node server.js
+```
+
+### 配置 API Key
+
+1. 打开浏览器访问 `http://localhost:3456`
+2. 点击顶栏右侧 ⚙ 齿轮按钮
+3. 粘贴你的 DeepSeek API Key（以 `sk-` 开头）
+4. 点击「🔍 测试」验证连通性
+5. 测试成功后点击「保存」
+
+### 添加番剧
+
+点击右上角「＋ 添加番剧」按钮：
+
+- **手动输入** — 输入番剧名称，后端自动从 Bangumi / MyAnimeList / AniList 搜索并填充信息
+- **AI 填充** — 先输入名称，再点击「🤖 AI 填充」让 DeepSeek 智能补全
+- **粘贴链接** — 支持 Bangumi、MyAnimeList、AniList 等链接，自动抓取解析
+- **自定义来源** — 左侧边栏可添加自己的番剧搜索网站
+
+### 数据说明
+
+- 番剧数据存储在浏览器 localStorage 中，不会随 git 同步
+- API Key 存储在本地 `config.json` 中，已被 `.gitignore` 忽略
