@@ -40,7 +40,3 @@ npm install
 - **粘贴链接** — 支持 Bangumi、MyAnimeList、AniList 等链接，自动抓取解析
 - **自定义来源** — 左侧边栏可添加自己的番剧搜索网站
 
-### 数据说明
-
-- 番剧数据存储在浏览器 localStorage 中，不会随 git 同步
-- API Key 存储在本地 `config.json` 中，已被 `.gitignore` 忽略
