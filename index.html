@@ -17,13 +17,119 @@
   --status-towatch: #6366f1;
   --status-watching: #f59e0b;
   --status-watched: #10b981;
-  --sidebar-w: 240px; --sidebar-collapsed: 64px; --topbar-h: 64px;
+  --sidebar-w: 250px; --sidebar-collapsed: 68px; --topbar-h: 64px;
   --radius-sm: 8px; --radius: 12px; --radius-lg: 16px; --radius-xl: 20px;
+  --radius-capsule: 28px;
   --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
+  --neon-purple: rgba(139,92,246,0.5);
+  --neon-blue: rgba(99,102,241,0.4);
+  --font-body: 'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --sidebar-bg-rgb: 8,8,22;
 }
+
+/* ===== Theme: Apple ===== */
+:root[data-theme="apple"] {
+  --bg-deep: #f5f5f7; --bg-main: #ffffff;
+  --bg-card: rgba(255,255,255,0.85);
+  --glass-border: rgba(0,0,0,0.08);
+  --glass-hover: rgba(0,0,0,0.03);
+  --text: #1d1d1f; --text2: #6e6e73; --text3: #aeaeb2;
+  --pink: #0066cc; --purple: #0066cc; --blue: #2997ff;
+  --amber: #e8a55a; --emerald: #34c759; --indigo: #5e5ce6;
+  --status-towatch: #5e5ce6;
+  --status-watching: #e8a55a;
+  --status-watched: #34c759;
+  --neon-purple: rgba(0,102,204,0.3);
+  --neon-blue: rgba(0,102,204,0.2);
+  --font-body: 'SF Pro Text','SF Pro Display',system-ui,-apple-system,sans-serif;
+  --sidebar-bg-rgb: 255,255,255;
+}
+:root[data-theme="apple"] body::before { background: radial-gradient(circle, rgba(0,102,204,0.02) 0%, transparent 70%); }
+:root[data-theme="apple"] body::after { background: radial-gradient(circle, rgba(0,102,204,0.02) 0%, transparent 70%); }
+
+/* ===== Theme: Claude ===== */
+:root[data-theme="claude"] {
+  --bg-deep: #efe9de; --bg-main: #faf9f5;
+  --bg-card: rgba(250,249,245,0.85);
+  --glass-border: rgba(0,0,0,0.06);
+  --glass-hover: rgba(0,0,0,0.03);
+  --text: #141413; --text2: #6c6a64; --text3: #8e8b82;
+  --pink: #cc785c; --purple: #cc785c; --blue: #5db8a6;
+  --amber: #e8a55a; --emerald: #5db872; --indigo: #5db8a6;
+  --status-towatch: #5db8a6;
+  --status-watching: #e8a55a;
+  --status-watched: #5db872;
+  --neon-purple: rgba(204,120,92,0.3);
+  --neon-blue: rgba(204,120,92,0.2);
+  --font-body: 'Georgia','Times New Roman',serif;
+  --sidebar-bg-rgb: 250,249,245;
+}
+:root[data-theme="claude"] body::before { background: radial-gradient(circle, rgba(204,120,92,0.03) 0%, transparent 70%); }
+:root[data-theme="claude"] body::after { background: radial-gradient(circle, rgba(204,120,92,0.02) 0%, transparent 70%); }
+
+/* ===== Theme: Linear ===== */
+:root[data-theme="linear"] {
+  --bg-deep: #010102; --bg-main: #010102;
+  --bg-card: rgba(15,16,17,0.85);
+  --glass-border: rgba(255,255,255,0.06);
+  --glass-hover: rgba(255,255,255,0.03);
+  --text: #f7f8f8; --text2: #d0d6e0; --text3: #8a8f98;
+  --pink: #5e6ad2; --purple: #5e6ad2; --blue: #828fff;
+  --amber: #e8a55a; --emerald: #27a644; --indigo: #5e6ad2;
+  --status-towatch: #5e6ad2;
+  --status-watching: #e8a55a;
+  --status-watched: #27a644;
+  --neon-purple: rgba(94,106,210,0.3);
+  --neon-blue: rgba(94,106,210,0.2);
+  --font-body: 'Inter','SF Pro Display',system-ui,-apple-system,sans-serif;
+  --sidebar-bg-rgb: 1,1,2;
+}
+:root[data-theme="linear"] body::before { background: radial-gradient(circle, rgba(94,106,210,0.03) 0%, transparent 70%); }
+:root[data-theme="linear"] body::after { background: radial-gradient(circle, rgba(94,106,210,0.02) 0%, transparent 70%); }
+
+/* ===== Theme: Lovable ===== */
+:root[data-theme="lovable"] {
+  --bg-deep: #eceae4; --bg-main: #f7f4ed;
+  --bg-card: rgba(247,244,237,0.85);
+  --glass-border: rgba(28,28,28,0.08);
+  --glass-hover: rgba(28,28,28,0.03);
+  --text: #1c1c1c; --text2: #5f5f5d; --text3: rgba(28,28,28,0.4);
+  --pink: #1c1c1c; --purple: #1c1c1c; --blue: #3b82f6;
+  --amber: #e8a55a; --emerald: #5db872; --indigo: #5e5ce6;
+  --status-towatch: #5e5ce6;
+  --status-watching: #e8a55a;
+  --status-watched: #5db872;
+  --neon-purple: rgba(28,28,28,0.15);
+  --neon-blue: rgba(28,28,28,0.1);
+  --font-body: 'Inter',system-ui,-apple-system,sans-serif;
+  --sidebar-bg-rgb: 247,244,237;
+}
+:root[data-theme="lovable"] body::before { background: radial-gradient(circle, rgba(28,28,28,0.02) 0%, transparent 70%); }
+:root[data-theme="lovable"] body::after { background: radial-gradient(circle, rgba(28,28,28,0.01) 0%, transparent 70%); }
+
+/* ===== Theme: Tesla ===== */
+:root[data-theme="tesla"] {
+  --bg-deep: #f4f4f4; --bg-main: #ffffff;
+  --bg-card: rgba(255,255,255,0.9);
+  --glass-border: rgba(0,0,0,0.06);
+  --glass-hover: rgba(0,0,0,0.02);
+  --text: #171a20; --text2: #393c41; --text3: #5c5e62;
+  --pink: #3e6ae1; --purple: #3e6ae1; --blue: #3e6ae1;
+  --amber: #e8a55a; --emerald: #12b981; --indigo: #3e6ae1;
+  --status-towatch: #3e6ae1;
+  --status-watching: #e8a55a;
+  --status-watched: #12b981;
+  --neon-purple: rgba(62,106,225,0.25);
+  --neon-blue: rgba(62,106,225,0.15);
+  --font-body: 'Universal Sans Text','Inter',system-ui,-apple-system,Arial,sans-serif;
+  --sidebar-bg-rgb: 255,255,255;
+}
+:root[data-theme="tesla"] body::before { background: radial-gradient(circle, rgba(62,106,225,0.02) 0%, transparent 70%); }
+:root[data-theme="tesla"] body::after { background: radial-gradient(circle, rgba(62,106,225,0.01) 0%, transparent 70%); }
+
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 body {
-  font-family: 'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  font-family: var(--font-body, 'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif);
   background: var(--bg-deep); color: var(--text);
   min-height: 100vh; overflow-x: hidden; line-height: 1.5;
 }
@@ -44,105 +150,402 @@ body::after {
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
 .app { display: flex; min-height: 100vh; position: relative; z-index: 1; }
 
+/* ===== Aurora Keyframes ===== */
+@keyframes auroraFlow1 {
+  0%,100% { transform: translate(0,0) rotate(0deg); opacity: 0.18; }
+  25% { transform: translate(15px,-10px) rotate(1deg); opacity: 0.25; }
+  50% { transform: translate(-5px,-20px) rotate(-1deg); opacity: 0.15; }
+  75% { transform: translate(-10px,5px) rotate(0.5deg); opacity: 0.22; }
+}
+@keyframes auroraFlow2 {
+  0%,100% { transform: translate(0,0) rotate(0deg); opacity: 0.12; }
+  33% { transform: translate(-20px,-15px) rotate(-2deg); opacity: 0.2; }
+  66% { transform: translate(10px,10px) rotate(1deg); opacity: 0.1; }
+}
+@keyframes noiseShift {
+  0%,100% { transform: translate(0,0); }
+  25% { transform: translate(-1px,1px); }
+  50% { transform: translate(1px,-1px); }
+  75% { transform: translate(-1px,-1px); }
+}
+@keyframes lightSweep {
+  0% { left: -100%; opacity: 0; }
+  15% { opacity: 0.6; }
+  50% { opacity: 0.6; }
+  85% { opacity: 0; }
+  100% { left: 100%; opacity: 0; }
+}
+@keyframes energyBarPulse {
+  0%,100% { box-shadow: 0 0 4px var(--neon-purple), 0 0 12px rgba(139,92,246,0.4); }
+  50% { box-shadow: 0 0 8px var(--neon-purple), 0 0 20px rgba(139,92,246,0.6); }
+}
+@keyframes haloBreathe {
+  0%,100% { box-shadow: 0 0 6px rgba(139,92,246,0.2), 0 0 18px rgba(139,92,246,0.08); }
+  50% { box-shadow: 0 0 12px rgba(139,92,246,0.35), 0 0 30px rgba(139,92,246,0.15); }
+}
+@keyframes subExpand {
+  from { opacity: 0; max-height: 0; transform: translateY(-8px); }
+  to { opacity: 1; max-height: 600px; transform: translateY(0); }
+}
+@keyframes dotGlow {
+  0%,100% { box-shadow: 0 0 3px rgba(139,92,246,0.6); }
+  50% { box-shadow: 0 0 8px rgba(139,92,246,1), 0 0 16px rgba(139,92,246,0.4); }
+}
+
 /* ===== Sidebar ===== */
 .sidebar {
   width: var(--sidebar-w); min-width: var(--sidebar-collapsed);
-  height: 100vh; position: sticky; top: 0;
-  background: rgba(10,10,20,0.85);
-  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-  border-right: 1px solid var(--glass-border);
+  height: calc(100vh - 24px); position: fixed; top: 12px; left: 12px;
+  background: rgba(var(--sidebar-bg-rgb, 8,8,22), 0.78);
+  backdrop-filter: blur(28px) saturate(1.2); -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 24px;
   display: flex; flex-direction: column;
-  transition: width var(--transition); z-index: 100; overflow: hidden;
+  transition: width var(--transition), border-radius var(--transition), transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  z-index: 100; overflow: hidden;
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.55),
+    0 0 0 1px rgba(255,255,255,0.03) inset,
+    0 8px 32px rgba(0,0,0,0.3);
 }
-.sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
+/* Aurora & noise overlays */
+.sidebar::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse 70% 45% at 30% 20%, rgba(139,92,246,0.1) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 70% 70%, rgba(99,102,241,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 20% 85%, rgba(255,68,113,0.04) 0%, transparent 60%);
+  animation: auroraFlow1 18s ease-in-out infinite;
+}
+.sidebar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse 55% 40% at 60% 30%, rgba(59,130,246,0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 35% at 25% 55%, rgba(139,92,246,0.08) 0%, transparent 60%);
+  animation: auroraFlow2 22s ease-in-out infinite;
+  opacity: 0.8;
+}
+/* Dynamic noise texture */
+.sidebar-noise {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  border-radius: 24px; opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  animation: noiseShift 8s steps(3) infinite;
+}
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed);
+  border-radius: 20px;
+}
+.sidebar.collapsed::before,
+.sidebar.collapsed::after,
+.sidebar.collapsed .sidebar-noise {
+  border-radius: 20px;
+}
+
+/* Brand */
 .sidebar-brand {
-  padding: 20px 20px 28px; display: flex; align-items: center; gap: 12px; white-space: nowrap;
+  padding: 22px 18px 10px; display: flex; align-items: center; gap: 12px;
+  white-space: nowrap; position: relative; z-index: 1;
 }
-.sidebar.collapsed .sidebar-brand { padding: 20px 16px; }
+.sidebar.collapsed .sidebar-brand { padding: 22px 16px 10px; justify-content: center; }
 .sidebar-logo {
-  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  width: 34px; height: 34px; border-radius: 12px; flex-shrink: 0;
   background: linear-gradient(135deg, var(--pink), var(--purple));
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: #fff; flex-shrink: 0;
+  font-size: 15px; color: #fff;
+  box-shadow: 0 4px 16px rgba(255,68,113,0.3), 0 0 0 2px rgba(139,92,246,0.2);
 }
 .sidebar-brand-text {
-  font-weight: 700; font-size: 1.05rem;
-  background: linear-gradient(135deg, var(--pink), var(--purple));
+  font-weight: 700; font-size: 1.1rem;
+  background: linear-gradient(135deg, var(--pink) 0%, var(--purple) 50%, var(--blue) 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text; overflow: hidden; transition: opacity 0.15s;
+  background-clip: text; overflow: hidden; transition: opacity 0.2s; letter-spacing: 0.02em;
 }
 .sidebar.collapsed .sidebar-brand-text { opacity: 0; width: 0; }
-.sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px; overflow-y: auto; }
-.nav-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 11px 14px; border-radius: var(--radius);
-  cursor: pointer; border: none; background: transparent;
-  color: var(--text2); font-size: 0.9rem; font-weight: 500;
-  transition: all var(--transition); white-space: nowrap;
-  font-family: inherit; text-align: left;
-}
-.nav-item:hover { background: var(--glass-hover); color: var(--text); }
-.nav-item.active { background: rgba(139,92,246,0.15); color: #c4b5fd; }
-.nav-icon { font-size: 1.2rem; flex-shrink: 0; width: 24px; text-align: center; }
-.nav-label { flex: 1; overflow: hidden; }
-.nav-badge {
-  background: rgba(255,255,255,0.08); padding: 2px 10px;
-  border-radius: 20px; font-size: 0.78rem; font-weight: 600; flex-shrink: 0;
-}
 .sidebar.collapsed .nav-label,
 .sidebar.collapsed .nav-badge { opacity: 0; width: 0; }
+.sidebar.collapsed .nav-energy-bar,
+.sidebar.collapsed .nav-glow-dot { display: none; }
 
-/* Sidebar sources */
+/* Nav container */
+.sidebar-nav {
+  flex: 1; display: flex; flex-direction: column; gap: 5px;
+  padding: 8px 10px 12px; overflow-y: auto; position: relative; z-index: 1;
+}
+
+/* Capsule nav item */
+.nav-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 16px; border-radius: var(--radius-capsule);
+  cursor: pointer; border: 1px solid transparent;
+  background: rgba(255,255,255,0.02);
+  color: var(--text2); font-size: 0.88rem; font-weight: 500;
+  transition: all 0.35s cubic-bezier(0.25,0.8,0.25,1.2);
+  white-space: nowrap; font-family: inherit; text-align: left;
+  position: relative; overflow: hidden;
+  box-shadow: 0 0 0 0 rgba(139,92,246,0);
+  width: 100%;
+}
+/* Default subtle edge glow */
+.nav-item::after {
+  content: ''; position: absolute; inset: 0; border-radius: var(--radius-capsule);
+  pointer-events: none; opacity: 0.35;
+  box-shadow: inset 0 0 0 1px rgba(139,92,246,0.15);
+  transition: all 0.35s cubic-bezier(0.25,0.8,0.25,1.2);
+}
+
+/* Hover: float up + neon outline + gradient diffusion + light sweep */
+.nav-item:hover {
+  background: rgba(139,92,246,0.08);
+  color: var(--text);
+  border-color: rgba(139,92,246,0.3);
+  transform: translateY(-3px);
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(139,92,246,0.25),
+    0 0 20px rgba(139,92,246,0.1);
+}
+.nav-item:hover::after {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px rgba(139,92,246,0.4);
+}
+/* Light sweep on hover */
+.nav-item::before {
+  content: ''; position: absolute; top: 0; left: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.06) 30%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.06) 70%,
+    transparent 100%);
+  pointer-events: none; z-index: 2; opacity: 0;
+  transition: opacity 0.3s;
+}
+.nav-item:hover::before {
+  opacity: 1;
+  animation: lightSweep 1.6s ease-in-out forwards;
+}
+
+/* Active state: energy bar + glowing dot + blur halo */
+.nav-item.active {
+  background: rgba(139,92,246,0.1);
+  color: #d4c8ff;
+  border-color: rgba(139,92,246,0.35);
+  box-shadow:
+    0 0 12px rgba(139,92,246,0.15),
+    0 0 28px rgba(139,92,246,0.06),
+    0 0 0 1px rgba(139,92,246,0.2);
+  animation: haloBreathe 4s ease-in-out infinite;
+}
+.nav-item.active::after {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px rgba(139,92,246,0.5), inset 0 0 12px rgba(139,92,246,0.08);
+}
+/* Energy bar on left side */
+.nav-item.active .nav-energy-bar {
+  position: absolute; left: 4px; top: 6px; bottom: 6px;
+  width: 3px; border-radius: 3px;
+  background: linear-gradient(to bottom, var(--purple), var(--blue), var(--purple));
+  animation: energyBarPulse 2.5s ease-in-out infinite;
+  z-index: 3;
+}
+/* Glowing dot */
+.nav-item.active .nav-glow-dot {
+  position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #c4b5fd;
+  box-shadow: 0 0 6px rgba(139,92,246,0.8), 0 0 14px rgba(139,92,246,0.4);
+  animation: dotGlow 2s ease-in-out infinite;
+  z-index: 3;
+}
+
+.nav-icon { font-size: 1.15rem; flex-shrink: 0; width: 22px; text-align: center; position: relative; z-index: 1; }
+.nav-label { flex: 1; overflow: hidden; position: relative; z-index: 1; }
+.nav-badge {
+  background: rgba(255,255,255,0.06); padding: 2px 11px;
+  border-radius: 20px; font-size: 0.75rem; font-weight: 600; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.05); position: relative; z-index: 1;
+}
+
+/* Category section header — glowing label style */
+.nav-section-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 16px 16px 4px; margin-top: 4px;
+  position: relative; z-index: 1;
+}
+.nav-section-glow-label {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, rgba(139,92,246,0.9), rgba(99,102,241,0.8));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 4px rgba(139,92,246,0.4));
+  white-space: nowrap;
+}
+.nav-section-energy-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(139,92,246,0.4), rgba(99,102,241,0.1), transparent);
+  border-radius: 1px;
+}
+.nav-section-geo-decor {
+  width: 5px; height: 5px; border-radius: 1px;
+  background: rgba(139,92,246,0.5);
+  transform: rotate(45deg); flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(139,92,246,0.3);
+}
+.sidebar.collapsed .nav-section-header { opacity: 0; height: 0; padding: 0; overflow: hidden; }
+
+/* Sub items: slightly smaller, more indented */
+.nav-sub {
+  padding-left: 24px !important;
+  font-size: 0.8rem !important;
+  gap: 10px !important;
+  background: transparent !important;
+  border-radius: 22px !important;
+}
+.nav-sub .nav-icon { font-size: 0.75rem; width: 18px; opacity: 0.7; }
+
+/* Subcategory expand wrapper */
+.nav-sub-wrapper {
+  overflow: hidden;
+  animation: subExpand 0.4s cubic-bezier(0.25,0.8,0.25,1) both;
+}
+.nav-sub-wrapper.collapsing {
+  animation: none;
+  max-height: 0; opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+
+/* Sidebar sections (folders, sources) */
 .sidebar-section {
-  padding: 12px 16px; border-top: 1px solid var(--glass-border);
-  white-space: nowrap; transition: opacity 0.15s; overflow-y: auto; max-height: 45vh;
+  padding: 8px 16px 12px; position: relative; z-index: 1;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  white-space: nowrap; overflow-y: auto; max-height: 45vh;
+  transition: opacity 0.2s;
 }
-.sidebar.collapsed .sidebar-section { opacity: 0; pointer-events: none; }
+.sidebar.collapsed .sidebar-section { opacity: 0; pointer-events: none; height: 0; padding: 0; overflow: hidden; }
 .sidebar-section-title {
-  font-size: 0.7rem; font-weight: 600; color: var(--text3);
-  text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
-  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.68rem; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;
+  position: relative;
 }
+
+/* Source items — mini capsules */
 .sidebar-source-item {
   display: flex; align-items: center; gap: 8px;
-  padding: 5px 0; font-size: 0.78rem; color: var(--text2);
-  cursor: pointer; transition: color var(--transition);
+  padding: 6px 12px; margin: 1px 0;
+  font-size: 0.76rem; color: var(--text2);
+  cursor: pointer; transition: all var(--transition);
+  border-radius: 18px; border: 1px solid transparent;
+  background: rgba(255,255,255,0.01);
 }
-.sidebar-source-item:hover { color: var(--text); }
+.sidebar-source-item:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.06);
+  transform: translateY(-1px);
+}
 .sidebar-source-item .src-dot {
-  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-  background: var(--text3); transition: background var(--transition);
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--text3); transition: all var(--transition);
 }
-.sidebar-source-item.enabled .src-dot { background: var(--emerald); box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+.sidebar-source-item.enabled .src-dot {
+  background: var(--emerald);
+  box-shadow: 0 0 6px rgba(16,185,129,0.5), 0 0 12px rgba(16,185,129,0.2);
+}
 .sidebar-source-item .src-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-source-item .src-del {
-  opacity: 0; font-size: 0.7rem; color: var(--pink); padding: 2px 4px;
+  opacity: 0; font-size: 0.68rem; color: var(--pink); padding: 2px 4px;
   transition: opacity var(--transition); flex-shrink: 0;
 }
 .sidebar-source-item:hover .src-del { opacity: 0.7; }
 .sidebar-source-item .src-del:hover { opacity: 1; }
 .src-add-btn {
-  display: block; width: 100%; padding: 6px; margin-top: 8px;
-  border-radius: var(--radius-sm); border: 1px dashed var(--glass-border);
-  background: transparent; color: var(--text3); font-size: 0.78rem;
+  display: block; width: 100%; padding: 7px; margin-top: 6px;
+  border-radius: 18px; border: 1px dashed rgba(255,255,255,0.08);
+  background: transparent; color: var(--text3); font-size: 0.76rem;
   cursor: pointer; font-family: inherit; transition: all var(--transition);
 }
-.src-add-btn:hover { border-color: var(--purple); color: var(--purple); }
-.sidebar-toggle {
-  margin: 12px; padding: 10px; border-radius: var(--radius);
-  cursor: pointer; border: none; background: var(--glass-hover);
-  color: var(--text3); font-size: 1.1rem; transition: all var(--transition);
-  font-family: inherit; flex-shrink: 0;
+.src-add-btn:hover {
+  border-color: rgba(139,92,246,0.4); color: var(--purple);
+  background: rgba(139,92,246,0.04);
 }
-.sidebar-toggle:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+/* Collapse toggle */
+.sidebar-toggle {
+  margin: 8px 16px; padding: 10px; border-radius: 20px;
+  cursor: pointer; border: 1px solid rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.02);
+  color: var(--text3); font-size: 1rem; transition: all var(--transition);
+  font-family: inherit; flex-shrink: 0; position: relative; z-index: 1;
+}
+.sidebar-toggle:hover {
+  color: var(--text);
+  background: rgba(139,92,246,0.08);
+  border-color: rgba(139,92,246,0.25);
+  box-shadow: 0 0 16px rgba(139,92,246,0.08);
+}
+
+/* ===== Theme Switcher Popover ===== */
+.theme-popover {
+  position: fixed; top: 72px; right: 120px; z-index: 200;
+  background: rgba(var(--sidebar-bg-rgb, 18,18,32), 0.92);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px; padding: 12px;
+  display: none; flex-direction: column; gap: 1px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  animation: fadeIn 0.15s ease;
+  min-width: 220px;
+}
+.theme-popover.show { display: flex; }
+.theme-option {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 12px;
+  cursor: pointer; border: 1px solid transparent;
+  background: transparent; color: var(--text2);
+  font-family: inherit; font-size: 0.85rem; font-weight: 500;
+  transition: all var(--transition); text-align: left;
+  white-space: nowrap;
+}
+.theme-option:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.06);
+}
+.theme-option.active {
+  background: rgba(139,92,246,0.1);
+  color: #d4c8ff;
+  border-color: rgba(139,92,246,0.25);
+  box-shadow: 0 0 10px rgba(139,92,246,0.08);
+}
+.theme-option-icon { font-size: 1.1rem; flex-shrink: 0; width: 24px; text-align: center; }
+.theme-option-info { flex: 1; min-width: 0; }
+.theme-option-name { font-weight: 600; font-size: 0.82rem; }
+.theme-option-desc { font-size: 0.7rem; color: var(--text3); margin-top: 1px; }
+.theme-option-check {
+  font-size: 0.75rem; color: var(--purple); flex-shrink: 0;
+  display: none;
+}
+.theme-option.active .theme-option-check { display: block; }
+.theme-popover-backdrop {
+  position: fixed; inset: 0; z-index: 199;
+  display: none;
+}
+.theme-popover-backdrop.show { display: block; }
 
 /* ===== Main ===== */
-.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; margin-left: calc(var(--sidebar-w) + 24px); transition: margin-left var(--transition); }
 .topbar {
   height: var(--topbar-h); display: flex; align-items: center; gap: 12px;
   padding: 0 24px; border-bottom: 1px solid var(--glass-border);
   position: sticky; top: 0; z-index: 50;
-  background: rgba(12,12,22,0.8);
+  background: rgba(var(--sidebar-bg-rgb, 12,12,22), 0.8);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
 }
 .search-wrap { flex: 1; max-width: 380px; position: relative; }
@@ -208,7 +611,7 @@ body::after {
 .stat-info .stat-label { font-size: 0.82rem; color: var(--text3); margin-top: 4px; }
 
 /* ===== Card Grid ===== */
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; align-items: start; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
 .anime-card {
   background: var(--bg-card);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
@@ -243,6 +646,15 @@ body::after {
 .card-status-badge.towatch { background: rgba(99,102,241,0.5); color: #c7d2fe; }
 .card-status-badge.watching { background: rgba(245,158,11,0.5); color: #fde68a; }
 .card-status-badge.watched { background: rgba(16,185,129,0.5); color: #a7f3d0; }
+.card-cat-badge {
+  position: absolute; top: 12px; left: 12px; z-index: 3;
+  padding: 3px 9px; border-radius: 12px;
+  font-size: 0.68rem; font-weight: 600;
+  background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.75);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.06);
+  max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .card-body { padding: 16px; }
 .card-title {
   font-size: 1rem; font-weight: 600;
@@ -266,7 +678,7 @@ body::after {
 }
 .card-action-btn:hover { background: var(--glass-hover); color: var(--text); }
 .card-action-btn.danger:hover { background: rgba(255,68,113,0.15); color: var(--pink); }
-.card-genres { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.card-genres { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; min-height: 24px; }
 .card-genre-tag {
   padding: 2px 8px; border-radius: 10px;
   font-size: 0.7rem; background: rgba(139,92,246,0.12); color: #b4a5f0;
@@ -307,6 +719,115 @@ body::after {
 .card-synopsis-toggle { margin-top: 6px; font-size: 0.78rem; color: var(--purple); cursor: pointer; background: none; border: none; font-family: inherit; }
 .card-synopsis-toggle:hover { text-decoration: underline; }
 
+/* ===== Batch Selection ===== */
+.batch-bar {
+  position: sticky; top: var(--topbar-h); z-index: 40;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 24px; margin-bottom: 16px;
+  background: rgba(var(--sidebar-bg-rgb, 18,18,32), 0.9);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  animation: slideDown 0.2s ease;
+}
+@keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+.batch-bar .count { font-size: 0.85rem; color: var(--text2); font-weight: 500; }
+.batch-bar select {
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border);
+  color: var(--text); font-size: 0.82rem; outline: none; font-family: inherit;
+}
+.batch-bar select option, .batch-bar select optgroup { background: var(--bg-deep); color: var(--text); }
+.batch-bar select optgroup { font-weight: 600; color: var(--text2); }
+.batch-action-btn {
+  padding: 7px 16px; border-radius: 20px; border: 1px solid var(--glass-border);
+  background: var(--glass-hover); color: var(--text2); cursor: pointer;
+  font-size: 0.82rem; font-family: inherit; transition: all var(--transition);
+}
+.batch-action-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+.batch-action-btn.danger { color: var(--pink); border-color: rgba(255,68,113,0.2); }
+.batch-action-btn.danger:hover { background: rgba(255,68,113,0.12); }
+.card-select-overlay {
+  position: absolute; inset: 0; z-index: 5;
+  background: rgba(139,92,246,0.08);
+  border: 2px solid var(--purple);
+  border-radius: var(--radius-xl);
+  pointer-events: none; display: none;
+}
+.anime-card.selected .card-select-overlay { display: block; }
+.card-select-check {
+  position: absolute; top: 10px; right: 10px; z-index: 6;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(0,0,0,0.4);
+  display: none; align-items: center; justify-content: center;
+  font-size: 0.65rem; color: #fff;
+  transition: all 0.15s ease;
+}
+.selection-mode .card-select-check { display: flex; }
+.anime-card.selected .card-select-check {
+  background: var(--purple); border-color: var(--purple);
+}
+.selection-mode .anime-card { cursor: pointer; }
+.selection-mode .anime-card:hover { transform: none; box-shadow: none; }
+
+/* ===== Detail Popup ===== */
+.detail-overlay {
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(0,0,0,0.15);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  animation: fadeIn 0.15s ease;
+  pointer-events: none;
+}
+.detail-popup {
+  position: absolute; pointer-events: auto;
+  background: rgba(var(--sidebar-bg-rgb, 18,18,32), 0.95);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  width: 360px; max-height: 70vh;
+  overflow-y: auto; padding: 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05) inset;
+  animation: popupIn 0.2s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes popupIn {
+  from { opacity: 0; transform: scale(0.92) translateY(-8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.detail-popup-cover {
+  width: 100px; height: 140px; object-fit: cover;
+  border-radius: var(--radius-sm); display: block;
+  margin: 0 auto 14px; background: rgba(255,255,255,0.03);
+  flex-shrink: 0;
+}
+.detail-popup-cover-placeholder {
+  width: 100px; height: 140px; margin: 0 auto 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.5rem; font-weight: 800;
+  color: rgba(255,255,255,0.12);
+  border-radius: var(--radius-sm);
+}
+.detail-popup-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 10px; gap: 8px;
+}
+.detail-popup-title {
+  font-size: 1.05rem; font-weight: 700; flex: 1; min-width: 0;
+}
+.detail-popup-close {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-hover); color: var(--text2);
+  cursor: pointer; font-size: 0.85rem; flex-shrink: 0;
+  font-family: inherit; display: flex;
+  align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.detail-popup-close:hover { background: rgba(255,68,113,0.15); color: var(--pink); border-color: rgba(255,68,113,0.3); }
+.detail-popup-meta { display: flex; gap: 10px; margin-bottom: 10px; font-size: 0.78rem; color: var(--text2); flex-wrap: wrap; align-items: center; }
+.detail-popup-section { margin-top: 14px; }
+.detail-popup-section-title { font-size: 0.75rem; font-weight: 600; color: var(--text3); margin-bottom: 6px; }
+
 /* ===== Modals ===== */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 200;
@@ -342,12 +863,18 @@ body::after {
 }
 .modal-field input, .modal-field select, .modal-field textarea {
   width: 100%; padding: 11px 14px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.06);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   color: var(--text); font-size: 0.95rem;
   outline: none; font-family: inherit;
   transition: all var(--transition);
+}
+.modal-field select option, .modal-field select optgroup {
+  background: var(--bg-deep); color: var(--text);
+}
+.modal-field select optgroup {
+  font-weight: 600; color: var(--text2); font-style: normal;
 }
 .modal-field textarea { resize: vertical; min-height: 70px; }
 .modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus {
@@ -504,13 +1031,13 @@ body::after {
 
 @media (max-width: 768px) {
   .sidebar {
-    position: fixed; left: 0; top: 0; transform: translateX(-100%);
-    transition: transform var(--transition);
+    left: 12px; top: 12px; transform: translateX(calc(-100% - 36px));
     width: var(--sidebar-w) !important; min-width: var(--sidebar-w) !important;
   }
   .sidebar.open { transform: translateX(0); }
   .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; }
   .sidebar-overlay.show { display: block; }
+  .main { margin-left: 0 !important; }
   .hamburger { display: block; }
   .topbar { padding: 0 12px; gap: 8px; }
   .content { padding: 20px 16px 32px; }
@@ -531,6 +1058,9 @@ body::after {
   .episode-grid { grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 6px; }
   .episode-block { font-size: 0.75rem; }
   .modal { padding: 20px; }
+  .detail-popup { width: 300px; max-height: 65vh; border-radius: var(--radius); }
+  .detail-popup-cover { width: 80px; height: 112px; }
+  .detail-popup-cover-placeholder { width: 80px; height: 112px; }
 }
 </style>
 </head>
@@ -540,28 +1070,85 @@ body::after {
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
   <aside class="sidebar" id="sidebar">
+    <div class="sidebar-noise"></div>
     <div class="sidebar-brand">
       <div class="sidebar-logo">▶</div>
       <span class="sidebar-brand-text">追番管理器</span>
     </div>
     <nav class="sidebar-nav">
       <button class="nav-item active" data-filter="all" onclick="setFilter('all')">
-        <span class="nav-icon">📚</span><span class="nav-label">全部番剧</span>
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-icon">◎</span><span class="nav-label">全部番剧</span>
         <span class="nav-badge" id="badgeAll">0</span>
       </button>
-      <button class="nav-item" data-filter="watching" onclick="setFilter('watching')">
-        <span class="nav-icon">▶️</span><span class="nav-label">正在看</span>
-        <span class="nav-badge" id="badgeWatching">0</span>
-      </button>
       <button class="nav-item" data-filter="towatch" onclick="setFilter('towatch')">
-        <span class="nav-icon">📋</span><span class="nav-label">待看</span>
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-icon">◇</span><span class="nav-label">待看</span>
         <span class="nav-badge" id="badgeTowatch">0</span>
       </button>
+      <button class="nav-item" data-filter="watching" onclick="setFilter('watching')">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-icon">▷</span><span class="nav-label">正在看</span>
+        <span class="nav-badge" id="badgeWatching">0</span>
+      </button>
       <button class="nav-item" data-filter="watched" onclick="setFilter('watched')">
-        <span class="nav-icon">✅</span><span class="nav-label">已看完</span>
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-icon">✓</span><span class="nav-label">已看完</span>
         <span class="nav-badge" id="badgeWatched">0</span>
       </button>
+
+      <div class="nav-section-header">
+        <span class="nav-section-geo-decor"></span>
+        <span class="nav-section-glow-label">动漫</span>
+        <span class="nav-section-energy-line"></span>
+      </div>
+      <button class="nav-item nav-sub" data-cat="chinese_anime" onclick="setCategoryFilter('chinese_anime')" id="navCatChineseAnime">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">国漫</span><span class="nav-badge" id="badgeChineseAnime">0</span>
+      </button>
+      <button class="nav-item nav-sub" data-cat="japanese_anime" onclick="setCategoryFilter('japanese_anime')" id="navCatJapaneseAnime">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">日漫 / 番剧</span><span class="nav-badge" id="badgeJapaneseAnime">0</span>
+      </button>
+      <button class="nav-item nav-sub" data-cat="theatrical_anime" onclick="setCategoryFilter('theatrical_anime')" id="navCatTheatricalAnime">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">剧场版动画</span><span class="nav-badge" id="badgeTheatricalAnime">0</span>
+      </button>
+      <button class="nav-item nav-sub" data-cat="anime_movie" onclick="setCategoryFilter('anime_movie')" id="navCatAnimeMovie">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">动画电影</span><span class="nav-badge" id="badgeAnimeMovie">0</span>
+      </button>
+
+      <div class="nav-section-header">
+        <span class="nav-section-geo-decor"></span>
+        <span class="nav-section-glow-label">影视剧</span>
+        <span class="nav-section-energy-line"></span>
+      </div>
+      <button class="nav-item nav-sub" data-cat="movie" onclick="setCategoryFilter('movie')" id="navCatMovie">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">电影</span><span class="nav-badge" id="badgeMovie">0</span>
+      </button>
+      <button class="nav-item nav-sub" data-cat="tv_drama" onclick="setCategoryFilter('tv_drama')" id="navCatTvDrama">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">电视剧</span><span class="nav-badge" id="badgeTvDrama">0</span>
+      </button>
+      <button class="nav-item nav-sub" data-cat="web_drama" onclick="setCategoryFilter('web_drama')" id="navCatWebDrama">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">网剧</span><span class="nav-badge" id="badgeWebDrama">0</span>
+      </button>
+      <button class="nav-item nav-sub" data-cat="documentary" onclick="setCategoryFilter('documentary')" id="navCatDocumentary">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-label">纪录片</span><span class="nav-badge" id="badgeDocumentary">0</span>
+      </button>
     </nav>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">
+        <span>收藏夹</span>
+        <span style="cursor:pointer;color:var(--purple);font-size:0.78rem" onclick="openFolderModal()" title="新建收藏夹">＋</span>
+      </div>
+      <div id="sidebarFolders"></div>
+    </div>
 
     <div class="sidebar-section">
       <div class="sidebar-section-title">
@@ -584,7 +1171,9 @@ body::after {
         <span class="bdot"></span>
         <span id="backendLabel">后端未连接</span>
       </div>
-      <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0">⚙</button>
+      <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
+      <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
+      <button class="backend-status" id="btnSelectMode" onclick="toggleSelectionMode()" title="批量选择" style="margin-right:0;font-size:1.1rem;padding:6px 10px">☑</button>
       <button class="btn-add" onclick="openAddModal()">＋ 添加番剧</button>
     </div>
 
@@ -594,6 +1183,36 @@ body::after {
         <div class="stat-item"><div class="stat-icon watching">▶️</div><div class="stat-info"><div class="stat-num" id="statWatching">0</div><div class="stat-label">正在看</div></div></div>
         <div class="stat-item"><div class="stat-icon watched">✅</div><div class="stat-info"><div class="stat-num" id="statWatched">0</div><div class="stat-label">已看完</div></div></div>
       </div>
+      <div class="batch-bar" id="batchBar" style="display:none">
+        <span class="count" id="batchCount">已选 0 项</span>
+        <select id="batchMoveCategory" onchange="batchMoveCategory(this.value);this.value=''" style="margin-left:auto">
+          <option value="">移至分类…</option>
+          <optgroup label="动漫">
+            <option value="chinese_anime">国漫</option>
+            <option value="japanese_anime">日漫 / 番剧</option>
+            <option value="theatrical_anime">剧场版动画</option>
+            <option value="anime_movie">动画电影</option>
+          </optgroup>
+          <optgroup label="影视剧">
+            <option value="movie">电影</option>
+            <option value="tv_drama">电视剧</option>
+            <option value="web_drama">网剧</option>
+            <option value="documentary">纪录片</option>
+          </optgroup>
+        </select>
+        <select id="batchMoveFolder" onchange="batchMoveFolder(this.value);this.value=''" style="">
+          <option value="">移至收藏夹…</option>
+        </select>
+        <select id="batchStatus" onchange="batchSetStatus(this.value);this.value=''" style="">
+          <option value="">更改状态…</option>
+          <option value="towatch">待看</option>
+          <option value="watching">正在看</option>
+          <option value="watched">已看完</option>
+        </select>
+        <button class="batch-action-btn" onclick="selectAllCards()">全选</button>
+        <button class="batch-action-btn" onclick="deselectAllCards()">取消全选</button>
+        <button class="batch-action-btn danger" onclick="batchDelete()">🗑 批量删除</button>
+      </div>
       <div class="card-grid" id="cardGrid"></div>
     </div>
   </main>
@@ -602,7 +1221,13 @@ body::after {
 <!-- ===== Add/Edit Anime Modal ===== -->
 <div class="modal-overlay" id="modalOverlay" style="display:none">
   <div class="modal" >
-    <h2 id="modalTitle">添加番剧</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 id="modalTitle" style="margin-bottom:0">添加番剧</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn-cancel" onclick="closeModal()">取消</button>
+        <button class="btn-save" id="btnSave" onclick="saveAnime()">添加</button>
+      </div>
+    </div>
     <div class="modal-note" id="modalNote">
       💡 输入番剧名称后将通过后端搜索已启用的来源并自动填充信息。<br>
       也可以粘贴番剧链接（每行一个），系统会自动抓取解析。
@@ -633,8 +1258,34 @@ body::after {
         </select>
       </div>
       <div class="modal-field">
+        <label>分类</label>
+        <select id="mCategory">
+          <option value="">未分类</option>
+          <optgroup label="动漫">
+            <option value="chinese_anime">国漫</option>
+            <option value="japanese_anime">日漫 / 番剧</option>
+            <option value="theatrical_anime">剧场版动画</option>
+            <option value="anime_movie">动画电影</option>
+          </optgroup>
+          <optgroup label="影视剧">
+            <option value="movie">电影</option>
+            <option value="tv_drama">电视剧</option>
+            <option value="web_drama">网剧</option>
+            <option value="documentary">纪录片</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+    <div class="modal-field-row">
+      <div class="modal-field">
         <label>总集数 <span id="epSourceTag" style="font-size:0.7rem;color:var(--text3)"></span></label>
         <input type="number" id="mTotalEp" value="12" min="1" max="999">
+      </div>
+      <div class="modal-field">
+        <label>收藏夹</label>
+        <select id="mFolder">
+          <option value="">无</option>
+        </select>
       </div>
     </div>
 
@@ -665,9 +1316,23 @@ body::after {
       <div class="cover-options" id="coverOptions"></div>
     </div>
 
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--glass-border)">
+      <button class="btn-cancel" id="btnDeleteInModal" style="display:none;color:var(--pink);border-color:rgba(255,68,113,0.3);width:100%" onclick="requestDeleteAnime()">🗑 删除此条目</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Delete Confirm Modal ===== -->
+<div class="modal-overlay" id="deleteConfirmOverlay" style="display:none">
+  <div class="modal small" >
+    <h2>确认删除</h2>
+    <div style="text-align:center;padding:16px 0">
+      <p style="font-size:1rem" id="deleteConfirmTitle"></p>
+      <p style="font-size:0.8rem;color:var(--text3);margin-top:6px">此操作不可撤销，进度和记录将被永久删除</p>
+    </div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal()">取消</button>
-      <button class="btn-save" id="btnSave" onclick="saveAnime()">添加</button>
+      <button class="btn-cancel" onclick="closeDeleteConfirm()">取消</button>
+      <button class="btn-save" style="background:var(--pink)" id="btnConfirmDelete">确认删除</button>
     </div>
   </div>
 </div>
@@ -721,14 +1386,39 @@ body::after {
     </div>
   </div>
 </div>
+<!-- ===== Folder Modal ===== -->
+<div class="modal-overlay" id="folderModalOverlay" style="display:none">
+  <div class="modal small" >
+    <h2 id="folderModalTitle">新建收藏夹</h2>
+    <div class="modal-field">
+      <label>收藏夹名称</label>
+      <input type="text" id="fName" placeholder="例如：鬼灭之刃系列" maxlength="40">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeFolderModal()">取消</button>
+      <button class="btn-save" id="btnSaveFolder" onclick="saveFolder()">创建</button>
+    </div>
+  </div>
+</div>
+
+<div class="detail-overlay" id="detailOverlay" style="display:none">>
+  <div class="detail-popup" id="detailPopup" onclick="event.stopPropagation()"></div>
+</div>
 <div class="toast-container" id="toastContainer"></div>
+
+<div class="theme-popover-backdrop" id="themePopoverBackdrop" onclick="closeThemePopover()"></div>
+<div class="theme-popover" id="themePopover"></div>
 
 <script>
 // ===== State =====
 const STORAGE_KEY = 'anime_tracker_v4';
+const FOLDERS_KEY = 'anime_tracker_folders_v1';
 const SETTINGS_KEY = 'anime_tracker_settings_v2';
 const BACKEND_URL = 'http://localhost:3456';
-let animeList = [], currentFilter = 'all', editingId = null, expandedId = null;
+let animeList = [], folderList = [], currentFilter = 'all', editingId = null, detailPopupId = null;
+let currentFolderId = null;
+let activeCategories = new Set();
+let selectionMode = false, selectedIds = new Set();
 let pendingCoverDataUrl = null, backendOnline = false;
 let searchTimer = null, sourceResults = [], chosenSourceIdx = -1, editingSourceId = null;
 let sourceList = { builtIn: [], custom: [] }; // {key, name, type} from backend
@@ -754,12 +1444,20 @@ function saveEnabledSources(sources) {
   saveSettings(s);
 }
 
-function getHiddenBuiltIn() { return loadSettings().hiddenBuiltIn || []; }
-function hideBuiltIn(key) {
+function getHiddenBuiltIn() {
+  // Migrate: clear legacy hidden list so sources reappear
   const s = loadSettings();
-  s.hiddenBuiltIn = [...(s.hiddenBuiltIn || []), key];
-  s.enabledSources = (s.enabledSources || getEnabledSources()).filter(k => k !== key);
-  saveSettings(s);
+  if (s.hiddenBuiltIn && s.hiddenBuiltIn.length > 0) {
+    delete s.hiddenBuiltIn;
+    saveSettings(s);
+  }
+  return [];
+}
+function hideBuiltIn(key) {
+  // No longer permanently hide built-in sources.
+  // Instead just disable (remove from enabled list).
+  const enabled = getEnabledSources().filter(k => k !== key);
+  saveEnabledSources(enabled);
 }
 function getBuiltInNameOverride(key) { return (loadSettings().builtInNames || {})[key] || null; }
 function setBuiltInNameOverride(key, name) {
@@ -775,7 +1473,6 @@ async function loadSourceList() {
       builtIn: [
         { key: 'bgm.tv', name: getBuiltInNameOverride('bgm.tv') || 'Bangumi 番组计划', type: 'builtin' },
         { key: 'myanimelist.net', name: getBuiltInNameOverride('myanimelist.net') || 'MyAnimeList', type: 'builtin' },
-        { key: 'anilist.co', name: getBuiltInNameOverride('anilist.co') || 'AniList', type: 'builtin' },
       ].filter(s => !getHiddenBuiltIn().includes(s.key)),
       custom: []
     };
@@ -1219,15 +1916,25 @@ function loadData() {
     animeList = animeList.map(a => ({
       ...a, totalEpisodes: a.totalEpisodes || 12, watchedEpisodes: a.watchedEpisodes || [],
       cover: a.cover || null, synopsis: a.synopsis || '', genres: a.genres || [], sourceUrl: a.sourceUrl || '',
+      category: a.category || a.animeType || null, folderId: a.folderId || null,
     }));
   } catch(e) { animeList = []; }
 }
 function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(animeList)); }
+function loadFolders() {
+  try { const raw = localStorage.getItem(FOLDERS_KEY); if (raw) folderList = JSON.parse(raw); }
+  catch(e) { folderList = []; }
+}
+function saveFolders() { localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList)); }
 
 // ===== Stats & Filter =====
 function updateStats() {
   const counts = { towatch:0, watching:0, watched:0 };
-  animeList.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+  const cats = { chinese_anime:0, japanese_anime:0, theatrical_anime:0, anime_movie:0, movie:0, tv_drama:0, web_drama:0, documentary:0 };
+  animeList.forEach(a => {
+    if (counts[a.status] !== undefined) counts[a.status]++;
+    if (a.category && cats[a.category] !== undefined) cats[a.category]++;
+  });
   document.getElementById('statTowatch').textContent = counts.towatch;
   document.getElementById('statWatching').textContent = counts.watching;
   document.getElementById('statWatched').textContent = counts.watched;
@@ -1235,12 +1942,50 @@ function updateStats() {
   document.getElementById('badgeTowatch').textContent = counts.towatch;
   document.getElementById('badgeWatching').textContent = counts.watching;
   document.getElementById('badgeWatched').textContent = counts.watched;
+  document.getElementById('badgeChineseAnime').textContent = cats.chinese_anime;
+  document.getElementById('badgeJapaneseAnime').textContent = cats.japanese_anime;
+  document.getElementById('badgeTheatricalAnime').textContent = cats.theatrical_anime;
+  document.getElementById('badgeAnimeMovie').textContent = cats.anime_movie;
+  document.getElementById('badgeMovie').textContent = cats.movie;
+  document.getElementById('badgeTvDrama').textContent = cats.tv_drama;
+  document.getElementById('badgeWebDrama').textContent = cats.web_drama;
+  document.getElementById('badgeDocumentary').textContent = cats.documentary;
 }
 function setFilter(f) {
   currentFilter = f;
+  currentFolderId = null;
+  activeCategories.clear();
+  document.querySelectorAll('[data-cat]').forEach(el => el.classList.remove('active'));
   document.getElementById('searchInput').value = '';
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.filter === f);
+  });
   renderCards();
+  renderFolderList();
+}
+function setCategoryFilter(cat) {
+  currentFolderId = null;
+  document.getElementById('searchInput').value = '';
+
+  // Single-select: clicking active category deselects it; otherwise switch to it
+  if (activeCategories.has(cat)) {
+    activeCategories.clear();
+    currentFilter = 'all';
+    document.querySelector('[data-filter="all"]').classList.add('active');
+  } else {
+    activeCategories.clear();
+    activeCategories.add(cat);
+    const allBtn = document.querySelector('[data-filter="all"]');
+    if (allBtn) allBtn.classList.remove('active');
+  }
+
+  // Update category nav active states
+  document.querySelectorAll('[data-cat]').forEach(el => {
+    el.classList.toggle('active', activeCategories.has(el.dataset.cat));
+  });
+
+  renderCards();
+  renderFolderList();
 }
 function showToast(msg) {
   const c = document.getElementById('toastContainer');
@@ -1251,8 +1996,15 @@ function showToast(msg) {
 // ===== Render =====
 function getFilteredList() {
   const s = document.getElementById('searchInput').value.trim().toLowerCase();
-  let list = animeList.filter(a => a && a.title && a.id); // skip corrupt entries
-  if (currentFilter !== 'all') list = list.filter(a => a.status === currentFilter);
+  let list = animeList.filter(a => a && a.title && a.id);
+  // Status filter
+  if (currentFilter === 'all' || currentFilter.startsWith('cat-')) { /* no status filter */ }
+  else if (currentFilter === 'folder') list = list.filter(a => a.folderId === currentFolderId);
+  else list = list.filter(a => a.status === currentFilter);
+  // Category filter (multi-select OR)
+  if (activeCategories.size > 0) {
+    list = list.filter(a => activeCategories.has(a.category));
+  }
   if (s) list = list.filter(a => (a.title || '').toLowerCase().includes(s));
   return list;
 }
@@ -1274,7 +2026,13 @@ function renderCards() {
     const total = a.totalEpisodes || 12;
     const progress = total > 0 ? Math.round((wc / total) * 100) : 0;
     const st = { towatch:'待看', watching:'正在看', watched:'已看完' };
-    const isExpanded = expandedId === a.id;
+    const catLabels = {
+      chinese_anime:'国漫', japanese_anime:'日漫', theatrical_anime:'剧场版',
+      anime_movie:'动画电影', movie:'电影', tv_drama:'电视剧',
+      web_drama:'网剧', documentary:'纪录片'
+    };
+    const catBadge = a.category && catLabels[a.category]
+      ? `<span class="card-cat-badge">${catLabels[a.category]}</span>` : '';
 
     let coverHTML;
     if (a.cover) {
@@ -1286,47 +2044,20 @@ function renderCards() {
       coverHTML = `<div class="card-cover-gradient" style="background:linear-gradient(135deg,${c1},${c2})">${escapeHtml(a.title[0]||'番')}</div>`;
     }
 
-    let epsHTML = '';
-    for (let i = 1; i <= total; i++) {
-      const w = a.watchedEpisodes && a.watchedEpisodes.includes(i);
-      epsHTML += `<div class="episode-block${w?' watched':''}" data-action="toggleEp" data-aid="${a.id}" data-ep="${i}" title="第${i}集">${i}</div>`;
-    }
+    const genreTags = `<div class="card-genres">${(a.genres && a.genres.length > 0) ? a.genres.slice(0,4).map(g => `<span class="card-genre-tag">${escapeHtml(g)}</span>`).join('') : ''}</div>`;
 
-    const genreTags = (a.genres && a.genres.length > 0)
-      ? `<div class="card-genres">${a.genres.slice(0,4).map(g => `<span class="card-genre-tag">${escapeHtml(g)}</span>`).join('')}</div>` : '';
-
-    const hasSyn = a.synopsis && a.synopsis.trim();
-    const synHTML = hasSyn ? `
-      <div class="card-synopsis" id="synopsis-${a.id}">${escapeHtml(a.synopsis.substring(0,500))}</div>
-      ${a.synopsis.length > 500 ? `<button class="card-synopsis-toggle" data-action="toggleSyn" data-aid="${a.id}" id="synToggle-${a.id}">展开全部</button>` : ''}` : '';
-
-    const srcLink = a.sourceUrl
-      ? `<div style="margin-top:6px;font-size:0.75rem;"><a href="${escapeHtml(a.sourceUrl)}" target="_blank" style="color:var(--text3);text-decoration:none" >🔗 来源</a></div>` : '';
-
+    const isSelected = selectedIds.has(a.id);
     return `
-      <div class="anime-card" style="animation-delay:${idx*0.04}s" id="card-${a.id}">
-        <div class="card-cover" data-action="expand" data-aid="${a.id}">${coverHTML}<div class="card-cover-overlay"></div><span class="card-status-badge ${a.status}">${st[a.status]}</span></div>
-        <div class="card-body" data-action="expand" data-aid="${a.id}">
+      <div class="anime-card${isSelected ? ' selected' : ''}" style="animation-delay:${idx*0.04}s" id="card-${a.id}" data-aid="${a.id}">
+        <div class="card-select-check">✓</div>
+        <div class="card-select-overlay"></div>
+        <div class="card-cover">${coverHTML}<div class="card-cover-overlay"></div>${catBadge}<span class="card-status-badge ${a.status}">${st[a.status]}</span></div>
+        <div class="card-body">
           <div class="card-title" title="${escapeHtml(a.title)}">${escapeHtml(a.title)}</div>
           ${genreTags}
           <div class="card-meta">
             <div style="flex:1;min-width:0;"><div class="card-progress"><span>${wc}/${total} 集</span><div class="card-progress-bar"><div class="card-progress-bar-fill ${a.status}" style="width:${progress}%"></div></div></div></div>
             ${a.score ? `<span class="card-rating">★ ${a.score.toFixed(1)}</span>` : ''}
-            <div class="card-actions">
-              <button class="card-action-btn" data-action="edit" data-aid="${a.id}" title="编辑">✎</button>
-              <button class="card-action-btn danger" data-action="delete" data-aid="${a.id}" title="删除">✕</button>
-            </div>
-          </div>
-        </div>
-        <div class="card-expand${isExpanded?' open':''}" id="expand-${a.id}">
-          <div class="expand-inner">
-            ${synHTML}${srcLink}
-            <div class="expand-header"><span>点击集数切换观看状态</span><span class="expand-episode-count">${wc}/${total}</span></div>
-            <div class="episode-grid">${epsHTML}</div>
-            <div class="episode-actions">
-              <button class="episode-action-btn" data-action="markAll" data-aid="${a.id}">✓ 全部已看</button>
-              <button class="episode-action-btn" data-action="resetEp" data-aid="${a.id}">↺ 重置进度</button>
-            </div>
           </div>
         </div>
       </div>`;
@@ -1340,63 +2071,267 @@ function renderCards() {
     grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>渲染出错，请刷新页面</p></div>`;
     console.error('renderCards error:', e);
   }
+  if (detailPopupId !== null) renderDetailPopup(detailPopupId);
 }
 
 
 // ===== Card Grid Event Delegation =====
+// Left-click → edit (or toggle selection in selection mode)
 document.getElementById('cardGrid').addEventListener('click', function(e) {
-  const target = e.target.closest('[data-action]');
-  if (!target) return;
-  const action = target.dataset.action;
-  const aid = parseInt(target.dataset.aid);
-
-  switch (action) {
-    case 'expand':
-      toggleExpand(aid);
-      break;
-    case 'edit':
-      openEditModal(aid);
-      break;
-    case 'delete':
-      deleteAnime(aid);
-      break;
-    case 'markAll':
-      markAllEpisodes(aid);
-      break;
-    case 'resetEp':
-      resetEpisodes(aid);
-      break;
-    case 'toggleEp':
-      toggleEpisode(aid, parseInt(target.dataset.ep));
-      break;
-    case 'toggleSyn':
-      toggleSynopsis(aid);
-      break;
+  const card = e.target.closest('.anime-card');
+  if (!card) return;
+  const aid = parseInt(card.dataset.aid);
+  if (!aid) return;
+  if (selectionMode) {
+    toggleCardSelect(aid);
+  } else {
+    openEditModal(aid);
   }
 });
-function toggleSynopsis(id) {
-  const el = document.getElementById(`synopsis-${id}`);
-  const toggle = document.getElementById(`synToggle-${id}`);
-  const anime = animeList.find(a => a.id === id);
-  if (!el || !anime) return;
-  if (el.textContent.length < anime.synopsis.length) { el.textContent = anime.synopsis; toggle.textContent = '收起'; }
-  else { el.textContent = anime.synopsis.substring(0, 500); toggle.textContent = '展开全部'; }
+
+// Right-click → episode detail popup positioned near card
+document.getElementById('cardGrid').addEventListener('contextmenu', function(e) {
+  const card = e.target.closest('.anime-card');
+  if (!card) return;
+  e.preventDefault();
+  const aid = parseInt(card.dataset.aid);
+  if (!aid) return;
+  const rect = card.getBoundingClientRect();
+  openDetailPopup(aid, rect);
+});
+
+// ===== Batch Selection =====
+function toggleSelectionMode() {
+  selectionMode = !selectionMode;
+  if (!selectionMode) { selectedIds.clear(); updateBatchBar(); }
+  document.getElementById('cardGrid').classList.toggle('selection-mode', selectionMode);
+  document.getElementById('btnSelectMode').style.color = selectionMode ? 'var(--purple)' : '';
+  renderCards();
 }
 
-function toggleExpand(id) {
-  const el = document.getElementById('expand-' + id);
-  if (!el) return;
-  if (expandedId === id) {
-    el.classList.remove('open');
-    expandedId = null;
-  } else {
-    if (expandedId !== null) {
-      const prev = document.getElementById('expand-' + expandedId);
-      if (prev) prev.classList.remove('open');
+function updateBatchBar() {
+  const bar = document.getElementById('batchBar');
+  const show = selectionMode && selectedIds.size > 0;
+  bar.style.display = show ? 'flex' : 'none';
+  document.getElementById('batchCount').textContent = `已选 ${selectedIds.size} 项`;
+  // Populate folder dropdown
+  const folderSel = document.getElementById('batchMoveFolder');
+  folderSel.innerHTML = '<option value="">移至收藏夹…</option>' +
+    folderList.map(f => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('');
+}
+
+function toggleCardSelect(aid) {
+  if (!selectionMode) return;
+  if (selectedIds.has(aid)) selectedIds.delete(aid);
+  else selectedIds.add(aid);
+  updateBatchBar();
+  // Update just this card's class
+  const card = document.getElementById('card-' + aid);
+  if (card) card.classList.toggle('selected', selectedIds.has(aid));
+}
+
+function selectAllCards() {
+  const list = getFilteredList();
+  list.forEach(a => selectedIds.add(a.id));
+  updateBatchBar();
+  renderCards();
+}
+
+function deselectAllCards() {
+  selectedIds.clear();
+  updateBatchBar();
+  renderCards();
+}
+
+function batchMoveCategory(cat) {
+  if (!cat || selectedIds.size === 0) return;
+  if (!confirm(`将 ${selectedIds.size} 个条目移动到分类"${cat}"？`)) return;
+  animeList.forEach(a => { if (selectedIds.has(a.id)) a.category = cat; });
+  saveData();
+  selectedIds.clear();
+  selectionMode = false;
+  document.getElementById('cardGrid').classList.remove('selection-mode');
+  document.getElementById('btnSelectMode').style.color = '';
+  updateBatchBar();
+  renderCards();
+  showToast('已批量更新分类 ✓');
+}
+
+function batchMoveFolder(fid) {
+  if (!fid || selectedIds.size === 0) return;
+  const folderId = parseInt(fid) || null;
+  animeList.forEach(a => { if (selectedIds.has(a.id)) a.folderId = folderId; });
+  saveData();
+  selectedIds.clear();
+  selectionMode = false;
+  document.getElementById('cardGrid').classList.remove('selection-mode');
+  document.getElementById('btnSelectMode').style.color = '';
+  updateBatchBar();
+  renderCards();
+  renderFolderList();
+  showToast('已批量移入收藏夹 ✓');
+}
+
+function batchSetStatus(status) {
+  if (!status || selectedIds.size === 0) return;
+  animeList.forEach(a => {
+    if (selectedIds.has(a.id)) {
+      a.status = status;
+      if (status === 'watched') a.watchedEpisodes = Array.from({length: a.totalEpisodes||12}, (_,i)=>i+1);
+      else if (status === 'towatch') a.watchedEpisodes = [];
     }
-    el.classList.add('open');
-    expandedId = id;
+  });
+  saveData();
+  selectedIds.clear();
+  selectionMode = false;
+  document.getElementById('cardGrid').classList.remove('selection-mode');
+  document.getElementById('btnSelectMode').style.color = '';
+  updateBatchBar();
+  renderCards();
+  showToast('已批量更新状态 ✓');
+}
+
+function batchDelete() {
+  if (selectedIds.size === 0) return;
+  if (!confirm(`确定要删除选中的 ${selectedIds.size} 个条目吗？此操作不可撤销。`)) return;
+  animeList = animeList.filter(a => !selectedIds.has(a.id));
+  selectedIds.clear();
+  selectionMode = false;
+  document.getElementById('cardGrid').classList.remove('selection-mode');
+  document.getElementById('btnSelectMode').style.color = '';
+  updateBatchBar();
+  saveData();
+  renderCards();
+  renderFolderList();
+  showToast('已批量删除 ✓');
+}
+let detailPopupCard = null, detailPopupScrollHandler = null;
+
+let detailPopupCloseHandler = null;
+
+function openDetailPopup(id, anchorRect) {
+  detailPopupId = id;
+  renderDetailPopup(id);
+  const overlay = document.getElementById('detailOverlay');
+  overlay.style.display = 'block';
+
+  // Store card reference for scroll tracking
+  const card = document.querySelector(`.anime-card[data-aid="${id}"]`);
+  detailPopupCard = card || null;
+
+  positionDetailPopup(anchorRect);
+
+  // Remove old scroll listener if any
+  if (detailPopupScrollHandler) {
+    window.removeEventListener('scroll', detailPopupScrollHandler, true);
   }
+  // Add scroll listener to reposition popup with the card
+  detailPopupScrollHandler = () => {
+    if (detailPopupCard) {
+      const r = detailPopupCard.getBoundingClientRect();
+      positionDetailPopup(r);
+    }
+  };
+  window.addEventListener('scroll', detailPopupScrollHandler, true);
+
+  // Close on outside click (overlay is pointer-events:none, so use document listener)
+  if (detailPopupCloseHandler) document.removeEventListener('click', detailPopupCloseHandler);
+  detailPopupCloseHandler = (e) => {
+    const popup = document.getElementById('detailPopup');
+    if (popup && !popup.contains(e.target) && !e.target.closest('.anime-card')) {
+      closeDetailPopup();
+    }
+  };
+  setTimeout(() => document.addEventListener('click', detailPopupCloseHandler), 0);
+}
+
+function positionDetailPopup(anchorRect) {
+  const popup = document.getElementById('detailPopup');
+  const popupW = 360;
+  const popupMaxH = Math.min(420, window.innerHeight - 24);
+  const gap = 8;
+
+  if (anchorRect) {
+    // Horizontal: prefer right side of card
+    let left = anchorRect.right + gap;
+    if (left + popupW > window.innerWidth - 12) left = anchorRect.left - popupW - gap;
+    left = Math.max(12, Math.min(left, window.innerWidth - popupW - 12));
+
+    // Vertical: anchor to card top, but clamp within viewport
+    let top = anchorRect.top;
+    const popupH = Math.min(popupMaxH, popup.scrollHeight || 400);
+    if (top + popupH > window.innerHeight - 12) {
+      top = Math.max(12, window.innerHeight - popupH - 12);
+    }
+    if (top < 12) top = 12;
+
+    popup.style.position = 'fixed';
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+    popup.style.transform = '';
+    popup.style.maxHeight = popupMaxH + 'px';
+  } else {
+    popup.style.position = 'absolute';
+    popup.style.left = '50%';
+    popup.style.top = '50%';
+    popup.style.transform = 'translate(-50%, -50%)';
+    popup.style.maxHeight = '70vh';
+  }
+}
+
+function closeDetailPopup(e) {
+  if (e && e.target !== document.getElementById('detailOverlay')) return;
+  detailPopupId = null;
+  detailPopupCard = null;
+  if (detailPopupScrollHandler) {
+    window.removeEventListener('scroll', detailPopupScrollHandler, true);
+    detailPopupScrollHandler = null;
+  }
+  if (detailPopupCloseHandler) {
+    document.removeEventListener('click', detailPopupCloseHandler);
+    detailPopupCloseHandler = null;
+  }
+  document.getElementById('detailOverlay').style.display = 'none';
+  const popup = document.getElementById('detailPopup');
+  popup.style.position = '';
+  popup.style.transform = '';
+  popup.style.left = '';
+  popup.style.top = '';
+  popup.style.maxHeight = '';
+}
+
+function renderDetailPopup(id) {
+  const a = animeList.find(x => x.id === id);
+  if (!a) { closeDetailPopup(); return; }
+  const wc = a.watchedEpisodes ? a.watchedEpisodes.length : 0;
+  const total = a.totalEpisodes || 12;
+  const st = { towatch: '待看', watching: '正在看', watched: '已看完' };
+
+  let epsHTML = '';
+  for (let i = 1; i <= total; i++) {
+    const w = a.watchedEpisodes && a.watchedEpisodes.includes(i);
+    epsHTML += `<div class="episode-block${w ? ' watched' : ''}" onclick="toggleEpisode(${a.id},${i})" title="第${i}集">${i}</div>`;
+  }
+
+  document.getElementById('detailPopup').innerHTML = `
+    <div class="detail-popup-header">
+      <div class="detail-popup-title">${escapeHtml(a.title)}</div>
+      <button class="detail-popup-close" onclick="closeDetailPopup()">✕</button>
+    </div>
+    <div class="detail-popup-meta">
+      <span class="card-status-badge ${a.status}" style="position:static;display:inline-block">${st[a.status]}</span>
+      <span>${wc}/${total} 集</span>
+      ${a.score ? `<span>★ ${a.score.toFixed(1)}</span>` : ''}
+    </div>
+    <div class="detail-popup-section">
+      <div class="detail-popup-section-title">剧集进度 · 点击切换</div>
+      <div class="episode-grid">${epsHTML}</div>
+      <div class="episode-actions">
+        <button class="episode-action-btn" onclick="markAllEpisodes(${a.id})">✓ 全部已看</button>
+        <button class="episode-action-btn" onclick="resetEpisodes(${a.id})">↺ 重置进度</button>
+      </div>
+    </div>
+  `;
 }
 
 // ===== Episodes =====
@@ -1408,17 +2343,18 @@ function toggleEpisode(animeId, epNum) {
   else { a.watchedEpisodes.push(epNum); a.watchedEpisodes.sort((x,y)=>x-y); }
   const total = a.totalEpisodes || 12, wc = a.watchedEpisodes.length;
   if (wc === 0) a.status = 'towatch'; else if (wc >= total) a.status = 'watched'; else a.status = 'watching';
-  saveData(); expandedId = animeId; renderCards();
+  saveData(); detailPopupId = animeId; renderCards();
 }
 function markAllEpisodes(id) {
   const a = animeList.find(x => x.id === id); if (!a) return;
   a.watchedEpisodes = Array.from({length: a.totalEpisodes||12}, (_,i)=>i+1); a.status = 'watched';
-  saveData(); expandedId = id; renderCards();
+  saveData(); detailPopupId = id; renderCards();
 }
 function resetEpisodes(id) {
+  if (!confirm('确定要重置这部番剧的观看进度吗？所有已看集数将被清空，状态将变为"待看"。')) return;
   const a = animeList.find(x => x.id === id); if (!a) return;
   a.watchedEpisodes = []; a.status = 'towatch';
-  saveData(); expandedId = id; renderCards();
+  saveData(); detailPopupId = id; renderCards();
 }
 
 // ===== Modal: Search & Links =====
@@ -1518,8 +2454,13 @@ function autoFill(r, src) {
   if (r.synopsis) document.getElementById('mSynopsis').value = r.synopsis;
   if (r.score) document.getElementById('mScore').value = typeof r.score === 'number' ? r.score : parseFloat(r.score) || '';
   if (r.cover) setCover(r.cover);
+  if (r.animeType) {
+    // Migrate old animeType to new category
+    const migrate = { tv:'japanese_anime', movie:'anime_movie', ova:'japanese_anime', web:'japanese_anime', special:'japanese_anime' };
+    document.getElementById('mCategory').value = migrate[r.animeType] || r.animeType;
+  }
+  if (r.category) document.getElementById('mCategory').value = r.category;
   document.getElementById('mTitle')._genres = r.genres || [];
-  // Render cover options if multiple
   renderCoverOptions(r.covers || (r.cover ? [{ url: r.cover, source: src || r.source || '来源' }] : []));
 }
 
@@ -1555,6 +2496,7 @@ function selectCover(idx) {
 
 document.addEventListener('click', e => {
   if (!e.target.closest('.search-field-wrap')) document.getElementById('searchResults').classList.remove('show');
+  if (!e.target.closest('.theme-popover') && !e.target.closest('#btnTheme')) closeThemePopover();
 });
 
 // ===== CRUD =====
@@ -1564,7 +2506,9 @@ function openAddModal() {
   document.getElementById('modalTitle').textContent = '添加番剧';
   document.getElementById('btnSave').textContent = '添加';
   document.getElementById('mTitle').value = ''; document.getElementById('mTitle')._genres = null;
-  document.getElementById('mStatus').value = 'towatch'; document.getElementById('mTotalEp').value = '12';
+  document.getElementById('mStatus').value = 'towatch'; document.getElementById('mCategory').value = '';
+  document.getElementById('mTotalEp').value = '12'; document.getElementById('mFolder').value = '';
+  populateFolderDropdown();
   document.getElementById('mScore').value = ''; document.getElementById('mCover').value = '';
   document.getElementById('mSynopsis').value = ''; document.getElementById('mLinks').value = '';
   document.getElementById('mCoverFile').value = ''; document.getElementById('epSourceTag').textContent = '';
@@ -1572,6 +2516,7 @@ function openAddModal() {
   document.getElementById('sourceCompare').innerHTML = '';
   document.getElementById('coverPreview').innerHTML = '<span class="placeholder">预览</span>';
   document.getElementById('modalNote').style.display = '';
+  document.getElementById('btnDeleteInModal').style.display = 'none';
   document.getElementById('modalOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('mTitle').focus(), 100);
 }
@@ -1583,13 +2528,17 @@ function openEditModal(animeId) {
   document.getElementById('modalTitle').textContent = '编辑番剧';
   document.getElementById('btnSave').textContent = '保存';
   document.getElementById('mTitle').value = a.title; document.getElementById('mTitle')._genres = a.genres || null;
-  document.getElementById('mStatus').value = a.status; document.getElementById('mTotalEp').value = a.totalEpisodes || 12;
+  document.getElementById('mStatus').value = a.status; document.getElementById('mCategory').value = a.category || '';
+  document.getElementById('mTotalEp').value = a.totalEpisodes || 12;
+  populateFolderDropdown();
+  document.getElementById('mFolder').value = a.folderId || '';
   document.getElementById('mScore').value = a.score != null ? a.score : '';
   document.getElementById('mCover').value = a.cover || ''; document.getElementById('mSynopsis').value = a.synopsis || '';
   document.getElementById('mLinks').value = a.sourceUrl || ''; document.getElementById('mCoverFile').value = '';
   document.getElementById('epSourceTag').textContent = '';
   document.getElementById('searchResults').classList.remove('show'); document.getElementById('sourceCompare').innerHTML = '';
   document.getElementById('modalNote').style.display = 'none';
+  document.getElementById('btnDeleteInModal').style.display = '';
   const preview = document.getElementById('coverPreview');
   if (a.cover) preview.innerHTML = `<img src="${escapeHtml(a.cover)}" alt="封面预览" onerror="this.parentElement.innerHTML='<span class=\\'placeholder\\'>预览</span>'">`;
   else preview.innerHTML = '<span class="placeholder">预览</span>';
@@ -1615,6 +2564,8 @@ function saveAnime() {
   const scoreRaw = document.getElementById('mScore').value;
   const coverUrl = document.getElementById('mCover').value.trim() || null;
   const synopsis = document.getElementById('mSynopsis').value.trim();
+  const category = document.getElementById('mCategory').value || null;
+  const folderId = parseInt(document.getElementById('mFolder').value) || null;
   const sourceUrl = sourceResults.length > 0 && chosenSourceIdx >= 0 ? sourceResults[chosenSourceIdx].url || sourceResults[chosenSourceIdx]._url || '' : '';
   const genres = document.getElementById('mTitle')._genres || [];
   let score = scoreRaw ? parseFloat(scoreRaw) : null;
@@ -1626,23 +2577,52 @@ function saveAnime() {
     const oldTotal = a.totalEpisodes || 12;
     a.title = title; a.status = status; a.totalEpisodes = totalEpisodes;
     a.score = score; a.cover = finalCover; a.synopsis = synopsis; a.sourceUrl = sourceUrl; a.genres = genres;
+    a.category = category; a.folderId = folderId;
     if (totalEpisodes < oldTotal && a.watchedEpisodes) a.watchedEpisodes = a.watchedEpisodes.filter(e => e <= totalEpisodes);
     if (status === 'watched') a.watchedEpisodes = Array.from({length: totalEpisodes}, (_,i)=>i+1);
     else if (status === 'towatch') a.watchedEpisodes = [];
   } else {
     let we = [];
     if (status === 'watched') we = Array.from({length: totalEpisodes}, (_,i)=>i+1);
-    animeList.push({ id: Date.now(), title, status, totalEpisodes, watchedEpisodes: we, score, cover: finalCover, synopsis, genres, sourceUrl, addedAt: new Date().toISOString() });
+    animeList.push({ id: Date.now(), title, status, totalEpisodes, watchedEpisodes: we, score, cover: finalCover, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() });
   }
   saveData(); closeModal(); renderCards();
 }
 
 function deleteAnime(id) {
-  if (!confirm('确定要删除这部番剧吗？此操作不可撤销。')) return;
   animeList = animeList.filter(a => a.id !== id);
-  if (expandedId === id) expandedId = null;
+  if (detailPopupId === id) { detailPopupId = null; document.getElementById('detailOverlay').style.display = 'none'; }
+  if (editingId === id) editingId = null;
   saveData(); renderCards();
 }
+
+let pendingDeleteId = null;
+function requestDeleteAnime() {
+  if (!editingId) return;
+  const a = animeList.find(x => x.id === editingId);
+  if (!a) return;
+  pendingDeleteId = editingId;
+  document.getElementById('deleteConfirmTitle').textContent = '确定要删除「' + a.title + '」吗？';
+  document.getElementById('modalOverlay').style.display = 'none';
+  document.getElementById('deleteConfirmOverlay').style.display = 'flex';
+}
+
+function closeDeleteConfirm() {
+  pendingDeleteId = null;
+  document.getElementById('deleteConfirmOverlay').style.display = 'none';
+  // Re-open the edit modal
+  if (editingId) document.getElementById('modalOverlay').style.display = 'flex';
+}
+
+document.getElementById('btnConfirmDelete').addEventListener('click', function() {
+  if (!pendingDeleteId) return;
+  const id = pendingDeleteId;
+  pendingDeleteId = null;
+  document.getElementById('deleteConfirmOverlay').style.display = 'none';
+  document.getElementById('modalOverlay').style.display = 'none';
+  deleteAnime(id);
+  showToast('已删除 ✓');
+});
 
 function closeModal(e) {
   document.getElementById('modalOverlay').style.display = 'none';
@@ -1650,26 +2630,224 @@ function closeModal(e) {
 }
 
 // ===== Sidebar =====
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const main = document.querySelector('.main');
+  sidebar.classList.toggle('collapsed');
+  if (sidebar.classList.contains('collapsed')) {
+    main.style.marginLeft = 'calc(var(--sidebar-collapsed) + 24px)';
+  } else {
+    main.style.marginLeft = 'calc(var(--sidebar-w) + 24px)';
+  }
+}
 function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('show'); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
+
+// ===== Folders =====
+function renderFolderList() {
+  const container = document.getElementById('sidebarFolders');
+  container.innerHTML = folderList.map(f => {
+    const count = animeList.filter(a => a.folderId === f.id).length;
+    return `<div class="sidebar-source-item${currentFolderId === f.id ? ' enabled' : ''}" onclick="openFolder(${f.id})" title="${escapeHtml(f.name)} · ${count} 部">
+      <span class="src-dot"></span>
+      <span class="src-name">${escapeHtml(f.name)} (${count})</span>
+      <span class="src-del" onclick="event.stopPropagation();deleteFolder(${f.id})" title="删除收藏夹">✕</span>
+    </div>`;
+  }).join('');
+}
+
+function openFolder(id) {
+  currentFolderId = id;
+  currentFilter = 'folder';
+  activeCategories.clear();
+  document.getElementById('searchInput').value = '';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('[data-cat]').forEach(el => el.classList.remove('active'));
+  renderCards();
+  renderFolderList();
+}
+
+function openFolderModal(editId) {
+  document.getElementById('folderModalOverlay').style.display = 'flex';
+  if (editId) {
+    const f = folderList.find(x => x.id === editId);
+    if (!f) return;
+    document.getElementById('folderModalTitle').textContent = '编辑收藏夹';
+    document.getElementById('fName').value = f.name;
+    document.getElementById('btnSaveFolder').textContent = '保存';
+    document.getElementById('fName')._editId = editId;
+  } else {
+    document.getElementById('folderModalTitle').textContent = '新建收藏夹';
+    document.getElementById('fName').value = '';
+    document.getElementById('btnSaveFolder').textContent = '创建';
+    document.getElementById('fName')._editId = null;
+  }
+  setTimeout(() => document.getElementById('fName').focus(), 100);
+}
+
+function closeFolderModal() {
+  document.getElementById('folderModalOverlay').style.display = 'none';
+}
+
+function saveFolder() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { showToast('请输入收藏夹名称'); return; }
+  const editId = document.getElementById('fName')._editId;
+  if (editId) {
+    const f = folderList.find(x => x.id === editId);
+    if (f) f.name = name;
+  } else {
+    folderList.push({ id: Date.now(), name, createdAt: new Date().toISOString() });
+  }
+  saveFolders();
+  renderFolderList();
+  closeFolderModal();
+  showToast(editId ? '收藏夹已更新 ✓' : '收藏夹已创建 ✓');
+}
+
+function deleteFolder(id) {
+  if (!confirm('确定删除此收藏夹？番剧不会被删除。')) return;
+  // Unlink anime from this folder
+  animeList.forEach(a => { if (a.folderId === id) a.folderId = null; });
+  folderList = folderList.filter(f => f.id !== id);
+  saveData();
+  saveFolders();
+  renderCards();
+  renderFolderList();
+}
+
+function moveToFolder(animeId, folderId) {
+  const a = animeList.find(x => x.id === animeId);
+  if (!a) return;
+  a.folderId = folderId || null;
+  saveData();
+  renderCards();
+  renderFolderList();
+  showToast(folderId ? '已移入收藏夹 ✓' : '已移出收藏夹 ✓');
+}
+
+function populateFolderDropdown() {
+  const sel = document.getElementById('mFolder');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">无</option>' + folderList.map(f =>
+    `<option value="${f.id}">${escapeHtml(f.name)}</option>`
+  ).join('');
+}
 
 function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 
 // ===== Keyboard =====
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    if (selectionMode) { toggleSelectionMode(); return; }
     if (document.getElementById('settingsModalOverlay').style.display === 'flex') closeSettingsModal();
     else if (document.getElementById('sourceModalOverlay').style.display === 'flex') closeAddSourceModal();
+    else if (document.getElementById('folderModalOverlay').style.display === 'flex') closeFolderModal();
+    else if (document.getElementById('deleteConfirmOverlay').style.display === 'flex') closeDeleteConfirm();
     else if (document.getElementById('modalOverlay').style.display === 'flex') closeModal();
+    else if (document.getElementById('detailOverlay').style.display === 'flex') closeDetailPopup();
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); document.getElementById('searchInput').focus(); }
 });
 
+// ===== Theme System =====
+const THEMES = [
+  { id: 'anime',  name: 'Anime',      icon: '🌌', desc: '二次元星云暗色' },
+  { id: 'apple',  name: 'Apple',      icon: '◈', desc: '摄影画廊白昼' },
+  { id: 'claude', name: 'Claude',     icon: '◆', desc: '温暖编辑奶油' },
+  { id: 'linear', name: 'Linear',     icon: '▣', desc: '暗黑产品面板' },
+  { id: 'lovable',name: 'Lovable',    icon: '◇', desc: '羊皮纸暖灰' },
+  { id: 'tesla',  name: 'Tesla',      icon: '○', desc: '极简纯白展厅' },
+];
+let currentTheme = localStorage.getItem('app-theme') || 'anime';
+
+function applyTheme(id) {
+  currentTheme = id;
+  document.documentElement.setAttribute('data-theme', id === 'anime' ? '' : id);
+  if (id === 'anime') document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('app-theme', id);
+  updateThemeButton();
+}
+
+function cycleTheme() {
+  // Keep for quick-cycle via keyboard shortcut or programmatic use
+  const idx = THEMES.findIndex(t => t.id === currentTheme);
+  const next = THEMES[(idx + 1) % THEMES.length];
+  applyTheme(next.id);
+  showToast(`主题切换：${next.icon} ${next.name} — ${next.desc}`);
+  renderThemePopover();
+}
+
+function toggleThemePopover() {
+  const popover = document.getElementById('themePopover');
+  const backdrop = document.getElementById('themePopoverBackdrop');
+  if (popover.classList.contains('show')) {
+    closeThemePopover();
+    return;
+  }
+  renderThemePopover();
+  popover.classList.add('show');
+  backdrop.classList.add('show');
+  // Position popover relative to the theme button
+  const btn = document.getElementById('btnTheme');
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    popover.style.top = (rect.bottom + 8) + 'px';
+    popover.style.right = (window.innerWidth - rect.right) + 'px';
+  }
+}
+
+function closeThemePopover() {
+  document.getElementById('themePopover').classList.remove('show');
+  document.getElementById('themePopoverBackdrop').classList.remove('show');
+}
+
+function renderThemePopover() {
+  const popover = document.getElementById('themePopover');
+  popover.innerHTML = THEMES.map(t => `
+    <button class="theme-option${t.id === currentTheme ? ' active' : ''}" onclick="setTheme('${t.id}');renderThemePopover();">
+      <span class="theme-option-icon">${t.icon}</span>
+      <span class="theme-option-info">
+        <div class="theme-option-name">${t.name}</div>
+        <div class="theme-option-desc">${t.desc}</div>
+      </span>
+      <span class="theme-option-check">✓</span>
+    </button>
+  `).join('');
+}
+
+function setTheme(id) {
+  if (id === currentTheme) { closeThemePopover(); return; }
+  applyTheme(id);
+  renderThemePopover();
+  const t = THEMES.find(x => x.id === id);
+  if (t) showToast(`主题切换：${t.icon} ${t.name} — ${t.desc}`);
+  closeThemePopover();
+}
+
+function updateThemeButton() {
+  const btn = document.getElementById('btnTheme');
+  const t = THEMES.find(x => x.id === currentTheme);
+  if (btn && t) btn.title = `当前主题：${t.name} — ${t.desc}（点击切换）`;
+}
+
+// ===== File Protocol Warning =====
+(function() {
+  if (window.location.protocol === 'file:') {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:rgba(255,68,113,0.92);color:#fff;text-align:center;padding:10px 16px;font-size:0.85rem;font-weight:600;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);';
+    banner.innerHTML = '⚠ 检测到通过 file:// 协议打开，番剧数据无法与 localhost:3456 共享。请使用 <code style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;">start.bat</code> 启动以读取已保存的数据。 <button onclick="this.parentElement.remove()" style="margin-left:12px;background:rgba(255,255,255,0.2);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.8rem;">✕ 关闭</button>';
+    document.body.prepend(banner);
+  }
+})();
+
 // ===== Init =====
 loadData();
+loadFolders();
+applyTheme(currentTheme);
 checkBackend().then(() => {
   renderSourceList();
+  renderFolderList();
   renderCards();
 });
 setInterval(() => checkBackend(), 30000);

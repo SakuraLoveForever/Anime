@@ -112,7 +112,20 @@ async function parseBgmSubject(id) {
     const g = $(el).text().trim();
     if (g && genres.length < 8) genres.push(g);
   });
-  return { title, id: parseInt(id), cover, episodes, synopsis: synopsis.substring(0, 2000), score, genres, source: 'bgm.tv', url: `https://bgm.tv/subject/${id}` };
+  // Detect anime type
+  let animeType = null;
+  $('#infobox li').each((i, el) => {
+    const text = $(el).text().replace(/\s+/g, ' ');
+    if (text.includes('类型:') || text.includes('類型:')) {
+      const val = text.replace(/类型[：:]|類型[：:]/g, '').trim().toLowerCase();
+      if (val.includes('tv') || val.includes('テレビ') || val.includes('tv动画')) animeType = 'tv';
+      else if (val.includes('剧场') || val.includes('movie') || val.includes('映画') || val.includes('電影')) animeType = 'movie';
+      else if (val.includes('ova') || val.includes('oad')) animeType = 'ova';
+      else if (val.includes('web')) animeType = 'web';
+      return false;
+    }
+  });
+  return { title, id: parseInt(id), cover, episodes, synopsis: synopsis.substring(0, 2000), score, genres, animeType, source: 'bgm.tv', url: `https://bgm.tv/subject/${id}` };
 }
 
 // ========== MyAnimeList Parser (via Jikan) ==========
@@ -130,30 +143,33 @@ async function searchMal(query) {
     score: item.score || null,
     synopsis: (item.synopsis || '').substring(0, 2000),
     genres: (item.genres || []).map(g => g.name),
+    animeType: item.type ? item.type.toLowerCase() : null,
     source: 'myanimelist.net',
     url: item.url || `https://myanimelist.net/anime/${item.mal_id}/`,
   }));
 }
 
-// ========== AniList Parser ==========
-
-async function searchAnilist(query) {
-  const gql = `query($q:String){Page(perPage:6){media(search:$q,type:ANIME){id title{romaji english native}episodes description genres coverImage{large}siteUrl averageScore}}}`;
-  const resp = await fetch('https://graphql.anilist.co', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: gql, variables: { q: query } }),
-    signal: AbortSignal.timeout(10000),
-  });
-  const json = await resp.json();
-  return ((json.data?.Page?.media) || []).map(m => ({
-    title: m.title.english || m.title.romaji || m.title.native || '',
-    id: m.id, episodes: m.episodes || 0,
-    cover: m.coverImage?.large || '',
-    score: m.averageScore ? m.averageScore / 10 : null,
-    synopsis: (m.description || '').replace(/<[^>]*>/g, '').substring(0, 2000),
-    genres: m.genres || [], source: 'anilist.co',
-    url: m.siteUrl || `https://anilist.co/anime/${m.id}/`,
-  }));
+async function fetchMalFull(id) {
+  try {
+    const resp = await fetch(
+      `https://api.jikan.moe/v4/anime/${id}/full`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    const json = await resp.json();
+    const item = json.data;
+    if (!item) return null;
+    return {
+      title: item.title,
+      episodes: item.episodes || 0,
+      cover: item.images?.jpg?.large_image_url || '',
+      score: item.score || null,
+      synopsis: (item.synopsis || '').substring(0, 2000),
+      genres: (item.genres || []).map(g => g.name),
+      category: item.type ? item.type.toLowerCase() : null,
+      source: 'myanimelist.net',
+      url: item.url || `https://myanimelist.net/anime/${item.mal_id}/`,
+    };
+  } catch(e) { return null; }
 }
 
 // ========== Generic Search (for custom sources) ==========
@@ -311,13 +327,11 @@ async function parseGeneric(url) {
 const SOURCE_NAMES = {
   'bgm.tv': 'Bangumi 番组计划',
   'myanimelist.net': 'MyAnimeList',
-  'anilist.co': 'AniList',
 };
 
 const SEARCH_FUNCTIONS = {
   'bgm.tv': searchBgm,
   'myanimelist.net': searchMal,
-  'anilist.co': searchAnilist,
 };
 
 const PARSE_FUNCTIONS = {
@@ -332,27 +346,8 @@ const PARSE_FUNCTIONS = {
       score: item.score || null,
       synopsis: (item.synopsis || '').substring(0, 2000),
       genres: (item.genres || []).map(g => g.name),
+      animeType: item.type ? item.type.toLowerCase() : null,
       source: 'myanimelist.net', url: item.url || `https://myanimelist.net/anime/${item.mal_id}/`,
-    };
-  },
-  'anilist': async (id) => {
-    const gql = `query($id:Int){Media(id:$id,type:ANIME){id title{romaji english native}episodes description genres coverImage{large}siteUrl averageScore}}`;
-    const resp = await fetch('https://graphql.anilist.co', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: gql, variables: { id } }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const json = await resp.json();
-    const m = json.data?.Media;
-    if (!m) return null;
-    return {
-      title: m.title.english || m.title.romaji || m.title.native || '',
-      id: m.id, episodes: m.episodes || 0,
-      cover: m.coverImage?.large || '',
-      score: m.averageScore ? m.averageScore / 10 : null,
-      synopsis: (m.description || '').replace(/<[^>]*>/g, '').substring(0, 2000),
-      genres: m.genres || [], source: 'anilist.co',
-      url: m.siteUrl || `https://anilist.co/anime/${m.id}/`,
     };
   },
 };
@@ -438,9 +433,6 @@ app.post('/api/fetch-url', async (req, res) => {
     } else if (site === 'mal') {
       const m = url.match(/anime\/(\d+)/);
       if (m) data = await PARSE_FUNCTIONS['mal'](parseInt(m[1]));
-    } else if (site === 'anilist') {
-      const m = url.match(/anime\/(\d+)/);
-      if (m) data = await PARSE_FUNCTIONS['anilist'](parseInt(m[1]));
     } else {
       data = await parseGeneric(url);
     }
@@ -468,9 +460,6 @@ app.post('/api/fetch-urls', async (req, res) => {
       } else if (site === 'mal') {
         const m = url.match(/anime\/(\d+)/);
         if (m) data = await PARSE_FUNCTIONS['mal'](parseInt(m[1]));
-      } else if (site === 'anilist') {
-        const m = url.match(/anime\/(\d+)/);
-        if (m) data = await PARSE_FUNCTIONS['anilist'](parseInt(m[1]));
       } else {
         data = await parseGeneric(url);
       }
@@ -560,21 +549,24 @@ app.post('/api/config', (req, res) => {
 });
 
 // ========== AI Enrich ==========
-async function aiEnrichAnime(query) {
+async function callAI(query) {
   const cfg = loadConfig();
   const apiKey = cfg.deepseekApiKey;
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
 
-  const prompt = `请搜索动漫「${query}」的详细信息，返回严格JSON（不要markdown代码块）：
+  const prompt = `请识别「${query}」，返回严格JSON（不要markdown代码块）：
 {
-  "title": "准确的中文名称",
-  "episodes": 集数(纯数字，如12),
-  "synopsis": "剧情简介，200字以内",
-  "score": 评分(1-10的数字，如8.5),
+  "title": "最准确的中文名称",
+  "titleEn": "英文/罗马字名称",
+  "titleJa": "日文名称",
+  "episodes": 集数(纯数字，如12，不确定填0),
+  "category": "分类: chinese_anime(国漫)/japanese_anime(日漫番剧)/theatrical_anime(剧场版动画)/anime_movie(动画电影)/movie(电影)/tv_drama(电视剧)/web_drama(网剧)/documentary(纪录片)",
+  "synopsis": "剧情简介，300字以内",
+  "score": 评分(1-10的数字，不确定填null),
   "genres": ["标签1", "标签2"],
-  "sourceUrl": "番剧的参考链接"
+  "year": 首播年份(如2023)
 }
-如果找不到则返回：{"title":"","episodes":0,"synopsis":"","score":null,"genres":[],"sourceUrl":""}`;
+如果找不到则返回：{"title":"","titleEn":"","titleJa":"","episodes":0,"category":"japanese_anime","synopsis":"","score":null,"genres":[],"year":null}`;
 
   const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
@@ -582,7 +574,7 @@ async function aiEnrichAnime(query) {
     body: JSON.stringify({
       model: 'deepseek-chat',
       messages: [
-        { role: 'system', content: '你是一个动漫信息助手。用户给你一个番剧名称，你需要返回准确的动漫信息。只返回JSON，不要额外解释。' },
+        { role: 'system', content: '你是一个动漫信息助手。用户给你一个番剧名称，你需要识别出准确的动漫并返回信息。只返回JSON，不要额外解释。' },
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
@@ -598,52 +590,111 @@ async function aiEnrichAnime(query) {
 
   const json = await resp.json();
   const content = json.choices?.[0]?.message?.content || '';
-  // Extract JSON from possible markdown
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('AI 返回格式异常');
   return JSON.parse(jsonMatch[0]);
+}
+
+function fuzzyMatchScore(a, b) {
+  // Simple fuzzy matching: how many characters overlap
+  const clean = s => (s || '').toLowerCase().replace(/[^a-z0-9一-鿿぀-ゟ゠-ヿ]/g, '');
+  const ca = clean(a);
+  const cb = clean(b);
+  if (!ca || !cb) return 0;
+  if (ca === cb) return 100;
+  if (ca.includes(cb) || cb.includes(ca)) return 80;
+  let overlap = 0;
+  for (const ch of ca) { if (cb.includes(ch)) overlap++; }
+  return Math.round((overlap / Math.max(ca.length, cb.length)) * 60);
 }
 
 app.post('/api/ai-enrich', async (req, res) => {
   const { query } = req.body;
   if (!query || !query.trim()) return res.status(400).json({ error: '需要番剧名称' });
   try {
-    const data = await aiEnrichAnime(query.trim());
-
-    // Search built-in sources for real cover images
-    const covers = [];
-    const searchTitle = data.title || query;
+    // Step 1: Get AI identification
+    let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
-      const [malResults, bgmResults] = await Promise.allSettled([
-        searchMal(searchTitle),
-        searchBgm(searchTitle),
-      ]);
-      const addCovers = (results, src) => {
-        if (results && results.length > 0) {
-          const seen = new Set();
-          results.forEach(r => {
-            if (r.cover && !seen.has(r.cover)) {
-              seen.add(r.cover);
-              covers.push({ url: r.cover, source: src, title: r.title });
-            }
-          });
+      aiData = await callAI(query.trim());
+    } catch(e) { console.error('AI call failed:', e.message); }
+
+    // Step 2: Search real sources with multiple title variants
+    const searchTitles = [...new Set([
+      aiData.title, aiData.titleEn, aiData.titleJa, query
+    ].filter(Boolean))];
+
+    const allSearchResults = [];
+    for (const title of searchTitles.slice(0, 3)) {
+      try {
+        const [malR, bgmR] = await Promise.allSettled([
+          searchMal(title),
+          searchBgm(title),
+        ]);
+        if (malR.status === 'fulfilled') allSearchResults.push(...malR.value.map(r => ({ ...r, _src: 'mal' })));
+        if (bgmR.status === 'fulfilled') allSearchResults.push(...bgmR.value.map(r => ({ ...r, _src: 'bgm' })));
+      } catch(e) {}
+    }
+
+    // Step 3: Find best real source match
+    let bestReal = null;
+    let bestScore = 0;
+    const seen = new Set();
+    for (const r of allSearchResults) {
+      const key = (r.title || '').toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let score = 0;
+      for (const t of searchTitles.slice(0, 4)) {
+        score = Math.max(score, fuzzyMatchScore(r.title, t));
+      }
+      if (score > bestScore) { bestScore = score; bestReal = r; }
+    }
+
+    // Step 4: If good real match found, fetch full details for synopsis & genres
+    let realDetail = null;
+    if (bestReal && bestReal.id) {
+      try {
+        if (bestReal._src === 'bgm') {
+          realDetail = await parseBgmSubject(bestReal.id);
+        } else if (bestReal._src === 'mal') {
+          realDetail = await fetchMalFull(bestReal.id);
         }
-      };
-      if (malResults.status === 'fulfilled') addCovers(malResults.value, 'MyAnimeList');
-      if (bgmResults.status === 'fulfilled') addCovers(bgmResults.value, 'Bangumi');
-    } catch(e) {}
+      } catch(e) {}
+    }
+
+    // Step 5: Build merged result — real data preferred
+    const merged = {
+      title: bestReal?.title || aiData.title || query,
+      episodes: bestReal?.episodes || parseInt(aiData.episodes) || 0,
+      category: bestReal?.category || bestReal?.animeType || aiData.category || null,
+      synopsis: realDetail?.synopsis || bestReal?.synopsis || aiData.synopsis || '',
+      score: bestReal?.score || aiData.score || null,
+      genres: (realDetail?.genres && realDetail.genres.length > 0)
+        ? realDetail.genres
+        : ((bestReal?.genres && bestReal.genres.length > 0) ? bestReal.genres : (aiData.genres || [])),
+      sourceUrl: bestReal?.url || aiData.sourceUrl || '',
+      source: bestReal ? (bestReal.source || bestReal._src) : 'DeepSeek AI',
+    };
+
+    // Step 6: Collect all covers from real sources
+    const covers = [];
+    const coverSeen = new Set();
+    const addCover = (url, src, title) => {
+      if (url && !coverSeen.has(url)) {
+        coverSeen.add(url);
+        covers.push({ url, source: src, title: title || '' });
+      }
+    };
+    if (realDetail?.cover) addCover(realDetail.cover, 'Bangumi', realDetail.title);
+    for (const r of allSearchResults) {
+      if (r.cover) addCover(r.cover, r.source || r._src, r.title);
+    }
 
     res.json({
       data: {
-        title: data.title || query,
-        episodes: parseInt(data.episodes) || 0,
-        synopsis: data.synopsis || '',
-        score: data.score || null,
-        genres: data.genres || [],
+        ...merged,
         cover: covers.length > 0 ? covers[0].url : '',
         covers: covers,
-        sourceUrl: data.sourceUrl || '',
-        source: 'DeepSeek AI',
       },
     });
   } catch (e) {
