@@ -355,11 +355,17 @@ const PARSE_FUNCTIONS = {
 // ========== API Routes ==========
 
 // GET /api/sources — list all sources (built-in + custom)
+const BUILTIN_DEFAULT_URLS = {
+  'bgm.tv': 'https://bgm.tv/subject_search/{query}?cat=2',
+  'myanimelist.net': 'https://myanimelist.net/anime.php?q={query}',
+};
+
 app.get('/api/sources', (_req, res) => {
   const builtIn = Object.keys(SOURCE_NAMES).map(key => ({
     key,
     name: SOURCE_NAMES[key],
     type: 'builtin',
+    searchUrl: BUILTIN_DEFAULT_URLS[key] || '',
     supportsSearch: true,
     supportsParse: true,
   }));
@@ -384,9 +390,17 @@ app.get('/api/search', async (req, res) => {
   const allResults = [];
   const promises = [];
 
-  // Built-in sources
+  // Built-in sources (use custom URL if provided, otherwise use built-in search)
   for (const key of sourceKeys) {
-    if (SEARCH_FUNCTIONS[key]) {
+    const customUrl = req.query[`url_${key}`];
+    if (customUrl && customUrl.includes('{query}')) {
+      // Custom URL override → use generic search
+      promises.push(
+        genericSearch(customUrl, q).then(r => {
+          allResults.push(...r.map(item => ({ ...item, source: SOURCE_NAMES[key] || key })));
+        }).catch(e => console.error(`[${key}:custom]`, e.message))
+      );
+    } else if (SEARCH_FUNCTIONS[key]) {
       promises.push(
         SEARCH_FUNCTIONS[key](q).then(r => { allResults.push(...r); }).catch(e => console.error(`[${key}]`, e.message))
       );
@@ -548,25 +562,56 @@ app.post('/api/config', (req, res) => {
   res.json({ ok: true });
 });
 
+// ========== AniList Cover Search ==========
+async function searchAniList(title) {
+  const query = `
+    query ($search: String) {
+      Page(perPage: 5) {
+        media(search: $search, type: ANIME) {
+          id
+          title { romaji english native }
+          coverImage { extraLarge large medium }
+          siteUrl
+        }
+      }
+    }`;
+  try {
+    const resp = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ query, variables: { search: title } }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!resp.ok) return [];
+    const json = await resp.json();
+    return (json.data?.Page?.media || []).map(m => ({
+      title: m.title?.romaji || m.title?.english || m.title?.native || '',
+      cover: m.coverImage?.extraLarge || m.coverImage?.large || m.coverImage?.medium || '',
+      url: m.siteUrl || `https://anilist.co/anime/${m.id}`,
+      source: 'anilist.co',
+    }));
+  } catch(e) { return []; }
+}
+
 // ========== AI Enrich ==========
 async function callAI(query) {
   const cfg = loadConfig();
   const apiKey = cfg.deepseekApiKey;
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
 
-  const prompt = `请识别「${query}」，返回严格JSON（不要markdown代码块）：
+  const prompt = `请识别这部动漫/影视作品：「${query}」，返回严格JSON（不要markdown代码块）：
 {
   "title": "最准确的中文名称",
-  "titleEn": "英文/罗马字名称",
-  "titleJa": "日文名称",
-  "episodes": 集数(纯数字，如12，不确定填0),
-  "category": "分类: chinese_anime(国漫)/japanese_anime(日漫番剧)/theatrical_anime(剧场版动画)/anime_movie(动画电影)/movie(电影)/tv_drama(电视剧)/web_drama(网剧)/documentary(纪录片)",
-  "synopsis": "剧情简介，300字以内",
-  "score": 评分(1-10的数字，不确定填null),
-  "genres": ["标签1", "标签2"],
+  "titleEn": "英文/罗马字名称（日漫用罗马字，国产用拼音）",
+  "titleJa": "日文原名（不是日漫则填空字符串）",
+  "episodes": 集数(纯数字，TV动画通常12/13/24/25/26，不确定填0)，
+  "category": "必须从以下8个分类中选择最合适的一个：chinese_anime(国漫/国产动画)、japanese_anime(日漫/TV番剧)、theatrical_anime(剧场版动画/动画电影日本)、anime_movie(动画电影/非日本动画电影)、movie(真人电影)、tv_drama(电视剧/真人剧集)、web_drama(网剧)、documentary(纪录片)。请根据作品类型、产地、形式综合判断。",
+  "synopsis": "中文剧情简介，必须是中文，200-400字，介绍故事背景和主要内容。禁止英文简介！",
+  "score": 评分(1-10的数字，参考豆瓣/Bangumi/MAL综合评分，不确定填null)，
+  "genres": ["中文标签1", "中文标签2", "中文标签3"],
   "year": 首播年份(如2023)
 }
-如果找不到则返回：{"title":"","titleEn":"","titleJa":"","episodes":0,"category":"japanese_anime","synopsis":"","score":null,"genres":[],"year":null}`;
+注意：synopsis和genres都必须是中文！禁止英文标签！category必须从给定的8个选项中选择！如果完全找不到则返回：{"title":"","titleEn":"","titleJa":"","episodes":0,"category":"japanese_anime","synopsis":"","score":null,"genres":[],"year":null}`;
 
   const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
@@ -574,7 +619,7 @@ async function callAI(query) {
     body: JSON.stringify({
       model: 'deepseek-chat',
       messages: [
-        { role: 'system', content: '你是一个动漫信息助手。用户给你一个番剧名称，你需要识别出准确的动漫并返回信息。只返回JSON，不要额外解释。' },
+        { role: 'system', content: '你是一个专业的动漫影视信息助手。用户给你一个番剧/影视名称，你需要精准识别出正确的作品并返回准确信息。所有文本内容（标题、剧情简介、标签/类型）都必须使用中文。标签例如：热血、奇幻、战斗、恋爱、科幻、悬疑、搞笑、日常 等。只返回JSON，不要额外解释。' },
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
@@ -685,9 +730,19 @@ app.post('/api/ai-enrich', async (req, res) => {
         covers.push({ url, source: src, title: title || '' });
       }
     };
-    if (realDetail?.cover) addCover(realDetail.cover, 'Bangumi', realDetail.title);
+    if (realDetail?.cover) addCover(realDetail.cover, realDetail._src === 'bgm' ? 'Bangumi' : 'MyAnimeList', realDetail.title);
     for (const r of allSearchResults) {
       if (r.cover) addCover(r.cover, r.source || r._src, r.title);
+    }
+
+    // Step 7: Also search AniList for additional covers
+    for (const title of searchTitles.slice(0, 2)) {
+      try {
+        const anilistResults = await searchAniList(title);
+        for (const r of anilistResults) {
+          if (r.cover) addCover(r.cover, 'AniList', r.title);
+        }
+      } catch(e) {}
     }
 
     res.json({

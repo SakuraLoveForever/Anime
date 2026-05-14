@@ -27,205 +27,110 @@
   --sidebar-bg-rgb: 8,8,22;
 }
 
-/* ===== Theme: Apple ===== */
+/* ===== Theme: Apple — DESIGN_apple.md ===== */
+/* Photography-first, museum gallery. Single Action Blue #0066cc. No decorative gradients. SF Pro. */
 :root[data-theme="apple"] {
   --bg-deep: #f5f5f7; --bg-main: #ffffff;
-  --bg-card: rgba(255,255,255,0.85);
-  --glass-border: rgba(0,0,0,0.08);
-  --glass-hover: rgba(0,0,0,0.03);
-  --text: #1d1d1f; --text2: #6e6e73; --text3: #aeaeb2;
-  --pink: #0066cc; --purple: #0066cc; --blue: #2997ff;
-  --amber: #e8a55a; --emerald: #34c759; --indigo: #5e5ce6;
-  --status-towatch: #5e5ce6;
+  --bg-card: rgba(255,255,255,0.9);
+  --glass-border: rgba(0,0,0,0.07);
+  --glass-hover: rgba(0,0,0,0.02);
+  --text: #1d1d1f; --text2: #7a7a7a; --text3: #cccccc;
+  --pink: #0066cc; --purple: #0071e3; --blue: #2997ff;
+  --amber: #e8a55a; --emerald: #34c759; --indigo: #0066cc;
+  --status-towatch: #0066cc;
   --status-watching: #e8a55a;
   --status-watched: #34c759;
-  --neon-purple: rgba(0,102,204,0.3);
-  --neon-blue: rgba(0,102,204,0.2);
-  --font-body: 'SF Pro Text','SF Pro Display',system-ui,-apple-system,sans-serif;
+  --neon-purple: rgba(0,102,204,0.2);
+  --neon-blue: rgba(0,113,227,0.15);
+  --font-body: 'SF Pro Text','SF Pro Display',-apple-system,system-ui,sans-serif;
   --sidebar-bg-rgb: 255,255,255;
 }
-:root[data-theme="apple"] body::before { background: radial-gradient(circle, rgba(0,102,204,0.02) 0%, transparent 70%); }
-:root[data-theme="apple"] body::after { background: radial-gradient(circle, rgba(0,102,204,0.02) 0%, transparent 70%); }
+:root[data-theme="apple"] body::before { background: radial-gradient(circle, rgba(0,102,204,0.015) 0%, transparent 70%); }
+:root[data-theme="apple"] body::after { background: radial-gradient(circle, rgba(0,102,204,0.01) 0%, transparent 70%); }
 
-/* ===== Theme: Claude ===== */
+/* ===== Theme: Claude — DESIGN_claude.md ===== */
+/* Warm-canvas editorial. Cream #faf9f5 + coral #cc785c. Serif display, humanist sans body. */
 :root[data-theme="claude"] {
   --bg-deep: #efe9de; --bg-main: #faf9f5;
-  --bg-card: rgba(250,249,245,0.85);
-  --glass-border: rgba(0,0,0,0.06);
-  --glass-hover: rgba(0,0,0,0.03);
+  --bg-card: rgba(250,249,245,0.88);
+  --glass-border: rgba(0,0,0,0.05);
+  --glass-hover: rgba(0,0,0,0.025);
   --text: #141413; --text2: #6c6a64; --text3: #8e8b82;
-  --pink: #cc785c; --purple: #cc785c; --blue: #5db8a6;
+  --pink: #cc785c; --purple: #a9583e; --blue: #5db8a6;
   --amber: #e8a55a; --emerald: #5db872; --indigo: #5db8a6;
   --status-towatch: #5db8a6;
   --status-watching: #e8a55a;
   --status-watched: #5db872;
-  --neon-purple: rgba(204,120,92,0.3);
-  --neon-blue: rgba(204,120,92,0.2);
-  --font-body: 'Georgia','Times New Roman',serif;
+  --neon-purple: rgba(204,120,92,0.22);
+  --neon-blue: rgba(93,184,166,0.15);
+  --font-body: 'Georgia','Times New Roman','STSong',serif;
   --sidebar-bg-rgb: 250,249,245;
 }
-:root[data-theme="claude"] body::before { background: radial-gradient(circle, rgba(204,120,92,0.03) 0%, transparent 70%); }
-:root[data-theme="claude"] body::after { background: radial-gradient(circle, rgba(204,120,92,0.02) 0%, transparent 70%); }
+:root[data-theme="claude"] body::before { background: radial-gradient(circle, rgba(204,120,92,0.025) 0%, transparent 70%); }
+:root[data-theme="claude"] body::after { background: radial-gradient(circle, rgba(93,184,166,0.015) 0%, transparent 70%); }
 
-/* ===== Theme: Linear ===== */
+/* ===== Theme: Linear — DESIGN_linear.md ===== */
+/* Near-black #010102, lavender-blue #5e6ad2 sole accent. Dense, technical, quietly luxurious. */
 :root[data-theme="linear"] {
   --bg-deep: #010102; --bg-main: #010102;
-  --bg-card: rgba(15,16,17,0.85);
-  --glass-border: rgba(255,255,255,0.06);
-  --glass-hover: rgba(255,255,255,0.03);
+  --bg-card: rgba(15,16,17,0.88);
+  --glass-border: rgba(255,255,255,0.05);
+  --glass-hover: rgba(255,255,255,0.025);
   --text: #f7f8f8; --text2: #d0d6e0; --text3: #8a8f98;
-  --pink: #5e6ad2; --purple: #5e6ad2; --blue: #828fff;
+  --pink: #5e6ad2; --purple: #828fff; --blue: #5e6ad2;
   --amber: #e8a55a; --emerald: #27a644; --indigo: #5e6ad2;
   --status-towatch: #5e6ad2;
   --status-watching: #e8a55a;
   --status-watched: #27a644;
-  --neon-purple: rgba(94,106,210,0.3);
-  --neon-blue: rgba(94,106,210,0.2);
+  --neon-purple: rgba(94,106,210,0.25);
+  --neon-blue: rgba(94,106,210,0.15);
   --font-body: 'Inter','SF Pro Display',system-ui,-apple-system,sans-serif;
   --sidebar-bg-rgb: 1,1,2;
 }
-:root[data-theme="linear"] body::before { background: radial-gradient(circle, rgba(94,106,210,0.03) 0%, transparent 70%); }
-:root[data-theme="linear"] body::after { background: radial-gradient(circle, rgba(94,106,210,0.02) 0%, transparent 70%); }
+:root[data-theme="linear"] body::before { background: radial-gradient(circle, rgba(94,106,210,0.025) 0%, transparent 70%); }
+:root[data-theme="linear"] body::after { background: radial-gradient(circle, rgba(94,106,210,0.015) 0%, transparent 70%); }
 
-/* ===== Theme: Lovable ===== */
+/* ===== Theme: Lovable — DESIGN_loveable.md ===== */
+/* Warm parchment #f7f4ed. Opacity-driven depth from #1c1c1c. Humanist, approachable. */
 :root[data-theme="lovable"] {
-  --bg-deep: #eceae4; --bg-main: #f7f4ed;
-  --bg-card: rgba(247,244,237,0.85);
-  --glass-border: rgba(28,28,28,0.08);
-  --glass-hover: rgba(28,28,28,0.03);
-  --text: #1c1c1c; --text2: #5f5f5d; --text3: rgba(28,28,28,0.4);
-  --pink: #1c1c1c; --purple: #1c1c1c; --blue: #3b82f6;
+  --bg-deep: #f7f4ed; --bg-main: #f7f4ed;
+  --bg-card: rgba(247,244,237,0.9);
+  --glass-border: rgba(28,28,28,0.06);
+  --glass-hover: rgba(28,28,28,0.025);
+  --text: #1c1c1c; --text2: #5f5f5d; --text3: rgba(28,28,28,0.45);
+  --pink: #1c1c1c; --purple: rgba(28,28,28,0.82); --blue: #3b82f6;
   --amber: #e8a55a; --emerald: #5db872; --indigo: #5e5ce6;
   --status-towatch: #5e5ce6;
   --status-watching: #e8a55a;
   --status-watched: #5db872;
-  --neon-purple: rgba(28,28,28,0.15);
-  --neon-blue: rgba(28,28,28,0.1);
+  --neon-purple: rgba(28,28,28,0.1);
+  --neon-blue: rgba(28,28,28,0.06);
   --font-body: 'Inter',system-ui,-apple-system,sans-serif;
   --sidebar-bg-rgb: 247,244,237;
 }
-:root[data-theme="lovable"] body::before { background: radial-gradient(circle, rgba(28,28,28,0.02) 0%, transparent 70%); }
+:root[data-theme="lovable"] body::before { background: radial-gradient(circle, rgba(28,28,28,0.015) 0%, transparent 70%); }
 :root[data-theme="lovable"] body::after { background: radial-gradient(circle, rgba(28,28,28,0.01) 0%, transparent 70%); }
 
-/* ===== Theme: Tesla ===== */
+/* ===== Theme: Tesla — DESIGN_tesla.md ===== */
+/* Radical subtraction. Single Electric Blue #3E6AE1. No shadows, no gradients, 4px radius. */
 :root[data-theme="tesla"] {
   --bg-deep: #f4f4f4; --bg-main: #ffffff;
-  --bg-card: rgba(255,255,255,0.9);
-  --glass-border: rgba(0,0,0,0.06);
-  --glass-hover: rgba(0,0,0,0.02);
+  --bg-card: rgba(255,255,255,0.95);
+  --glass-border: rgba(0,0,0,0.05);
+  --glass-hover: rgba(0,0,0,0.015);
   --text: #171a20; --text2: #393c41; --text3: #5c5e62;
   --pink: #3e6ae1; --purple: #3e6ae1; --blue: #3e6ae1;
-  --amber: #e8a55a; --emerald: #12b981; --indigo: #3e6ae1;
-  --status-towatch: #3e6ae1;
-  --status-watching: #e8a55a;
-  --status-watched: #12b981;
-  --neon-purple: rgba(62,106,225,0.25);
-  --neon-blue: rgba(62,106,225,0.15);
-  --font-body: 'Universal Sans Text','Inter',system-ui,-apple-system,Arial,sans-serif;
+  --amber: #393c41; --emerald: #5c5e62; --indigo: #3e6ae1;
+  --status-towatch: #5c5e62;
+  --status-watching: #171a20;
+  --status-watched: #3e6ae1;
+  --neon-purple: rgba(62,106,225,0.15);
+  --neon-blue: rgba(62,106,225,0.1);
+  --font-body: 'Inter','Universal Sans Text',-apple-system,Arial,sans-serif;
   --sidebar-bg-rgb: 255,255,255;
 }
-:root[data-theme="tesla"] body::before { background: radial-gradient(circle, rgba(62,106,225,0.02) 0%, transparent 70%); }
-:root[data-theme="tesla"] body::after { background: radial-gradient(circle, rgba(62,106,225,0.01) 0%, transparent 70%); }
-
-/* ===== Theme: Midnight ===== */
-:root[data-theme="midnight"] {
-  --bg-deep: #090c18; --bg-main: #0f1225;
-  --bg-card: rgba(20,24,42,0.85);
-  --glass-border: rgba(255,255,255,0.06);
-  --glass-hover: rgba(255,255,255,0.03);
-  --text: #e2e4f0; --text2: #9498b8; --text3: #5e6280;
-  --pink: #6366f1; --purple: #818cf8; --blue: #5b9cf5;
-  --amber: #e8a55a; --emerald: #34d399; --indigo: #6366f1;
-  --status-towatch: #6366f1;
-  --status-watching: #e8a55a;
-  --status-watched: #34d399;
-  --neon-purple: rgba(99,102,241,0.35);
-  --neon-blue: rgba(91,156,245,0.25);
-  --font-body: 'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
-  --sidebar-bg-rgb: 9,12,24;
-}
-:root[data-theme="midnight"] body::before { background: radial-gradient(circle, rgba(99,102,241,0.04) 0%, transparent 70%); }
-:root[data-theme="midnight"] body::after { background: radial-gradient(circle, rgba(91,156,245,0.03) 0%, transparent 70%); }
-
-/* ===== Theme: Forest ===== */
-:root[data-theme="forest"] {
-  --bg-deep: #0c1610; --bg-main: #111f16;
-  --bg-card: rgba(22,38,28,0.85);
-  --glass-border: rgba(255,255,255,0.06);
-  --glass-hover: rgba(255,255,255,0.03);
-  --text: #dce8e0; --text2: #8ba896; --text3: #5a7a66;
-  --pink: #4ade80; --purple: #22c55e; --blue: #6ee7b7;
-  --amber: #e8a55a; --emerald: #22c55e; --indigo: #4ade80;
-  --status-towatch: #4ade80;
-  --status-watching: #e8a55a;
-  --status-watched: #22c55e;
-  --neon-purple: rgba(74,222,128,0.3);
-  --neon-blue: rgba(110,231,183,0.2);
-  --font-body: 'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
-  --sidebar-bg-rgb: 12,22,16;
-}
-:root[data-theme="forest"] body::before { background: radial-gradient(circle, rgba(74,222,128,0.03) 0%, transparent 70%); }
-:root[data-theme="forest"] body::after { background: radial-gradient(circle, rgba(110,231,183,0.02) 0%, transparent 70%); }
-
-/* ===== Theme: Sakura ===== */
-:root[data-theme="sakura"] {
-  --bg-deep: #fef6f8; --bg-main: #fffafb;
-  --bg-card: rgba(255,250,251,0.9);
-  --glass-border: rgba(0,0,0,0.06);
-  --glass-hover: rgba(0,0,0,0.02);
-  --text: #2d1a20; --text2: #8b6b75; --text3: #b89aa3;
-  --pink: #e8537a; --purple: #d4679a; --blue: #8b5cf6;
-  --amber: #e8a55a; --emerald: #5db872; --indigo: #8b5cf6;
-  --status-towatch: #8b5cf6;
-  --status-watching: #e8a55a;
-  --status-watched: #5db872;
-  --neon-purple: rgba(232,83,122,0.25);
-  --neon-blue: rgba(212,103,154,0.18);
-  --font-body: 'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
-  --sidebar-bg-rgb: 255,250,251;
-}
-:root[data-theme="sakura"] body::before { background: radial-gradient(circle, rgba(232,83,122,0.03) 0%, transparent 70%); }
-:root[data-theme="sakura"] body::after { background: radial-gradient(circle, rgba(212,103,154,0.02) 0%, transparent 70%); }
-
-/* ===== Theme: Ocean ===== */
-:root[data-theme="ocean"] {
-  --bg-deep: #0a1018; --bg-main: #0e1824;
-  --bg-card: rgba(17,28,42,0.85);
-  --glass-border: rgba(255,255,255,0.06);
-  --glass-hover: rgba(255,255,255,0.03);
-  --text: #d4e2f0; --text2: #7b9cc0; --text3: #4a6d8c;
-  --pink: #0ea5e9; --purple: #38bdf8; --blue: #2dd4bf;
-  --amber: #e8a55a; --emerald: #2dd4bf; --indigo: #0ea5e9;
-  --status-towatch: #0ea5e9;
-  --status-watching: #e8a55a;
-  --status-watched: #2dd4bf;
-  --neon-purple: rgba(14,165,233,0.35);
-  --neon-blue: rgba(56,189,248,0.25);
-  --font-body: 'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
-  --sidebar-bg-rgb: 10,16,24;
-}
-:root[data-theme="ocean"] body::before { background: radial-gradient(circle, rgba(14,165,233,0.04) 0%, transparent 70%); }
-:root[data-theme="ocean"] body::after { background: radial-gradient(circle, rgba(45,212,191,0.03) 0%, transparent 70%); }
-
-/* ===== Theme: Mono ===== */
-:root[data-theme="mono"] {
-  --bg-deep: #f8f8f8; --bg-main: #ffffff;
-  --bg-card: rgba(255,255,255,0.92);
-  --glass-border: rgba(0,0,0,0.08);
-  --glass-hover: rgba(0,0,0,0.03);
-  --text: #0a0a0a; --text2: #4a4a4a; --text3: #8a8a8a;
-  --pink: #1a1a1a; --purple: #333333; --blue: #555555;
-  --amber: #d4a44a; --emerald: #2d8a4e; --indigo: #3a3a3a;
-  --status-towatch: #3a3a3a;
-  --status-watching: #d4a44a;
-  --status-watched: #2d8a4e;
-  --neon-purple: rgba(0,0,0,0.12);
-  --neon-blue: rgba(0,0,0,0.08);
-  --font-body: 'Inter','SF Pro Display',system-ui,-apple-system,sans-serif;
-  --sidebar-bg-rgb: 255,255,255;
-}
-:root[data-theme="mono"] body::before { background: radial-gradient(circle, rgba(0,0,0,0.01) 0%, transparent 70%); }
-:root[data-theme="mono"] body::after { background: radial-gradient(circle, rgba(0,0,0,0.01) 0%, transparent 70%); }
+:root[data-theme="tesla"] body::before { background: radial-gradient(circle, rgba(62,106,225,0.01) 0%, transparent 70%); }
+:root[data-theme="tesla"] body::after { background: radial-gradient(circle, rgba(62,106,225,0.008) 0%, transparent 70%); }
 
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -302,7 +207,7 @@ body::after {
   border-radius: 24px;
   display: flex; flex-direction: column;
   transition: width var(--transition), border-radius var(--transition), transform 0.3s cubic-bezier(0.4,0,0.2,1);
-  z-index: 100; overflow: hidden;
+  z-index: 100; overflow-y: auto; overflow-x: hidden;
   box-shadow:
     0 20px 60px rgba(0,0,0,0.55),
     0 0 0 1px rgba(255,255,255,0.03) inset,
@@ -524,7 +429,7 @@ body::after {
 .sidebar-section {
   padding: 8px 16px 12px; position: relative; z-index: 1;
   border-top: 1px solid rgba(255,255,255,0.04);
-  white-space: nowrap; overflow-y: auto; max-height: 45vh;
+  white-space: nowrap; flex-shrink: 0;
   transition: opacity 0.2s;
 }
 .sidebar.collapsed .sidebar-section { opacity: 0; pointer-events: none; height: 0; padding: 0; overflow: hidden; }
@@ -1272,6 +1177,10 @@ body::after {
         <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
         <span class="nav-label">纪录片</span><span class="nav-badge" id="badgeDocumentary">0</span>
       </button>
+      <button class="nav-item nav-sub" data-cat="uncategorized" onclick="setCategoryFilter('uncategorized')" id="navCatUncategorized" style="color:var(--text3)">
+        <span class="nav-glow-dot"></span>
+        <span class="nav-label">未分类</span><span class="nav-badge" id="badgeUncategorized" style="background:var(--text3)">0</span>
+      </button>
     </nav>
 
     <div class="sidebar-section">
@@ -1578,19 +1487,21 @@ function saveEnabledSources(sources) {
 }
 
 function getHiddenBuiltIn() {
-  // Migrate: clear legacy hidden list so sources reappear
-  const s = loadSettings();
-  if (s.hiddenBuiltIn && s.hiddenBuiltIn.length > 0) {
-    delete s.hiddenBuiltIn;
-    saveSettings(s);
-  }
-  return [];
+  return loadSettings().hiddenBuiltIn || [];
 }
 function hideBuiltIn(key) {
-  // No longer permanently hide built-in sources.
-  // Instead just disable (remove from enabled list).
+  const s = loadSettings();
+  if (!s.hiddenBuiltIn) s.hiddenBuiltIn = [];
+  if (!s.hiddenBuiltIn.includes(key)) s.hiddenBuiltIn.push(key);
+  saveSettings(s);
+  // Also remove from enabled list
   const enabled = getEnabledSources().filter(k => k !== key);
   saveEnabledSources(enabled);
+}
+function unhideAllBuiltIn() {
+  const s = loadSettings();
+  delete s.hiddenBuiltIn;
+  saveSettings(s);
 }
 function getBuiltInNameOverride(key) { return (loadSettings().builtInNames || {})[key] || null; }
 function setBuiltInNameOverride(key, name) {
@@ -1599,13 +1510,20 @@ function setBuiltInNameOverride(key, name) {
   s.builtInNames[key] = name;
   saveSettings(s);
 }
+function getBuiltInUrlOverride(key) { return (loadSettings().builtInUrls || {})[key] || null; }
+function setBuiltInUrlOverride(key, url) {
+  const s = loadSettings();
+  if (!s.builtInUrls) s.builtInUrls = {};
+  if (url) s.builtInUrls[key] = url; else delete s.builtInUrls[key];
+  saveSettings(s);
+}
 
 async function loadSourceList() {
   if (!backendOnline) {
     sourceList = {
       builtIn: [
-        { key: 'bgm.tv', name: getBuiltInNameOverride('bgm.tv') || 'Bangumi 番组计划', type: 'builtin' },
-        { key: 'myanimelist.net', name: getBuiltInNameOverride('myanimelist.net') || 'MyAnimeList', type: 'builtin' },
+        { key: 'bgm.tv', name: getBuiltInNameOverride('bgm.tv') || 'Bangumi 番组计划', type: 'builtin', searchUrl: 'https://bgm.tv/subject_search/{query}?cat=2' },
+        { key: 'myanimelist.net', name: getBuiltInNameOverride('myanimelist.net') || 'MyAnimeList', type: 'builtin', searchUrl: 'https://myanimelist.net/anime.php?q={query}' },
       ].filter(s => !getHiddenBuiltIn().includes(s.key)),
       custom: []
     };
@@ -1629,19 +1547,23 @@ async function loadSourceList() {
 
 function renderSourceList() {
   const enabled = getEnabledSources();
+  const builtInUrls = loadSettings().builtInUrls || {};
   const container = document.getElementById('sidebarSources');
   const allSources = [
     ...sourceList.builtIn.map(s => ({ ...s, isCustom: false })),
     ...sourceList.custom.map(s => ({ ...s, isCustom: true })),
   ];
 
+  console.log('[renderSourceList] allSources:', allSources.map(s => s.key), 'enabled:', enabled);
+
   container.innerHTML = allSources.map(s => {
     const isOn = enabled.includes(s.key);
+    const hasCustomUrl = !s.isCustom && builtInUrls[s.key];
     return `
-      <div class="sidebar-source-item${isOn ? ' enabled' : ''}" onclick="toggleSource('${s.key}')" title="${isOn ? '已启用' : '已禁用'}">
+      <div class="sidebar-source-item${isOn ? ' enabled' : ''}" onclick="toggleSource('${s.key}')" title="${isOn ? '已启用' : '已禁用'}${hasCustomUrl ? ' · 已设置自定义链接' : ''}">
         <span class="src-dot"></span>
-        <span class="src-name">${escapeHtml(s.name)}</span>
-        <span class="src-del" onclick="event.stopPropagation();editSourceItem('${s.key}')" title="编辑名称">✎</span><span class="src-del" onclick="event.stopPropagation();deleteSourceItem('${s.key}')" title="${s.isCustom ? '删除此来源' : '隐藏此来源'}">✕</span>
+        <span class="src-name">${escapeHtml(s.name)}${hasCustomUrl ? ' 🔗' : ''}</span>
+        <span class="src-del" onclick="event.stopPropagation();editSourceItem('${s.key}')" title="编辑名称和链接">✎</span><span class="src-del" onclick="event.stopPropagation();deleteSourceItem('${s.key}')" title="${s.isCustom ? '删除此来源' : '移除'}">✕</span>
       </div>`;
   }).join('');
 }
@@ -1713,13 +1635,20 @@ async function saveCustomSource() {
   const searchUrl = document.getElementById('srcUrl').value.trim();
   if (!name) { showToast('请输入来源名称'); return; }
 
-  // Built-in source: only rename
+  // Built-in source: rename + optional custom search URL
   if (editingSourceId && sourceList.builtIn.find(s => s.key === editingSourceId)) {
     setBuiltInNameOverride(editingSourceId, name);
+    // Save custom URL if non-empty and different from built-in default
+    const builtIn = sourceList.builtIn.find(s => s.key === editingSourceId);
+    if (searchUrl && searchUrl !== (builtIn?.searchUrl || '')) {
+      setBuiltInUrlOverride(editingSourceId, searchUrl);
+    } else if (!searchUrl || searchUrl === (builtIn?.searchUrl || '')) {
+      setBuiltInUrlOverride(editingSourceId, null); // clear custom URL if empty or matches default
+    }
     await loadSourceList();
     renderSourceList();
     closeAddSourceModal();
-    showToast('已更新名称：' + name + ' ✓');
+    showToast('已更新来源：' + name + ' ✓');
     return;
   }
 
@@ -1760,46 +1689,72 @@ async function saveCustomSource() {
 
 
 function editSourceItem(key) {
-  const builtIn = sourceList.builtIn.find(s => s.key === key);
-  if (builtIn) {
-    editingSourceId = key;
-    document.getElementById('sourceModalTitle').textContent = '编辑来源名称';
-    document.getElementById('srcName').value = builtIn.name;
-    document.getElementById('srcUrl').value = '(内置来源，链接不可修改)';
-    document.getElementById('srcUrl').disabled = true;
-    document.getElementById('btnTest').style.display = 'none';
-    document.getElementById('srcTestResult').style.display = 'none';
-    document.getElementById('btnSaveSource').textContent = '更新';
-    document.getElementById('sourceModalOverlay').style.display = 'flex';
-    setTimeout(() => document.getElementById('srcName').focus(), 100);
-    return;
+  console.log('[editSourceItem] called with key:', key, 'sourceList.builtIn:', sourceList.builtIn);
+  try {
+    const builtIn = sourceList.builtIn.find(s => s.key === key);
+    console.log('[editSourceItem] builtIn found:', !!builtIn);
+    if (builtIn) {
+      editingSourceId = key;
+      const overlay = document.getElementById('sourceModalOverlay');
+      console.log('[editSourceItem] overlay element:', !!overlay, 'current display:', overlay ? overlay.style.display : 'N/A');
+      document.getElementById('sourceModalTitle').textContent = '编辑来源 — ' + builtIn.name;
+      document.getElementById('srcName').value = builtIn.name;
+
+      const customUrl = getBuiltInUrlOverride(key);
+      const defaultUrl = builtIn.searchUrl || '';
+
+      const urlInput = document.getElementById('srcUrl');
+      urlInput.value = customUrl || defaultUrl;
+      urlInput.disabled = false;
+      urlInput.placeholder = '搜索链接模板，用 {query} 代替关键词';
+
+      document.getElementById('btnTest').style.display = '';
+      document.getElementById('srcTestResult').style.display = 'none';
+      document.getElementById('btnSaveSource').textContent = '更新';
+      overlay.style.display = 'flex';
+      overlay.style.zIndex = '300';
+      console.log('[editSourceItem] modal display set to flex, zIndex to 300');
+      setTimeout(() => document.getElementById('srcName').focus(), 100);
+      return;
+    }
+    // Custom source - use existing edit flow
+    editCustomSource(key);
+  } catch(e) {
+    console.error('[editSourceItem] error:', e);
+    showToast('打开编辑界面失败：' + e.message);
   }
-  // Custom source - use existing edit flow
-  editCustomSource(key);
 }
 
 async function deleteSourceItem(key) {
   const builtIn = sourceList.builtIn.find(s => s.key === key);
   if (builtIn) {
-    if (!confirm('确定要隐藏「' + builtIn.name + '」吗？')) return;
+    if (!confirm('确定要移除「' + builtIn.name + '」吗？\n\n该来源将从侧边栏隐藏，可通过编辑 settings 恢复。')) return;
     hideBuiltIn(key);
     renderSourceList();
-    showToast('已隐藏：' + builtIn.name);
+    showToast('已删除：' + builtIn.name);
     return;
   }
   // Custom source - use existing delete flow
   deleteCustomSource(key);
 }
 function editCustomSource(key) {
-  const src = sourceList.custom.find(s => s.id === key);
-  if (!src) return;
+  console.log('[editCustomSource] called with key:', key, 'sourceList.custom:', sourceList.custom);
+  const src = sourceList.custom.find(s => s.id === key || s.key === key);
+  if (!src) {
+    console.warn('[editCustomSource] source not found for key:', key);
+    showToast('未找到该来源，请刷新页面后重试');
+    return;
+  }
   editingSourceId = key;
   document.getElementById("sourceModalTitle").textContent = "编辑搜索来源";
   document.getElementById("srcName").value = src.name;
-  document.getElementById("srcUrl").value = src.searchUrl;
+  document.getElementById("srcUrl").value = src.searchUrl || '';
+  document.getElementById("srcUrl").disabled = false;
+  document.getElementById("btnTest").style.display = '';
   document.getElementById("srcTestResult").style.display = "none";
   document.getElementById("btnSaveSource").textContent = "更新";
   document.getElementById("sourceModalOverlay").style.display = "flex";
+  console.log('[editCustomSource] modal display set to flex');
   setTimeout(() => document.getElementById("srcName").focus(), 100);
 }
 
@@ -1976,10 +1931,11 @@ async function backendSearch(query) {
 
   if (backendOnline) {
     try {
-      const resp = await fetch(
-        `${BACKEND_URL}/api/search?q=${encodeURIComponent(query)}&sources=${enabledSources.join(',')}`,
-        { signal: AbortSignal.timeout(20000) }
-      );
+      // Send custom URLs for built-in sources
+      const builtInUrls = loadSettings().builtInUrls || {};
+      const urlParams = enabledSources.filter(s => builtInUrls[s]).map(s => `url_${s}=${encodeURIComponent(builtInUrls[s])}`).join('&');
+      const url = `${BACKEND_URL}/api/search?q=${encodeURIComponent(query)}&sources=${enabledSources.join(',')}${urlParams ? '&' + urlParams : ''}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
       if (resp.ok) { const json = await resp.json(); return json.results || []; }
     } catch(e) {}
   }
@@ -2063,10 +2019,11 @@ function saveFolders() { localStorage.setItem(FOLDERS_KEY, JSON.stringify(folder
 // ===== Stats & Filter =====
 function updateStats() {
   const counts = { towatch:0, watching:0, watched:0 };
-  const cats = { chinese_anime:0, japanese_anime:0, theatrical_anime:0, anime_movie:0, movie:0, tv_drama:0, web_drama:0, documentary:0 };
+  const cats = { chinese_anime:0, japanese_anime:0, theatrical_anime:0, anime_movie:0, movie:0, tv_drama:0, web_drama:0, documentary:0, uncategorized:0 };
   animeList.forEach(a => {
     if (counts[a.status] !== undefined) counts[a.status]++;
     if (a.category && cats[a.category] !== undefined) cats[a.category]++;
+    else if (!a.category) cats.uncategorized++;
   });
   document.getElementById('statTowatch').textContent = counts.towatch;
   document.getElementById('statWatching').textContent = counts.watching;
@@ -2083,6 +2040,7 @@ function updateStats() {
   document.getElementById('badgeTvDrama').textContent = cats.tv_drama;
   document.getElementById('badgeWebDrama').textContent = cats.web_drama;
   document.getElementById('badgeDocumentary').textContent = cats.documentary;
+  document.getElementById('badgeUncategorized').textContent = cats.uncategorized;
 }
 function setFilter(f) {
   currentFilter = f;
@@ -2136,7 +2094,10 @@ function getFilteredList() {
   else list = list.filter(a => a.status === currentFilter);
   // Category filter (multi-select OR)
   if (activeCategories.size > 0) {
-    list = list.filter(a => activeCategories.has(a.category));
+    list = list.filter(a => {
+      if (activeCategories.has('uncategorized')) return !a.category || activeCategories.has(a.category);
+      return activeCategories.has(a.category);
+    });
   }
   if (s) list = list.filter(a => (a.title || '').toLowerCase().includes(s));
   return list;
@@ -2165,7 +2126,8 @@ function renderCards() {
       web_drama:'网剧', documentary:'纪录片'
     };
     const catBadge = a.category && catLabels[a.category]
-      ? `<span class="card-cat-badge">${catLabels[a.category]}</span>` : '';
+      ? `<span class="card-cat-badge">${catLabels[a.category]}</span>`
+      : `<span class="card-cat-badge" style="background:var(--text3);opacity:0.6">未分类</span>`;
 
     let coverHTML;
     if (a.cover) {
@@ -2367,6 +2329,9 @@ function openDetailPopup(id, anchorRect) {
   };
   window.addEventListener('scroll', detailPopupScrollHandler, true);
 
+  // Lock body scroll to prevent background scrolling
+  document.body.style.overflow = 'hidden';
+
   // Close on outside click (overlay is pointer-events:none, so use document listener)
   if (detailPopupCloseHandler) document.removeEventListener('click', detailPopupCloseHandler);
   detailPopupCloseHandler = (e) => {
@@ -2424,6 +2389,7 @@ function closeDetailPopup(e) {
     document.removeEventListener('click', detailPopupCloseHandler);
     detailPopupCloseHandler = null;
   }
+  document.body.style.overflow = '';
   document.getElementById('detailOverlay').style.display = 'none';
   const popup = document.getElementById('detailPopup');
   popup.style.position = '';
@@ -2498,39 +2464,49 @@ async function batchAiFillAll() {
   if (!backendOnline) { showToast('后端未连接'); return; }
   if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
 
-  const missing = animeList.filter(a => a && a.title && (!a.synopsis || a.synopsis.trim() === ''));
-  if (missing.length === 0) {
-    showToast('所有番剧都已有剧情简介 ✓');
+  // Process ALL anime entries, filling in any missing information
+  const all = animeList.filter(a => a && a.title);
+  if (all.length === 0) {
+    showToast('还没有添加任何番剧');
     return;
   }
+
+  if (!confirm(`即将对全部 ${all.length} 部番剧进行 AI 信息补全，过程中请勿关闭页面。\n\n已有信息不会被覆盖，仅补充缺失字段（简介、集数、分类、评分、标签、封面）。\n\n是否继续？`)) return;
 
   const btn = document.getElementById('btnBatchAi');
   const origText = btn.textContent;
   btn.disabled = true;
 
   let done = 0;
-  for (const a of missing) {
-    btn.textContent = `⏳ 补全中 ${done+1}/${missing.length}...`;
+  for (const a of all) {
+    btn.textContent = `⏳ 补全中 ${done+1}/${all.length}...`;
     try {
       const data = await aiEnrich(a.title);
       if (data) {
+        // Synopsis — always update if AI has one (Chinese per prompt)
         if (data.synopsis && data.synopsis.trim()) a.synopsis = data.synopsis;
+        // Episodes — update if AI found a number and current is unset or default 12
+        if (data.episodes > 0) a.totalEpisodes = data.episodes;
+        // Category — AI selects from 8 categories; update if current is empty
+        if (data.category && data.category.trim()) a.category = data.category;
+        // Genres — update if current is empty
         if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) a.genres = data.genres;
-        if (data.episodes > 0 && (!a.totalEpisodes || a.totalEpisodes === 12)) a.totalEpisodes = data.episodes;
-        if (!a.cover && data.cover) a.cover = data.cover;
+        // Score — update if current is empty
         if (data.score && !a.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
+        // Cover — update if current is empty and AI found one
+        if (!a.cover && data.cover) a.cover = data.cover;
       }
     } catch(e) {}
     done++;
     // Small delay to avoid rate-limiting
-    if (done < missing.length) await new Promise(r => setTimeout(r, 1000));
+    if (done < all.length) await new Promise(r => setTimeout(r, 1000));
   }
 
   saveData();
   renderCards();
   btn.textContent = origText;
   btn.disabled = false;
-  showToast(`AI补全完成！已填充 ${done} 部番剧信息 ✓`);
+  showToast(`AI补全完成！已处理 ${done} 部番剧 ✓`);
 }
 
 async function aiFillCard(id) {
@@ -2539,15 +2515,16 @@ async function aiFillCard(id) {
 
   const a = animeList.find(x => x.id === id);
   if (!a || !a.title) return;
-  if (a.synopsis && a.synopsis.trim()) { showToast('该番剧已有剧情简介'); return; }
 
   showToast('⏳ 正在AI补全...');
   try {
     const data = await aiEnrich(a.title);
     if (data) {
+      // Fill all fields comprehensively
       if (data.synopsis && data.synopsis.trim()) a.synopsis = data.synopsis;
       if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) a.genres = data.genres;
-      if (data.episodes > 0 && (!a.totalEpisodes || a.totalEpisodes === 12)) a.totalEpisodes = data.episodes;
+      if (data.episodes > 0) a.totalEpisodes = data.episodes;
+      if (data.category && data.category.trim()) a.category = data.category;
       if (!a.cover && data.cover) a.cover = data.cover;
       if (data.score && !a.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
       saveData();
@@ -2954,17 +2931,12 @@ document.addEventListener('keydown', e => {
 
 // ===== Theme System =====
 const THEMES = [
-  { id: 'anime',    name: 'Anime',      icon: '🌌', desc: '二次元星云暗色' },
-  { id: 'apple',    name: 'Apple',      icon: '◈', desc: '摄影画廊白昼' },
-  { id: 'claude',   name: 'Claude',     icon: '◆', desc: '温暖编辑奶油' },
-  { id: 'linear',   name: 'Linear',     icon: '▣', desc: '暗黑产品面板' },
-  { id: 'lovable',  name: 'Lovable',    icon: '◇', desc: '羊皮纸暖灰' },
-  { id: 'tesla',    name: 'Tesla',      icon: '○', desc: '极简纯白展厅' },
-  { id: 'midnight', name: 'Midnight',   icon: '🌙', desc: '深夜蓝调暗色' },
-  { id: 'forest',   name: 'Forest',     icon: '🌿', desc: '森林绿意暗色' },
-  { id: 'sakura',   name: 'Sakura',     icon: '🌸', desc: '樱花粉白浅色' },
-  { id: 'ocean',    name: 'Ocean',      icon: '🌊', desc: '海洋蔚蓝暗色' },
-  { id: 'mono',     name: 'Mono',       icon: '◼', desc: '极简黑白单色' },
+  { id: 'anime',   name: 'Anime',   icon: '🌌', desc: '二次元星云暗色（默认）' },
+  { id: 'apple',   name: 'Apple',   icon: '◈', desc: '摄影画廊白昼 — DESIGN_apple.md' },
+  { id: 'claude',  name: 'Claude',  icon: '◆', desc: '温暖编辑奶油 — DESIGN_claude.md' },
+  { id: 'linear',  name: 'Linear',  icon: '▣', desc: '暗黑产品面板 — DESIGN_linear.md' },
+  { id: 'lovable', name: 'Lovable', icon: '◇', desc: '羊皮纸暖灰 — DESIGN_loveable.md' },
+  { id: 'tesla',   name: 'Tesla',   icon: '○', desc: '极简纯白展厅 — DESIGN_tesla.md' },
 ];
 let currentTheme = localStorage.getItem('app-theme') || 'anime';
 
@@ -3052,7 +3024,8 @@ function updateThemeButton() {
 loadData();
 loadFolders();
 applyTheme(currentTheme);
-checkBackend().then(() => {
+checkBackend().then(async () => {
+  if (!backendOnline) await loadSourceList(); // fallback: show built-in sources even offline
   renderSourceList();
   renderFolderList();
   renderCards();
