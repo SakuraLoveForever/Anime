@@ -2,6 +2,11 @@
 
 自定义看番追剧管理工具，支持多源搜索、DeepSeek AI 智能填充番剧信息。
 
+# 画面预览
+
+<img width="1864" height="995" alt="Clip_20260518_004804" src="https://github.com/user-attachments/assets/ee20b1fb-3088-4193-ad52-da9d974d7311" />
+
+
 ## 食用手册
 
 ### 准备工作
