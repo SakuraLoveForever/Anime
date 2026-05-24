@@ -354,6 +354,11 @@ const PARSE_FUNCTIONS = {
 
 // ========== API Routes ==========
 
+// GET /api/ping — health check
+app.get('/api/ping', (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
+
 // GET /api/sources — list all sources (built-in + custom)
 const BUILTIN_DEFAULT_URLS = {
   'bgm.tv': 'https://bgm.tv/subject_search/{query}?cat=2',
@@ -594,9 +599,8 @@ async function searchAniList(title) {
 }
 
 // ========== AI Enrich ==========
-async function callAI(query) {
-  const cfg = loadConfig();
-  const apiKey = cfg.deepseekApiKey;
+async function callAI(query, overrideApiKey) {
+  const apiKey = overrideApiKey || loadConfig().deepseekApiKey;
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
 
   const prompt = `请识别这部动漫/影视作品：「${query}」，返回严格JSON（不要markdown代码块）：
@@ -605,12 +609,25 @@ async function callAI(query) {
   "titleEn": "英文/罗马字名称（日漫用罗马字，国产用拼音）",
   "titleJa": "日文原名（不是日漫则填空字符串）",
   "episodes": 集数(纯数字，TV动画通常12/13/24/25/26，不确定填0)，
-  "category": "必须从以下8个分类中选择最合适的一个：chinese_anime(国漫/国产动画)、japanese_anime(日漫/TV番剧)、theatrical_anime(剧场版动画/动画电影日本)、anime_movie(动画电影/非日本动画电影)、movie(真人电影)、tv_drama(电视剧/真人剧集)、web_drama(网剧)、documentary(纪录片)。请根据作品类型、产地、形式综合判断。",
+  "category": "必须从以下8个分类中严格选择最合适的一个：",
   "synopsis": "中文剧情简介，必须是中文，200-400字，介绍故事背景和主要内容。禁止英文简介！",
   "score": 评分(1-10的数字，参考豆瓣/Bangumi/MAL综合评分，不确定填null)，
   "genres": ["中文标签1", "中文标签2", "中文标签3"],
   "year": 首播年份(如2023)
 }
+
+【8大分类 · 严格判定规则】
+1. chinese_anime（国漫/国产动画）→ 中国出品的动画，TV连载或网络播出。例：一人之下、狐妖小红娘、时光代理人、伍六七
+2. japanese_anime（日漫/TV番剧）→ 日本出品的TV/网络连载动画（含OVA/ONA）。例：鬼灭之刃、进击的巨人、葬送的芙莉莲
+3. theatrical_anime（剧场版动画）→ 日本出品的动画电影（在影院上映的独立作品或TV续篇剧场版）。例：你的名字。、千与千寻、鬼灭之刃 无限列车篇
+4. anime_movie（动画电影）→ 非日本的动画电影（中国/欧美/其他国家出品的动画电影）。例：哪吒之魔童降世、疯狂动物城、蜘蛛侠：纵横宇宙
+5. movie（真人电影）→ 真人出演的电影（非动画）。例：流浪地球、肖申克的救赎、你的婚礼
+6. tv_drama（电视剧）→ 真人出演的电视剧（电视台播出）。例：庆余年、甄嬛传、权力的游戏
+7. web_drama（网剧）→ 真人出演的网络剧（网络平台首发，不上电视台）。例：隐秘的角落、沉默的真相、开端
+8. documentary（纪录片）→ 纪录片（任何题材/形式）。例：地球脉动、舌尖上的中国
+
+【判定优先级】先看形式（动画 vs 真人）→ 再看产地（日本 vs 其他）→ 最后看播出渠道（TV vs 网播 vs 影院）
+
 注意：synopsis和genres都必须是中文！禁止英文标签！category必须从给定的8个选项中选择！如果完全找不到则返回：{"title":"","titleEn":"","titleJa":"","episodes":0,"category":"japanese_anime","synopsis":"","score":null,"genres":[],"year":null}`;
 
   const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -654,18 +671,19 @@ function fuzzyMatchScore(a, b) {
 }
 
 app.post('/api/ai-enrich', async (req, res) => {
-  const { query } = req.body;
-  if (!query || !query.trim()) return res.status(400).json({ error: '需要番剧名称' });
+  const q = (req.body.query || req.body.title || '').trim();
+  const apiKey = req.body.apiKey || '';
+  if (!q) return res.status(400).json({ error: '需要番剧名称' });
   try {
     // Step 1: Get AI identification
     let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
-      aiData = await callAI(query.trim());
+      aiData = await callAI(q, apiKey);
     } catch(e) { console.error('AI call failed:', e.message); }
 
     // Step 2: Search real sources with multiple title variants
     const searchTitles = [...new Set([
-      aiData.title, aiData.titleEn, aiData.titleJa, query
+      aiData.title, aiData.titleEn, aiData.titleJa, q
     ].filter(Boolean))];
 
     const allSearchResults = [];
@@ -707,11 +725,17 @@ app.post('/api/ai-enrich', async (req, res) => {
       } catch(e) {}
     }
 
+    // Map raw animeType to category values matching frontend <select>
+    const mapCategory = (raw) => {
+      const m = { tv: 'japanese_anime', movie: 'anime_movie', ova: 'japanese_anime', ona: 'japanese_anime', web: 'japanese_anime', special: 'japanese_anime', music: 'anime_movie' };
+      return m[raw] || raw || null;
+    };
+
     // Step 5: Build merged result — real data preferred
     const merged = {
-      title: bestReal?.title || aiData.title || query,
+      title: bestReal?.title || aiData.title || q,
       episodes: bestReal?.episodes || parseInt(aiData.episodes) || 0,
-      category: bestReal?.category || bestReal?.animeType || aiData.category || null,
+      category: mapCategory(bestReal?.category || bestReal?.animeType) || aiData.category || null,
       synopsis: realDetail?.synopsis || bestReal?.synopsis || aiData.synopsis || '',
       score: bestReal?.score || aiData.score || null,
       genres: (realDetail?.genres && realDetail.genres.length > 0)
@@ -766,6 +790,98 @@ app.post('/api/test-search', async (req, res) => {
     const results = await genericSearch(searchUrl, query);
     res.json({ results });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== Test AI API ==========
+app.post('/api/test-ai', async (req, res) => {
+  const cfg = loadConfig();
+  const apiKey = cfg.deepseekApiKey;
+  if (!apiKey) return res.status(400).json({ error: '未配置 API Key' });
+  try {
+    const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: 'Hi' }],
+        max_tokens: 10,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      res.json({ ok: true, model: data.model || 'deepseek-chat', usage: data.usage });
+    } else {
+      const err = await resp.text();
+      let msg = `HTTP ${resp.status}`;
+      try { const j = JSON.parse(err); msg = j.error?.message || msg; } catch(_) {}
+      res.status(502).json({ error: msg });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== Reclassify ==========
+app.post('/api/reclassify', async (req, res) => {
+  const titles = (req.body.titles || []).map(t => (t || '').trim()).filter(Boolean);
+  if (titles.length === 0) return res.status(400).json({ error: '需要至少一个番剧名称' });
+  const apiKey = req.body.apiKey || loadConfig().deepseekApiKey;
+  if (!apiKey) return res.status(400).json({ error: '未配置 DeepSeek API Key' });
+
+  const rules = `【8大分类 · 严格判定规则】
+1. chinese_anime（国漫/国产动画）→ 中国出品的动画，TV连载或网络播出。例：一人之下、狐妖小红娘、时光代理人、伍六七
+2. japanese_anime（日漫/TV番剧）→ 日本出品的TV/网络连载动画（含OVA/ONA）。例：鬼灭之刃、进击的巨人、葬送的芙莉莲
+3. theatrical_anime（剧场版动画）→ 日本出品的动画电影（在影院上映的独立作品或TV续篇剧场版）。例：你的名字。、千与千寻、鬼灭之刃 无限列车篇
+4. anime_movie（动画电影）→ 非日本的动画电影（中国/欧美/其他国家出品的动画电影）。例：哪吒之魔童降世、疯狂动物城、蜘蛛侠：纵横宇宙
+5. movie（真人电影）→ 真人出演的电影（非动画）。例：流浪地球、肖申克的救赎、你的婚礼
+6. tv_drama（电视剧）→ 真人出演的电视剧（电视台播出）。例：庆余年、甄嬛传、权力的游戏
+7. web_drama（网剧）→ 真人出演的网络剧（网络平台首发，不上电视台）。例：隐秘的角落、沉默的真相、开端
+8. documentary（纪录片）→ 纪录片（任何题材/形式）。例：地球脉动、舌尖上的中国
+【判定优先级】先看形式（动画 vs 真人）→ 再看产地（日本 vs 其他）→ 最后看播出渠道（TV vs 网播 vs 影院）`;
+
+  const titleList = titles.map((t, i) => `${i + 1}. ${t}`).join('\n');
+
+  try {
+    const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: `你是一个专业的作品分类助手。根据以下分类规则对每部作品进行分类，只返回JSON。\n\n${rules}` },
+          { role: 'user', content: `请为以下作品逐一分类，返回JSON数组（不要markdown）：\n${titleList}\n\n返回格式：[{"index": 1, "category": "japanese_anime"}, ...]\nindex对应序号，category必须是8个分类值之一。不确定时归类为japanese_anime。` },
+        ],
+        temperature: 0.1,
+        max_tokens: 2000,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      return res.status(502).json({ error: err.error?.message || `API ${resp.status}` });
+    }
+
+    const json = await resp.json();
+    const content = json.choices?.[0]?.message?.content || '';
+    const match = content.match(/\[[\s\S]*\]/);
+    if (!match) return res.status(500).json({ error: 'AI 返回格式异常' });
+
+    const results = JSON.parse(match[0]);
+    const mapped = results.map(r => {
+      const idx = (typeof r.index === 'number' ? r.index : parseInt(r.index) || 0) - 1;
+      return {
+        title: titles[idx] || '',
+        category: r.category || 'japanese_anime',
+      };
+    });
+
+    res.json({ results: mapped });
+  } catch (e) {
+    console.error('Reclassify error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

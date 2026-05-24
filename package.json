@@ -10,5 +10,10 @@
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",
     "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.0",
+    "daisyui": "^5.5.20",
+    "tailwindcss": "^4.3.0"
   }
 }
