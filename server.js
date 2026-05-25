@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const cheerio = require('cheerio');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,6 +13,7 @@ app.use(express.static(__dirname));
 
 const PORT = 3456;
 const CUSTOM_SOURCES_FILE = path.join(__dirname, 'custom-sources.json');
+const USERS_FILE = path.join(__dirname, 'users.json');
 
 // ========== Helpers ==========
 
@@ -904,6 +907,89 @@ app.get('/api/proxy-image', async (req, res) => {
   } catch(e) {
     res.status(500).send(e.message);
   }
+});
+
+// ========== User Auth ==========
+
+function loadUsers() {
+  try {
+    if (fs.existsSync(USERS_FILE)) return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+  } catch(e) {}
+  return [];
+}
+
+function saveUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8');
+}
+
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Auth middleware
+function authMiddleware(req, res, next) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return res.status(401).json({ error: '未登录' });
+  const users = loadUsers();
+  const user = users.find(u => u.token === token);
+  if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+  req.user = { id: user.id, username: user.username };
+  next();
+}
+
+// POST /api/auth/register
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !username.trim()) return res.status(400).json({ error: '用户名不能为空' });
+  if (!password || password.length < 4) return res.status(400).json({ error: '密码至少4位' });
+  const name = username.trim();
+  const users = loadUsers();
+  if (users.find(u => u.username.toLowerCase() === name.toLowerCase())) {
+    return res.status(409).json({ error: '用户名已存在' });
+  }
+  const hash = await bcrypt.hash(password, 10);
+  const token = generateToken();
+  const user = {
+    id: 'user_' + Date.now(),
+    username: name,
+    passwordHash: hash,
+    token,
+    createdAt: new Date().toISOString(),
+  };
+  users.push(user);
+  saveUsers(users);
+  res.json({ token, username: name });
+});
+
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
+  const users = loadUsers();
+  const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
+  if (!user) return res.status(401).json({ error: '用户名或密码错误' });
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) return res.status(401).json({ error: '用户名或密码错误' });
+  // Rotate token on login
+  user.token = generateToken();
+  saveUsers(users);
+  res.json({ token: user.token, username: user.username });
+});
+
+// GET /api/auth/me — get current user
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  res.json({ username: req.user.username });
+});
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', authMiddleware, (req, res) => {
+  const users = loadUsers();
+  const user = users.find(u => u.id === req.user.id);
+  if (user) {
+    user.token = null;
+    saveUsers(users);
+  }
+  res.json({ ok: true });
 });
 
 app.listen(PORT, () => {

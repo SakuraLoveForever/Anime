@@ -919,6 +919,7 @@
         <span id="backendLabel">后端未连接</span>
       </div>
       <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
+      <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
       <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
       <button class="btn-add" onclick="openAddModal()">＋ 添加番剧</button>
       <button class="btn-add" onclick="openBatchAddModal()" title="批量添加，一行一个名字">📋 批量添加</button>
@@ -1225,6 +1226,33 @@
   </div>
 </div>
 
+<!-- ===== Auth Modal ===== -->
+<div class="modal-overlay" id="authModalOverlay" style="display:none">
+  <div class="edit-modal-box small">
+    <h2 id="authModalTitle">登录</h2>
+    <div class="modal-field">
+      <label id="authModalFieldLabel">用户名</label>
+      <input type="text" id="authUsername" placeholder="请输入用户名" maxlength="50" autocomplete="username">
+    </div>
+    <div class="modal-field">
+      <label>密码</label>
+      <input type="password" id="authPassword" placeholder="请输入密码" maxlength="50" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleAuthSubmit()">
+    </div>
+    <div class="modal-field" id="authConfirmField" style="display:none">
+      <label>确认密码</label>
+      <input type="password" id="authPasswordConfirm" placeholder="请再次输入密码" maxlength="50">
+    </div>
+    <div class="modal-field" id="authMsg" style="display:none;font-size:0.82rem;color:var(--color-error)"></div>
+    <div class="modal-actions" style="flex-direction:column;align-items:center;gap:10px">
+      <div style="display:flex;gap:10px;width:100%;justify-content:flex-end">
+        <button class="btn-cancel" onclick="closeAuthModal()">取消</button>
+        <button class="btn-save" id="btnAuthSubmit" onclick="handleAuthSubmit()">登录</button>
+      </div>
+      <button class="btn-cancel" id="btnAuthToggle" onclick="toggleAuthMode()" style="font-size:0.82rem;opacity:0.7;border:none;background:transparent;cursor:pointer">没有账号？点击注册</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Detail Popup ===== -->
 <div class="detail-overlay" id="detailOverlay" style="display:none" onclick="closeDetailPopup()"></div>
 <div class="detail-popup" id="detailPopup"></div>
@@ -1235,6 +1263,29 @@
 
 <!-- ===== Toast Container ===== -->
 <div class="toast-container" id="toastContainer"></div>
+
+<!-- ===== Firebase SDK ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<!-- ===== Firebase Config ===== -->
+<!-- 将下面的配置替换为你自己的 Firebase 项目配置 -->
+<!-- 在 Firebase Console → 项目设置 → 通用 → 您的应用 → Web 应用 中获取 -->
+<script>
+// 设置为 true 并填入你的 Firebase 配置以启用云端存储
+  window.FIREBASE_ENABLED = true;
+  window.FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBN6dWXeELEKQazmEk_LwsT8OqwfsTVM8M",           // 你复制的值
+    authDomain: "anime-tracker-4885e.firebaseapp.com",
+    projectId: "anime-tracker-4885e",
+    storageBucket: "anime-tracker-4885e.firebasestorage.app",
+    messagingSenderId: "108177069518",
+    appId: "1:108177069518:web:35438fa4a288af4280079f"
+  };
+</script>
+
+<script src="js/firebase.js"></script>
 
 <script>
 // ===== Data =====
@@ -1281,6 +1332,18 @@ function loadData() {
 }
 function saveData() {
   localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
+  syncAnimeToCloud();
+}
+// Debounced cloud sync for anime
+var _cloudSyncTimer = null;
+function syncAnimeToCloud() {
+  if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
+  clearTimeout(_cloudSyncTimer);
+  _cloudSyncTimer = setTimeout(function() {
+    window.AnimeCloud.batchSaveAnime(animeList).catch(function(e) {
+      console.error('Cloud sync error:', e);
+    });
+  }, 1500);
 }
 function loadFolders() {
   try { folderList = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]'); } catch(e) { folderList = []; }
@@ -1294,6 +1357,17 @@ function loadFolders() {
 }
 function saveFolders() {
   localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList));
+  syncFoldersToCloud();
+}
+var _cloudFolderTimer = null;
+function syncFoldersToCloud() {
+  if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
+  clearTimeout(_cloudFolderTimer);
+  _cloudFolderTimer = setTimeout(function() {
+    window.AnimeCloud.saveAllFolders(folderList).catch(function(e) {
+      console.error('Cloud folder sync error:', e);
+    });
+  }, 1500);
 }
 async function loadSourceList() {
   try { sourceList = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]'); } catch(e) { sourceList = []; }
@@ -1354,6 +1428,17 @@ async function loadSourceList() {
 }
 function saveSourceList() {
   localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+  syncSourcesToCloud();
+}
+var _cloudSourceTimer = null;
+function syncSourcesToCloud() {
+  if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
+  clearTimeout(_cloudSourceTimer);
+  _cloudSourceTimer = setTimeout(function() {
+    window.AnimeCloud.saveAllSources(sourceList).catch(function(e) {
+      console.error('Cloud source sync error:', e);
+    });
+  }, 1500);
 }
 
 // ===== Backend =====
@@ -1485,8 +1570,11 @@ function toggleSource(id) {
 
 function deleteSource(id) {
   if (!confirm('确定删除这个搜索来源吗？')) return;
-  sourceList = sourceList.filter(s => s.id !== id);
+  sourceList = sourceList.filter(function(s) { return s.id !== id; });
   saveSourceList();
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+    window.AnimeCloud.deleteSource(id).catch(function(e) { console.error('Cloud source delete error:', e); });
+  }
   renderSourceManagerList();
 }
 
@@ -1624,12 +1712,23 @@ function loadSearchHistory() {
 function saveSearchTerm() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
-  searchHistory = searchHistory.filter(t => t !== q);
+  searchHistory = searchHistory.filter(function(t) { return t !== q; });
   searchHistory.unshift(q);
   if (searchHistory.length > MAX_HISTORY) searchHistory.pop();
   localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+  syncSearchHistoryToCloud();
   renderCards();
   hideSearchHistory();
+}
+var _cloudSearchTimer = null;
+function syncSearchHistoryToCloud() {
+  if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
+  clearTimeout(_cloudSearchTimer);
+  _cloudSearchTimer = setTimeout(function() {
+    window.AnimeCloud.saveSearchHistory(searchHistory).catch(function(e) {
+      console.error('Cloud search history sync error:', e);
+    });
+  }, 2000);
 }
 
 function showSearchHistory() {
@@ -1658,6 +1757,7 @@ function hideSearchHistory() {
 function clearSearchHistory() {
   searchHistory = [];
   localStorage.removeItem(SEARCH_HISTORY_KEY);
+  syncSearchHistoryToCloud();
   document.getElementById('searchHistoryDropdown').innerHTML = '';
   hideSearchHistory();
   showToast('搜索记录已清除 ✓');
@@ -1983,14 +2083,19 @@ function batchSetStatus(status) {
 
 function batchDelete() {
   if (selectedIds.size === 0) return;
-  if (!confirm(`确定要删除选中的 ${selectedIds.size} 个条目吗？此操作不可撤销。`)) return;
-  animeList = animeList.filter(a => !selectedIds.has(a.id));
+  if (!confirm('确定要删除选中的 ' + selectedIds.size + ' 个条目吗？此操作不可撤销。')) return;
+  const idsToDelete = Array.from(selectedIds);
+  animeList = animeList.filter(function(a) { return !selectedIds.has(a.id); });
   selectedIds.clear();
   selectionMode = false;
   document.getElementById('cardGrid').classList.remove('selection-mode');
   document.getElementById('btnSelectMode').classList.remove('active');
   updateBatchBar();
   saveData();
+  // Also delete from cloud
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+    window.AnimeCloud.batchDeleteAnime(idsToDelete).catch(function(e) { console.error('Cloud batch delete error:', e); });
+  }
   renderCards();
   renderFolderList();
   showToast('已批量删除 ✓');
@@ -2510,10 +2615,15 @@ function saveAnime() {
 }
 
 function deleteAnime(id) {
-  animeList = animeList.filter(a => a.id !== id);
+  animeList = animeList.filter(function(a) { return a.id !== id; });
   if (detailPopupId === id) { detailPopupId = null; document.getElementById('detailOverlay').style.display = 'none'; }
   if (editingId === id) editingId = null;
-  saveData(); renderCards();
+  saveData();
+  // Also delete from cloud
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+    window.AnimeCloud.deleteAnime(id).catch(function(e) { console.error('Cloud delete error:', e); });
+  }
+  renderCards();
 }
 
 let pendingDeleteId = null;
@@ -2718,10 +2828,13 @@ function saveFolder() {
 
 function deleteFolder(id) {
   if (!confirm('确定删除此收藏夹？番剧不会被删除。')) return;
-  animeList.forEach(a => { if (a.folderId === id) a.folderId = null; });
-  folderList = folderList.filter(f => f.id !== id);
+  animeList.forEach(function(a) { if (a.folderId === id) a.folderId = null; });
+  folderList = folderList.filter(function(f) { return f.id !== id; });
   saveData();
   saveFolders();
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+    window.AnimeCloud.deleteFolder(id).catch(function(e) { console.error('Cloud folder delete error:', e); });
+  }
   renderCards();
   renderFolderList();
 }
@@ -2921,6 +3034,12 @@ async function saveSettings() {
       });
     } catch(e) {}
   }
+  // Sync settings to cloud
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+    window.AnimeCloud.saveSettings({ apiKey: key, apiProvider: provider, apiUrl: url, theme: currentTheme }).catch(function(e) {
+      console.error('Cloud settings sync error:', e);
+    });
+  }
   closeSettingsModal();
   showToast('设置已保存 ✓');
 }
@@ -2986,11 +3105,336 @@ function showToast(msg, undoAction) {
   }
 })();
 
+// ===== Auth =====
+let authMode = 'login'; // 'login' | 'register'
+const useCloudAuth = function() { return window.AnimeCloud && window.AnimeCloud.ready; };
+
+function isLoggedIn() {
+  if (useCloudAuth()) return window.AnimeCloud.loggedIn;
+  return !!(localStorage.getItem('anime_auth_token'));
+}
+
+function getUserDisplayName() {
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) return window.AnimeCloud.displayName;
+  return localStorage.getItem('anime_auth_username') || '';
+}
+
+function updateAuthUI() {
+  const label = document.getElementById('btnAuthLabel');
+  const name = getUserDisplayName();
+  if (name) {
+    label.textContent = name;
+    document.getElementById('btnAuth').title = '点击查看账号';
+  } else {
+    label.textContent = '登录';
+    document.getElementById('btnAuth').title = '登录';
+  }
+  // Update label based on auth mode
+  const labelEl = document.getElementById('authModalFieldLabel');
+  if (labelEl) {
+    labelEl.textContent = useCloudAuth() ? '邮箱' : '用户名';
+  }
+}
+
+function openAuthModal() {
+  if (isLoggedIn()) {
+    showAuthUserMenu();
+    return;
+  }
+  authMode = 'login';
+  setAuthModeUI();
+  document.getElementById('authModalOverlay').style.display = 'flex';
+  document.getElementById('authUsername').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authPasswordConfirm').value = '';
+  document.getElementById('authMsg').style.display = 'none';
+}
+
+function closeAuthModal() {
+  document.getElementById('authModalOverlay').style.display = 'none';
+}
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'register' : 'login';
+  setAuthModeUI();
+  document.getElementById('authMsg').style.display = 'none';
+}
+
+function setAuthModeUI() {
+  const isLogin = authMode === 'login';
+  const isCloud = useCloudAuth();
+  document.getElementById('authModalTitle').textContent = isLogin ? '登录' : '注册';
+  document.getElementById('btnAuthSubmit').textContent = isLogin ? '登录' : '注册';
+  document.getElementById('btnAuthToggle').textContent = isLogin ? '没有账号？点击注册' : '已有账号？点击登录';
+  document.getElementById('authConfirmField').style.display = (isLogin || isCloud) ? 'none' : 'block';
+  // Update label based on auth mode
+  const labelEl = document.getElementById('authModalFieldLabel');
+  if (labelEl) labelEl.textContent = isCloud ? '邮箱' : '用户名';
+  // Update input placeholders for cloud vs local
+  const userInput = document.getElementById('authUsername');
+  if (isCloud) {
+    userInput.placeholder = isLogin ? '请输入邮箱' : '请输入邮箱';
+    userInput.type = 'email';
+  } else {
+    userInput.placeholder = '请输入用户名';
+    userInput.type = 'text';
+  }
+}
+
+async function handleAuthSubmit() {
+  const account = document.getElementById('authUsername').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const msgEl = document.getElementById('authMsg');
+
+  if (!account) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = useCloudAuth() ? '请输入邮箱' : '请输入用户名';
+    return;
+  }
+  if (useCloudAuth() && !account.includes('@')) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = '请输入有效的邮箱地址';
+    return;
+  }
+  if (!password || password.length < 4) { msgEl.style.display = 'block'; msgEl.textContent = '密码至少4位'; return; }
+
+  // ===== Firebase Cloud Auth =====
+  if (useCloudAuth()) {
+    try {
+      if (authMode === 'register') {
+        const displayName = account.split('@')[0];
+        await window.AnimeCloud.register(account, password, displayName);
+      } else {
+        await window.AnimeCloud.login(account, password);
+      }
+      // After successful login, load cloud data
+      await loadCloudData();
+      updateAuthUI();
+      closeAuthModal();
+      renderFolderList();
+      renderCards();
+      showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + getUserDisplayName() + ' ✓');
+    } catch(e) {
+      msgEl.style.display = 'block';
+      if (e.code === 'auth/email-already-in-use') msgEl.textContent = '该邮箱已注册';
+      else if (e.code === 'auth/invalid-email') msgEl.textContent = '邮箱格式不正确';
+      else if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msgEl.textContent = '邮箱或密码错误';
+      else if (e.code === 'auth/weak-password') msgEl.textContent = '密码强度不够，请至少使用6位密码';
+      else msgEl.textContent = e.message || '操作失败';
+    }
+    return;
+  }
+
+  // ===== Local Server Auth =====
+  if (authMode === 'register') {
+    const confirm = document.getElementById('authPasswordConfirm').value;
+    if (password !== confirm) { msgEl.style.display = 'block'; msgEl.textContent = '两次密码不一致'; return; }
+  }
+
+  const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: account, password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { msgEl.style.display = 'block'; msgEl.textContent = data.error || '操作失败'; return; }
+
+    localStorage.setItem('anime_auth_token', data.token);
+    localStorage.setItem('anime_auth_username', data.username);
+    updateAuthUI();
+    closeAuthModal();
+    showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + data.username + ' ✓');
+  } catch(e) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = '网络错误：' + e.message;
+  }
+}
+
+function showAuthUserMenu() {
+  const name = getUserDisplayName();
+  const menu = document.createElement('div');
+  menu.id = 'authUserMenu';
+  menu.style.cssText = 'position:fixed;top:56px;right:140px;z-index:300;background:var(--color-base-200);border:2px solid var(--color-primary);border-radius:10px;padding:16px;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5);text-align:center';
+  menu.innerHTML = '<div style="font-weight:700;margin-bottom:8px">👤 ' + name + '</div>'
+    + '<button onclick="handleLogout()" style="padding:6px 16px;border-radius:6px;border:1px solid var(--color-error);background:transparent;color:var(--color-error);cursor:pointer;font-family:inherit">退出登录</button>';
+  const existing = document.getElementById('authUserMenu');
+  if (existing) existing.remove();
+  document.body.appendChild(menu);
+  setTimeout(function() {
+    document.addEventListener('click', function closeMenu(e) {
+      if (!menu.contains(e.target) && e.target !== document.getElementById('btnAuth')) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    });
+  }, 0);
+}
+
+async function handleLogout() {
+  if (useCloudAuth()) {
+    await window.AnimeCloud.logout();
+    // Reload local data after logout
+    loadData();
+    loadFolders();
+    loadSourceList();
+    loadSearchHistory();
+    updateAuthUI();
+    renderFolderList();
+    renderCards();
+    showToast('已退出登录');
+  } else {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('anime_auth_token') },
+      });
+    } catch(e) {}
+    localStorage.removeItem('anime_auth_token');
+    localStorage.removeItem('anime_auth_username');
+    updateAuthUI();
+    const menu = document.getElementById('authUserMenu');
+    if (menu) menu.remove();
+    showToast('已退出登录');
+  }
+}
+
+// ===== Cloud Data Loader =====
+async function loadCloudData() {
+  if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return false;
+
+  showToast('正在同步云端数据...');
+
+  const [cloudAnime, cloudFolders, cloudSources, cloudHistory, cloudSettings] = await Promise.all([
+    window.AnimeCloud.loadAnimeList(),
+    window.AnimeCloud.loadFolders(),
+    window.AnimeCloud.loadSources(),
+    window.AnimeCloud.loadSearchHistory(),
+    window.AnimeCloud.loadSettings(),
+  ]);
+
+  if (cloudAnime !== null) {
+    animeList = cloudAnime;
+    // Fix categories
+    for (var i = 0; i < animeList.length; i++) {
+      if (!animeList[i].category || VALID_CATEGORIES.indexOf(animeList[i].category) < 0) {
+        animeList[i].category = DEFAULT_CATEGORY;
+      }
+    }
+    localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
+  }
+  if (cloudFolders !== null) {
+    folderList = cloudFolders;
+    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList));
+  }
+  if (cloudSources !== null) {
+    sourceList = cloudSources;
+    localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+  }
+  if (cloudHistory !== null && cloudHistory.length > 0) {
+    searchHistory = cloudHistory;
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+  } else if (cloudHistory !== null && cloudHistory.length === 0) {
+    // Keep local history if cloud is empty (new user)
+  }
+  if (cloudSettings) {
+    if (cloudSettings.apiKey) localStorage.setItem('anime_api_key', cloudSettings.apiKey);
+    if (cloudSettings.apiProvider) localStorage.setItem('anime_api_provider', cloudSettings.apiProvider);
+    if (cloudSettings.apiUrl) localStorage.setItem('anime_api_url', cloudSettings.apiUrl);
+    if (cloudSettings.theme) { currentTheme = cloudSettings.theme; applyTheme(currentTheme); }
+  }
+
+  // Auto-migrate localStorage data to cloud if cloud is empty
+  if (cloudAnime !== null && cloudAnime.length === 0 && cloudFolders !== null && cloudFolders.length === 0) {
+    const localAnime = JSON.parse(localStorage.getItem(DATA_KEY) || '[]');
+    if (localAnime.length > 0) {
+      showToast('检测到本地数据，正在上传到云端...');
+      animeList = localAnime;
+      saveData();
+      syncAnimeToCloud();
+      // Force immediate sync
+      clearTimeout(_cloudSyncTimer);
+      await window.AnimeCloud.batchSaveAnime(localAnime);
+      const localFolders = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]');
+      if (localFolders.length > 0) {
+        folderList = localFolders;
+        saveFolders();
+        await window.AnimeCloud.saveAllFolders(localFolders);
+      }
+      const localSources = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]');
+      if (localSources.length > 0) {
+        sourceList = localSources;
+        saveSourceList();
+        await window.AnimeCloud.saveAllSources(localSources);
+      }
+      showToast('本地数据已上传到云端 ✓');
+    }
+  }
+
+  showToast('云端数据同步完成 ✓');
+  return true;
+}
+
+// Init Firebase & Auth
+function initAuth() {
+  // Try to init Firebase
+  if (window.FIREBASE_ENABLED && window.FIREBASE_CONFIG) {
+    window.AnimeCloud.init(window.FIREBASE_CONFIG);
+  }
+
+  if (useCloudAuth()) {
+    // Firebase handles auth state via onAuthStateChanged listener
+    // Set up listener for data reload on auth change
+    window.AnimeCloud.onAuthChange(async function(loggedIn) {
+      updateAuthUI();
+      if (loggedIn) {
+        await loadCloudData();
+        renderFolderList();
+        renderCards();
+      } else {
+        // Fall back to local data
+        loadData();
+        loadFolders();
+        loadSourceList();
+        loadSearchHistory();
+        renderFolderList();
+        renderCards();
+      }
+    });
+    updateAuthUI();
+    // If already logged in (Firebase persists), load cloud data
+    if (window.AnimeCloud.loggedIn) {
+      loadCloudData().then(function() {
+        renderFolderList();
+        renderCards();
+      });
+    }
+  } else {
+    // Local server auth — verify existing token
+    const token = localStorage.getItem('anime_auth_token');
+    if (token) {
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': 'Bearer ' + token },
+      }).then(function(r) {
+        if (!r.ok) {
+          localStorage.removeItem('anime_auth_token');
+          localStorage.removeItem('anime_auth_username');
+        }
+        updateAuthUI();
+      }).catch(function() { updateAuthUI(); });
+    } else {
+      updateAuthUI();
+    }
+  }
+}
+
 // ===== Init =====
 loadData();
 loadFolders();
 loadSearchHistory();
 applyTheme(currentTheme);
+initAuth();
 checkBackend().then(async () => {
   if (!backendOnline) await loadSourceList();
   renderFolderList();
