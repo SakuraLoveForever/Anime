@@ -932,6 +932,7 @@
         <span class="bdot"></span>
         <span id="backendLabel">后端未连接</span>
       </div>
+      <button class="backend-status" id="btnCloudMode" onclick="toggleCloudMode()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">☁️ <span id="btnCloudModeLabel">在线</span></button>
       <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
       <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
       <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
@@ -1319,6 +1320,8 @@
 <script>
 // ===== Config =====
 let BACKEND_URL = localStorage.getItem('anime_backend_url') || '';
+const CLOUD_MODE_KEY = 'anime_cloud_mode';
+let cloudMode = localStorage.getItem(CLOUD_MODE_KEY) !== 'offline';
 
 // ===== Data =====
 const DATA_KEY = 'anime_tracker_data';
@@ -3095,6 +3098,7 @@ function exportAllData() {
     searchHistory: searchHistory,
     settings: {
       theme: currentTheme,
+      cloudMode: cloudMode ? 'online' : 'offline',
       backendUrl: BACKEND_URL,
       apiProvider: localStorage.getItem('anime_api_provider') || 'deepseek',
       apiUrl: localStorage.getItem('anime_api_url') || 'https://api.deepseek.com',
@@ -3284,9 +3288,31 @@ function showToast(msg, undoAction) {
   }
 })();
 
+// ===== Cloud Mode Toggle =====
+function toggleCloudMode() {
+  const newMode = cloudMode ? 'offline' : 'online';
+  localStorage.setItem(CLOUD_MODE_KEY, newMode);
+  location.reload();
+}
+
+function updateCloudModeUI() {
+  const btn = document.getElementById('btnCloudMode');
+  const label = document.getElementById('btnCloudModeLabel');
+  if (!btn || !label) return;
+  if (cloudMode) {
+    btn.innerHTML = '☁️ <span id="btnCloudModeLabel">在线</span>';
+    btn.style.borderColor = 'color-mix(in srgb, var(--color-success) 20%, transparent)';
+    btn.title = '当前：在线模式（Firebase 云端同步）。点击切换到离线模式';
+  } else {
+    btn.innerHTML = '💻 <span id="btnCloudModeLabel">离线</span>';
+    btn.style.borderColor = 'color-mix(in srgb, var(--color-warning, #f59e0b) 30%, transparent)';
+    btn.title = '当前：离线模式（仅本地存储）。点击切换到在线模式';
+  }
+}
+
 // ===== Auth =====
 let authMode = 'login'; // 'login' | 'register'
-const useCloudAuth = function() { return window.AnimeCloud && window.AnimeCloud.ready; };
+const useCloudAuth = function() { return cloudMode && window.AnimeCloud && window.AnimeCloud.ready; };
 
 function isLoggedIn() {
   if (useCloudAuth()) return window.AnimeCloud.loggedIn;
@@ -3299,14 +3325,20 @@ function getUserDisplayName() {
 }
 
 function updateAuthUI() {
+  const btn = document.getElementById('btnAuth');
+  if (!cloudMode) {
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = 'inline-flex';
   const label = document.getElementById('btnAuthLabel');
   const name = getUserDisplayName();
   if (name) {
     label.textContent = name;
-    document.getElementById('btnAuth').title = '点击查看账号';
+    btn.title = '点击查看账号';
   } else {
     label.textContent = '登录';
-    document.getElementById('btnAuth').title = '登录';
+    btn.title = '登录';
   }
   // Update label based on auth mode
   const labelEl = document.getElementById('authModalFieldLabel');
@@ -3563,8 +3595,8 @@ async function loadCloudData() {
 
 // Init Firebase & Auth
 function initAuth() {
-  // Try to init Firebase
-  if (window.FIREBASE_ENABLED && window.FIREBASE_CONFIG) {
+  // Only init Firebase in cloud mode
+  if (cloudMode && window.FIREBASE_ENABLED && window.FIREBASE_CONFIG) {
     window.AnimeCloud.init(window.FIREBASE_CONFIG);
   }
 
@@ -3615,6 +3647,7 @@ function initAuth() {
 }
 
 // ===== Init =====
+updateCloudModeUI();
 loadData();
 loadFolders();
 loadSearchHistory();
