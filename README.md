@@ -8,9 +8,11 @@
 
 # 在线网页模式
 
-[番剧管理](https://sakuraloveforever.github.io/Anime/)
+[番剧管理](https://anime-tracker-0ptb.onrender.com/)
 
-在线版基于 **Firebase** 提供多用户云端同步，无需本地搭建即可使用。
+在线版完整支持搜索番剧、AI 智能填充、链接解析等全部功能，基于 **Firebase** 提供多用户云端同步。
+
+> 首次访问 Render 可能需要等待 ~30 秒唤醒（免费实例休眠）。纯前端镜像站：[GitHub Pages](https://sakuraloveforever.github.io/Anime/)（无 AI 功能）
 
 ### 注册 / 登录
 
@@ -19,6 +21,14 @@
 - 输入邮箱和密码，点击注册即可创建账号
 - 注册后自动登录，所有数据保存在云端
 - 后续登录同一账号即可跨设备同步番剧数据
+
+### AI 功能
+
+点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys) → 点击「🧪 测试」→ 保存。
+
+- 每个人的 API Key 只保存在自己浏览器中，不会上传到服务器
+- 添加番剧时点击「🤖 AI 填充」即可自动补全信息
+- 支持一键「🔄 重新分类」批量修正番剧分类
 
 ### 云端功能
 
