@@ -247,11 +247,17 @@
   /* ===== Topbar ===== */
   .topbar {
     position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; gap: 8px;
-    height: var(--topbar-h); padding: 0 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 8px 20px 10px;
     background: color-mix(in srgb, var(--color-base-100) 85%, transparent);
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 5%, transparent);
+  }
+  .topbar-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar-actions {
+    flex-wrap: wrap; padding-top: 2px;
   }
   .hamburger { display: none; }
   .search-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; position: relative; }
@@ -506,7 +512,7 @@
 
   /* ===== Batch Bar ===== */
   .batch-bar {
-    position: sticky; top: var(--topbar-h); z-index: 40;
+    position: sticky; top: 88px; z-index: 40;
     display: flex; align-items: center; gap: 12px;
     padding: 10px 20px; margin-bottom: 16px;
     background: color-mix(in srgb, var(--color-base-100) 90%, transparent);
@@ -833,7 +839,8 @@
     .sidebar-overlay.show { display: block; }
     .main { margin-left: 0 !important; }
     .hamburger { display: block; }
-    .topbar { padding: 0 12px; gap: 8px; }
+    .topbar { padding: 6px 12px 8px; gap: 6px; }
+    .batch-bar { top: 78px; }
     .content { padding: 20px 16px 32px; }
     .card-grid { grid-template-columns: repeat(auto-fill, 160px); justify-content: center; gap: 14px; }
     .stats-row { gap: 10px; }
@@ -941,32 +948,36 @@
 
   <main class="main">
     <div class="topbar">
-      <button class="hamburger btn btn-ghost btn-sm text-base-content" onclick="openSidebar()" aria-label="菜单">☰</button>
-      <div class="search-wrap" id="searchWrap">
-        <div class="expanding-search-bar" id="mainSearchBar">
-          <button class="expanding-search-icon" id="btnMainSearchIcon" onclick="toggleMainSearch()" title="搜索番剧">🔍</button>
-          <input type="text" class="expanding-search-input" id="searchInput" placeholder="搜索番剧名称..." oninput="renderCards()" onfocus="showSearchHistory()" onkeydown="if(event.key==='Enter')saveSearchTerm()" autocomplete="off">
+      <div class="topbar-row">
+        <button class="hamburger btn btn-ghost btn-sm text-base-content" onclick="openSidebar()" aria-label="菜单">☰</button>
+        <div class="search-wrap" id="searchWrap">
+          <div class="expanding-search-bar" id="mainSearchBar">
+            <button class="expanding-search-icon" id="btnMainSearchIcon" onclick="toggleMainSearch()" title="搜索番剧">🔍</button>
+            <input type="text" class="expanding-search-input" id="searchInput" placeholder="搜索番剧名称..." oninput="renderCards()" onfocus="showSearchHistory()" onkeydown="if(event.key==='Enter')saveSearchTerm()" autocomplete="off">
+          </div>
+          <div class="expanding-search-bar" id="semanticSearchBar">
+            <button class="expanding-search-icon" id="btnSemanticIcon" onclick="toggleSemanticSearch()" title="剧情语义搜索">📖</button>
+            <input type="text" class="expanding-search-input" id="semanticSearchInput" placeholder="输入剧情描述搜索番剧..." onkeydown="if(event.key==='Enter')doSemanticSearchFromBar()">
+          </div>
+          <div class="search-history-dropdown" id="searchHistoryDropdown"></div>
         </div>
-        <div class="expanding-search-bar" id="semanticSearchBar">
-          <button class="expanding-search-icon" id="btnSemanticIcon" onclick="toggleSemanticSearch()" title="剧情语义搜索">📖</button>
-          <input type="text" class="expanding-search-input" id="semanticSearchInput" placeholder="输入剧情描述搜索番剧..." onkeydown="if(event.key==='Enter')doSemanticSearchFromBar()">
+        <div class="backend-status offline" id="backendStatus" onclick="checkBackend()" title="点击重新检测后端">
+          <span class="bdot"></span>
+          <span id="backendLabel">后端未连接</span>
         </div>
-        <div class="search-history-dropdown" id="searchHistoryDropdown"></div>
+        <button class="backend-status" id="btnCloudMode" onclick="toggleCloudModePopover()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px;min-width:70px;justify-content:center">☁️ <span id="btnCloudModeLabel">在线</span></button>
+        <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
+        <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
+        <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
       </div>
-      <div class="backend-status offline" id="backendStatus" onclick="checkBackend()" title="点击重新检测后端">
-        <span class="bdot"></span>
-        <span id="backendLabel">后端未连接</span>
+      <div class="topbar-row topbar-actions">
+        <button class="btn-add" onclick="openAddModal()">＋ 添加番剧</button>
+        <button class="btn-add" onclick="openBatchAddModal()" title="批量添加，一行一个名字">📋 批量添加</button>
+        <button class="btn-add" id="btnBatchAi" onclick="batchAiFillAll()" title="一键AI补全：自动为缺失简介的番剧填充信息" style="background:color-mix(in srgb, var(--color-secondary) 15%, transparent);border-color:var(--color-secondary)">🤖 一键AI补全</button>
+        <button class="btn-add" id="btnReclassify" onclick="reclassifyAll()" title="重新分类：根据分类标准重新识别所有番剧的分类" style="background:color-mix(in srgb, var(--color-accent) 12%, transparent);border-color:var(--color-accent)">🔄 重新分类</button>
+        <button class="btn-add" id="btnRecommend" onclick="requestRecommendations()" title="智能推荐：根据你的番剧口味推荐相似作品" style="background:color-mix(in srgb, var(--color-warning) 12%, transparent);border-color:var(--color-warning)">🎯 智能推荐</button>
+        <button class="btn-add" id="btnCoverExplorer" onclick="openCoverExplorer()" title="探索更多封面：AI搜索番剧的多种封面图片" style="background:color-mix(in srgb, var(--color-info) 12%, transparent);border-color:var(--color-info)">🎨 探索更多封面</button>
       </div>
-      <button class="backend-status" id="btnCloudMode" onclick="toggleCloudModePopover()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px;min-width:70px;justify-content:center">☁️ <span id="btnCloudModeLabel">在线</span></button>
-      <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
-      <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
-      <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
-      <button class="btn-add" onclick="openAddModal()">＋ 添加番剧</button>
-      <button class="btn-add" onclick="openBatchAddModal()" title="批量添加，一行一个名字">📋 批量添加</button>
-      <button class="btn-add" id="btnBatchAi" onclick="batchAiFillAll()" title="一键AI补全：自动为缺失简介的番剧填充信息" style="background:color-mix(in srgb, var(--color-secondary) 15%, transparent);border-color:var(--color-secondary)">🤖 一键AI补全</button>
-      <button class="btn-add" id="btnReclassify" onclick="reclassifyAll()" title="重新分类：根据分类标准重新识别所有番剧的分类" style="background:color-mix(in srgb, var(--color-accent) 12%, transparent);border-color:var(--color-accent)">🔄 重新分类</button>
-      <button class="btn-add" id="btnRecommend" onclick="requestRecommendations()" title="智能推荐：根据你的番剧口味推荐相似作品" style="background:color-mix(in srgb, var(--color-warning) 12%, transparent);border-color:var(--color-warning)">🎯 智能推荐</button>
-      <button class="btn-add" id="btnCoverExplorer" onclick="openCoverExplorer()" title="探索更多封面：AI搜索番剧的多种封面图片" style="background:color-mix(in srgb, var(--color-info) 12%, transparent);border-color:var(--color-info)">🎨 探索更多封面</button>
     </div>
 
     <div class="content">
