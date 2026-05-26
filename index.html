@@ -1198,6 +1198,13 @@
   <div class="edit-modal-box small">
     <h2 id="settingsModalTitle">设置</h2>
     <div class="settings-section">
+      <h3>后端设置</h3>
+      <div class="modal-field">
+        <label>后端地址 <span style="font-size:0.7rem;opacity:0.5">（使用 Render 等远程后端时填写）</span></label>
+        <input type="text" id="settingsBackendUrl" placeholder="留空使用本地后端。例如: https://anime-xxxx.onrender.com">
+      </div>
+    </div>
+    <div class="settings-section">
       <h3>AI API 密钥</h3>
       <div class="modal-field">
         <label>API 提供商</label>
@@ -1298,9 +1305,7 @@
 
 <script>
 // ===== Config =====
-// Set this to your Render backend URL if the frontend is hosted separately (e.g. GitHub Pages)
-// e.g. const BACKEND_URL = 'https://anime-xxxx.onrender.com';
-const BACKEND_URL = '';
+let BACKEND_URL = localStorage.getItem('anime_backend_url') || '';
 
 // ===== Data =====
 const DATA_KEY = 'anime_tracker_data';
@@ -2330,7 +2335,7 @@ async function reclassifyAll() {
       var resp = await fetch(BACKEND_URL + '/api/reclassify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titles: batch.map(function(a) { return a.title; }) }),
+        body: JSON.stringify({ titles: batch.map(function(a) { return a.title; }), apiKey: localStorage.getItem('anime_api_key') || '' }),
         signal: AbortSignal.timeout(35000),
       });
       var json = await resp.json();
@@ -2974,6 +2979,7 @@ function updateThemeButton() {
 const apiKeyConfigured = !!localStorage.getItem('anime_api_key');
 
 function openSettingsModal() {
+  document.getElementById('settingsBackendUrl').value = BACKEND_URL;
   document.getElementById('settingsApiProvider').value = localStorage.getItem('anime_api_provider') || 'deepseek';
   document.getElementById('settingsApiUrl').value = localStorage.getItem('anime_api_url') || 'https://api.deepseek.com';
   document.getElementById('settingsApiKey').value = localStorage.getItem('anime_api_key') || '';
@@ -3012,13 +3018,11 @@ async function testAiApi() {
   }
 
   try {
-    var resp = await fetch(BACKEND_URL + '/api/config', {
+    var testResp = await fetch(BACKEND_URL + '/api/test-ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deepseekApiKey: key })
+      body: JSON.stringify({ apiKey: key })
     });
-    if (!resp.ok) { throw new Error('保存 Key 失败'); }
-    var testResp = await fetch(BACKEND_URL + '/api/test-ai', { method: 'POST' });
     if (testResp.ok) {
       var data = await testResp.json();
       resultDiv.style.color = 'var(--color-success)';
@@ -3038,22 +3042,24 @@ async function testAiApi() {
 }
 
 async function saveSettings() {
+  const backendUrl = document.getElementById('settingsBackendUrl').value.trim().replace(/\/+$/, '');
   const provider = document.getElementById('settingsApiProvider').value;
   const url = document.getElementById('settingsApiUrl').value.trim();
   const key = document.getElementById('settingsApiKey').value.trim();
+
+  // Update backend URL
+  if (backendUrl !== BACKEND_URL) {
+    BACKEND_URL = backendUrl;
+    if (backendUrl) {
+      localStorage.setItem('anime_backend_url', backendUrl);
+    } else {
+      localStorage.removeItem('anime_backend_url');
+    }
+  }
+
   localStorage.setItem('anime_api_provider', provider);
   localStorage.setItem('anime_api_url', url);
   localStorage.setItem('anime_api_key', key);
-  // Also save to server config.json so backend can use it
-  if (key && backendOnline) {
-    try {
-      await fetch(BACKEND_URL + '/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deepseekApiKey: key })
-      });
-    } catch(e) {}
-  }
   // Sync settings to cloud
   if (useCloudAuth() && window.AnimeCloud.loggedIn) {
     window.AnimeCloud.saveSettings({ apiKey: key, apiProvider: provider, apiUrl: url, theme: currentTheme }).catch(function(e) {
@@ -3061,6 +3067,7 @@ async function saveSettings() {
     });
   }
   closeSettingsModal();
+  if (backendUrl) checkBackend();
   showToast('设置已保存 ✓');
 }
 
@@ -3075,6 +3082,7 @@ function exportAllData() {
     searchHistory: searchHistory,
     settings: {
       theme: currentTheme,
+      backendUrl: BACKEND_URL,
       apiProvider: localStorage.getItem('anime_api_provider') || 'deepseek',
       apiUrl: localStorage.getItem('anime_api_url') || 'https://api.deepseek.com',
       apiKey: localStorage.getItem('anime_api_key') || ''
@@ -3143,6 +3151,10 @@ async function importAllData() {
           currentTheme = data.settings.theme;
           localStorage.setItem('app-theme', currentTheme);
           applyTheme(currentTheme);
+        }
+        if (data.settings.backendUrl) {
+          BACKEND_URL = data.settings.backendUrl;
+          localStorage.setItem('anime_backend_url', BACKEND_URL);
         }
         if (data.settings.apiProvider) localStorage.setItem('anime_api_provider', data.settings.apiProvider);
         if (data.settings.apiUrl) localStorage.setItem('anime_api_url', data.settings.apiUrl);

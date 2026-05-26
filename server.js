@@ -799,8 +799,7 @@ app.post('/api/test-search', async (req, res) => {
 
 // ========== Test AI API ==========
 app.post('/api/test-ai', async (req, res) => {
-  const cfg = loadConfig();
-  const apiKey = cfg.deepseekApiKey;
+  const apiKey = req.body.apiKey || loadConfig().deepseekApiKey;
   if (!apiKey) return res.status(400).json({ error: '未配置 API Key' });
   try {
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
