@@ -122,7 +122,14 @@
     will-change: transform;
     transition: transform var(--sidebar-duration) var(--sidebar-ease);
   }
-  .sidebar.collapsed .nav-item.active::before { transform: scaleX(0); }
+  .sidebar.collapsed .nav-item.active::before { transform: none; }
+
+  /* Hover left bar in collapsed mode */
+  .sidebar.collapsed .nav-item:hover::after {
+    content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  }
 
   /* Sub-items — indent only when expanded */
   .nav-sub { padding-left: 42px !important; font-size: 0.82rem; }
@@ -3108,15 +3115,27 @@ async function importAllData() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
   input.onchange = async function(e) {
     const file = e.target.files[0];
+    document.body.removeChild(input);
     if (!file) return;
     try {
-      const text = await file.text();
-      const data = JSON.parse(text);
+      let text = await file.text();
+      // Strip BOM
+      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        showToast('文件不是有效的 JSON 格式，请检查文件是否完整 ✗');
+        return;
+      }
 
       if (!data.version || !data.animeList) {
-        showToast('无效的备份文件格式 ✗');
+        showToast('无效的备份文件格式（缺少 version 或 animeList） ✗');
         return;
       }
 
@@ -3189,7 +3208,7 @@ async function importAllData() {
       showToast('数据已导入 ✓');
     } catch (err) {
       console.error('Import error:', err);
-      showToast('导入失败：文件格式错误 ✗');
+      showToast('导入失败：' + (err.message || '文件格式错误') + ' ✗');
     }
   };
   input.click();
