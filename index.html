@@ -3189,18 +3189,25 @@ async function importAllData() {
       // Sync to cloud if logged in
       if (useCloudAuth() && window.AnimeCloud.loggedIn) {
         showToast('正在同步到云端...');
-        await Promise.all([
-          window.AnimeCloud.batchSaveAnime(animeList),
-          window.AnimeCloud.saveAllFolders(folderList),
-          window.AnimeCloud.saveAllSources(sourceList),
-          window.AnimeCloud.saveSearchHistory(searchHistory),
-          window.AnimeCloud.saveSettings({
+        const syncTasks = [
+          { name: '番剧', fn: function() { return window.AnimeCloud.batchSaveAnime(animeList); } },
+          { name: '收藏夹', fn: function() { return window.AnimeCloud.saveAllFolders(folderList); } },
+          { name: '搜索源', fn: function() { return window.AnimeCloud.saveAllSources(sourceList); } },
+          { name: '历史', fn: function() { return window.AnimeCloud.saveSearchHistory(searchHistory); } },
+          { name: '设置', fn: function() { return window.AnimeCloud.saveSettings({
             apiKey: localStorage.getItem('anime_api_key') || '',
             apiProvider: localStorage.getItem('anime_api_provider') || 'deepseek',
             apiUrl: localStorage.getItem('anime_api_url') || '',
             theme: currentTheme
-          })
-        ]);
+          }); } }
+        ];
+        var syncErrors = [];
+        for (var si = 0; si < syncTasks.length; si++) {
+          try { await syncTasks[si].fn(); } catch(e) { syncErrors.push(syncTasks[si].name + ': ' + e.message); }
+        }
+        if (syncErrors.length > 0) {
+          console.error('Cloud sync errors:', syncErrors);
+        }
       }
 
       // Refresh UI

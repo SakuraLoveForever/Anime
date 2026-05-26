@@ -101,15 +101,18 @@
     });
   };
 
+  function animeDoc(anime) {
+    return { title: anime.title || '', category: anime.category || 'japanese_anime', status: anime.status || 'towatch', episodes: anime.episodes || 0, currentEp: anime.currentEp || 0, totalEpisodes: anime.totalEpisodes || 0, cover: anime.cover || '', url: anime.url || '', synopsis: anime.synopsis || '', score: anime.score || null, genres: anime.genres || [], year: anime.year || null, sourceUrl: anime.sourceUrl || '', folderId: anime.folderId || null, notes: anime.notes || '', updatedAt: new Date().toISOString(), createdAt: anime.createdAt || new Date().toISOString() };
+  }
+
   CLOUD.saveAnime = async function(anime) {
     if (!CLOUD.loggedIn) return;
-    const doc = { title: anime.title || '', category: anime.category || 'japanese_anime', status: anime.status || 'towatch', episodes: anime.episodes || 0, currentEp: anime.currentEp || 0, totalEpisodes: anime.totalEpisodes || 0, cover: anime.cover || '', url: anime.url || '', synopsis: anime.synopsis || '', score: anime.score || null, genres: anime.genres || [], year: anime.year || null, sourceUrl: anime.sourceUrl || '', folderId: anime.folderId || null, notes: anime.notes || '', updatedAt: new Date().toISOString(), createdAt: anime.createdAt || new Date().toISOString() };
-    await animeCol().doc(anime.id).set(doc);
+    await animeCol().doc(String(anime.id)).set(animeDoc(anime));
   };
 
   CLOUD.deleteAnime = async function(id) {
     if (!CLOUD.loggedIn) return;
-    await animeCol().doc(id).delete();
+    await animeCol().doc(String(id)).delete();
   };
 
   CLOUD.batchSaveAnime = async function(list) {
@@ -117,7 +120,7 @@
     const batch = db.batch();
     const col = animeCol();
     list.forEach(function(a) {
-      batch.set(col.doc(a.id), { title: a.title || '', category: a.category || 'japanese_anime', status: a.status || 'towatch', episodes: a.episodes || 0, currentEp: a.currentEp || 0, totalEpisodes: a.totalEpisodes || 0, cover: a.cover || '', url: a.url || '', synopsis: a.synopsis || '', score: a.score || null, genres: a.genres || [], year: a.year || null, sourceUrl: a.sourceUrl || '', folderId: a.folderId || null, notes: a.notes || '', updatedAt: new Date().toISOString(), createdAt: a.createdAt || new Date().toISOString() });
+      batch.set(col.doc(String(a.id)), animeDoc(a));
     });
     await batch.commit();
   };
@@ -126,7 +129,7 @@
     if (!CLOUD.loggedIn) return;
     const batch = db.batch();
     const col = animeCol();
-    ids.forEach(function(id) { batch.delete(col.doc(id)); });
+    ids.forEach(function(id) { batch.delete(col.doc(String(id))); });
     await batch.commit();
   };
 
@@ -142,14 +145,18 @@
     return snap.docs.map(function(d) { return Object.assign({}, d.data(), { id: d.id, _fromCloud: true }); });
   };
 
+  function folderDoc(f) {
+    return { name: f.name || '', icon: f.icon || '📁', createdAt: f.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+  }
+
   CLOUD.saveFolder = async function(folder) {
     if (!CLOUD.loggedIn) return;
-    await folderCol().doc(folder.id).set({ name: folder.name || '', icon: folder.icon || '📁', createdAt: folder.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+    await folderCol().doc(String(folder.id)).set(folderDoc(folder));
   };
 
   CLOUD.deleteFolder = async function(id) {
     if (!CLOUD.loggedIn) return;
-    await folderCol().doc(id).delete();
+    await folderCol().doc(String(id)).delete();
   };
 
   CLOUD.saveAllFolders = async function(list) {
@@ -157,7 +164,7 @@
     const batch = db.batch();
     const col = folderCol();
     list.forEach(function(f) {
-      batch.set(col.doc(f.id), { name: f.name || '', icon: f.icon || '📁', createdAt: f.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+      batch.set(col.doc(String(f.id)), folderDoc(f));
     });
     await batch.commit();
   };
@@ -174,14 +181,18 @@
     return snap.docs.map(function(d) { return Object.assign({}, d.data(), { id: d.id, _fromCloud: true }); });
   };
 
+  function sourceDoc(s) {
+    return { name: s.name || '', url: s.url || '', createdAt: s.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+  }
+
   CLOUD.saveSource = async function(source) {
     if (!CLOUD.loggedIn) return;
-    await sourceCol().doc(source.id).set({ name: source.name || '', url: source.url || '', createdAt: source.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+    await sourceCol().doc(String(source.id)).set(sourceDoc(source));
   };
 
   CLOUD.deleteSource = async function(id) {
     if (!CLOUD.loggedIn) return;
-    await sourceCol().doc(id).delete();
+    await sourceCol().doc(String(id)).delete();
   };
 
   CLOUD.saveAllSources = async function(list) {
@@ -189,7 +200,7 @@
     const batch = db.batch();
     const col = sourceCol();
     list.forEach(function(s) {
-      batch.set(col.doc(s.id), { name: s.name || '', url: s.url || '', createdAt: s.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+      batch.set(col.doc(String(s.id)), sourceDoc(s));
     });
     await batch.commit();
   };
