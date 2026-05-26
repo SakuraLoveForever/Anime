@@ -1328,9 +1328,14 @@ const CLOUD_MODE_KEY = 'anime_cloud_mode';
 let cloudMode = localStorage.getItem(CLOUD_MODE_KEY) !== 'offline';
 
 // ===== Data =====
-const DATA_KEY = 'anime_tracker_data';
-const FOLDERS_KEY = 'anime_folders';
-const SOURCES_KEY = 'anime_sources_v2';
+const _DK = 'anime_tracker_data';
+const _FK = 'anime_folders';
+const _SK = 'anime_sources_v2';
+const _SHK = 'anime_search_history';
+let DATA_KEY = cloudMode ? _DK : 'offline_' + _DK;
+let FOLDERS_KEY = cloudMode ? _FK : 'offline_' + _FK;
+let SOURCES_KEY = cloudMode ? _SK : 'offline_' + _SK;
+let SEARCH_HISTORY_KEY = cloudMode ? _SHK : 'offline_' + _SHK;
 let animeList = [];
 let folderList = [];
 let sourceList = [];
@@ -1740,7 +1745,6 @@ function batchSaveSources() {
 }
 
 // ===== Search History =====
-const SEARCH_HISTORY_KEY = 'anime_search_history';
 const MAX_HISTORY = 20;
 let searchHistory = [];
 
