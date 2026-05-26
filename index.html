@@ -976,7 +976,7 @@
         <button class="btn-add" id="btnBatchAi" onclick="batchAiFillAll()" title="一键AI补全：自动为缺失简介的番剧填充信息" style="background:color-mix(in srgb, var(--color-secondary) 15%, transparent);border-color:var(--color-secondary)">🤖 一键AI补全</button>
         <button class="btn-add" id="btnReclassify" onclick="reclassifyAll()" title="重新分类：根据分类标准重新识别所有番剧的分类" style="background:color-mix(in srgb, var(--color-accent) 12%, transparent);border-color:var(--color-accent)">🔄 重新分类</button>
         <button class="btn-add" id="btnRecommend" onclick="requestRecommendations()" title="智能推荐：根据你的番剧口味推荐相似作品" style="background:color-mix(in srgb, var(--color-warning) 12%, transparent);border-color:var(--color-warning)">🎯 智能推荐</button>
-        <button class="btn-add" id="btnCoverExplorer" onclick="openCoverExplorer()" title="探索更多封面：AI搜索番剧的多种封面图片" style="background:color-mix(in srgb, var(--color-info) 12%, transparent);border-color:var(--color-info)">🎨 探索更多封面</button>
+        <button class="btn-add" id="btnCoverExplorer" onclick="batchFetchCovers()" title="探索更多封面：一键为所有番剧搜索多张封面并保存" style="background:color-mix(in srgb, var(--color-info) 12%, transparent);border-color:var(--color-info)">🎨 探索更多封面</button>
       </div>
     </div>
 
@@ -1277,37 +1277,6 @@
     <div id="recommendResults" style="max-height:500px;overflow-y:auto"></div>
     <div class="modal-actions" style="margin-top:12px">
       <button class="btn-cancel" onclick="closeRecommendModal()">关闭</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== Cover Explorer Modal ===== -->
-<div class="modal-overlay" id="coverExplorerOverlay" style="display:none">
-  <div class="edit-modal-box" style="max-width:640px">
-    <h2>🎨 探索更多封面</h2>
-    <div class="modal-note">
-      选择一个番剧或输入搜索关键词，使用 AI 搜索更多封面图片。<br>
-      点击封面即可将其设为该番剧的主封面。
-    </div>
-    <div class="modal-field">
-      <label>选择番剧</label>
-      <select id="coverExplorerAnime" style="width:100%;padding:10px 12px;background:color-mix(in srgb, var(--color-primary) 3%, transparent);border:1px solid color-mix(in srgb, var(--color-primary) 8%, transparent);border-radius:6px;color:var(--color-base-content);font-size:0.9rem;outline:none;font-family:inherit" onchange="onCoverExplorerAnimeChange()">
-        <option value="">-- 请选择番剧 --</option>
-      </select>
-    </div>
-    <div class="modal-field">
-      <label>或输入搜索关键词</label>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="coverExplorerQuery" placeholder="输入番剧名称搜索封面..." maxlength="100" style="flex:1" onkeydown="if(event.key==='Enter')exploreCovers()">
-        <button class="btn-save" id="btnCoverSearch" onclick="exploreCovers()">🔍 搜索封面</button>
-      </div>
-    </div>
-    <div id="coverExplorerResults" style="display:none;margin-top:12px">
-      <label style="font-size:0.82rem;font-weight:500;opacity:0.7;margin-bottom:8px;display:block">🖼 搜索结果（点击封面应用）</label>
-      <div class="cover-options" id="coverExplorerOptions" style="flex-wrap:wrap;gap:10px"></div>
-    </div>
-    <div class="modal-actions" style="margin-top:12px">
-      <button class="btn-cancel" onclick="closeCoverExplorer()">关闭</button>
     </div>
   </div>
 </div>
@@ -3280,122 +3249,58 @@ function setCover(url) {
   document.getElementById('coverPreview').innerHTML = `<img src="${escapeHtml(url)}" alt="预览">`;
 }
 
-// ===== Cover Explorer =====
-function openCoverExplorer() {
-  var sel = document.getElementById('coverExplorerAnime');
-  sel.innerHTML = '<option value="">-- 请选择番剧 --</option>';
-  for (var i = 0; i < animeList.length; i++) {
-    var a = animeList[i];
-    sel.innerHTML += '<option value="' + a.id + '">' + escapeHtml(a.title) + '</option>';
-  }
-  document.getElementById('coverExplorerQuery').value = '';
-  document.getElementById('coverExplorerResults').style.display = 'none';
-  document.getElementById('coverExplorerOptions').innerHTML = '';
-  document.getElementById('coverExplorerOverlay').style.display = 'flex';
-}
-
-function closeCoverExplorer() {
-  document.getElementById('coverExplorerOverlay').style.display = 'none';
-}
-
-function onCoverExplorerAnimeChange() {
-  var selAnimeId = document.getElementById('coverExplorerAnime').value;
-  if (selAnimeId) {
-    var a = animeList.find(function(x) { return x.id === parseInt(selAnimeId); });
-    if (a) document.getElementById('coverExplorerQuery').value = a.title;
-  }
-}
-
-async function exploreCovers() {
-  var selAnimeId = document.getElementById('coverExplorerAnime').value;
-  var query = document.getElementById('coverExplorerQuery').value.trim();
-  var title = query;
-
-  if (!title && selAnimeId) {
-    var a = animeList.find(function(x) { return x.id === parseInt(selAnimeId); });
-    if (a) title = a.title;
-  }
-
-  if (!title || title.length < 2) { showToast('请选择番剧或输入搜索关键词'); return; }
+// ===== Batch Fetch Covers =====
+async function batchFetchCovers() {
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先配置 API Key'); return; }
+  if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  var all = animeList.filter(function(a) { return a && a.title; });
+  if (all.length === 0) { showToast('还没有添加任何番剧'); return; }
+  if (!confirm('即将为全部 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将与现有封面合并保存，已有封面不会被覆盖。\n之后可随时在编辑界面切换封面。\n\n是否继续？')) return;
 
-  var btn = document.getElementById('btnCoverSearch');
-  var orig = btn.textContent;
-  btn.textContent = '⏳ 搜索中...';
+  var btn = document.getElementById('btnCoverExplorer');
+  var origText = btn.textContent;
   btn.disabled = true;
+  var done = 0;
+  var enriched = 0;
 
-  try {
-    var resp = await aiEnrich(title);
-    var data = (resp && resp.data) ? resp.data : resp;
-    var covers = (data && data.covers) ? data.covers : [];
-    if (covers.length === 0) {
-      showToast('未搜索到封面图片');
-      btn.textContent = orig;
-      btn.disabled = false;
-      return;
-    }
-
-    var container = document.getElementById('coverExplorerOptions');
-    container._covers = covers;
-    container._animeId = selAnimeId ? parseInt(selAnimeId) : null;
-
-    var html = '';
-    for (var i = 0; i < covers.length; i++) {
-      var c = covers[i];
-      html += '<div style="flex-shrink:0">';
-      html += '<div class="cover-option" onclick="applyExploredCover(' + i + ')" title="' + escapeHtml(c.source + ': ' + (c.title || '')) + '">';
-      html += '<img src="' + escapeHtml(c.url) + '" loading="lazy" onerror="this.parentElement.style.opacity=\'0.3\'">';
-      html += '</div>';
-      html += '<div class="cover-option-src">' + escapeHtml(c.source) + '</div>';
-      html += '</div>';
-    }
-    container.innerHTML = html;
-    document.getElementById('coverExplorerResults').style.display = 'block';
-    showToast('找到 ' + covers.length + ' 张封面 ✓');
-  } catch(e) {
-    showToast('搜索封面失败：' + e.message);
+  for (var i = 0; i < all.length; i++) {
+    var a = all[i];
+    btn.textContent = '⏳ 搜索封面 ' + (done + 1) + '/' + all.length + '...';
+    try {
+      var resp = await aiEnrich(a.title);
+      var data = (resp && resp.data) ? resp.data : resp;
+      var newCovers = (data && data.covers) ? data.covers : [];
+      if (newCovers.length > 1) {
+        var existing = a.covers || [];
+        var seen = new Set();
+        var merged = [];
+        for (var j = 0; j < existing.length; j++) {
+          if (existing[j].url && !seen.has(existing[j].url)) {
+            seen.add(existing[j].url);
+            merged.push(existing[j]);
+          }
+        }
+        for (var k = 0; k < newCovers.length; k++) {
+          if (newCovers[k].url && !seen.has(newCovers[k].url)) {
+            seen.add(newCovers[k].url);
+            merged.push(newCovers[k]);
+          }
+        }
+        a.covers = merged;
+        enriched++;
+        saveData();
+        renderCards();
+        await new Promise(function(r) { return setTimeout(r, 100); });
+      }
+    } catch(e) {}
+    done++;
+    if (done < all.length) await new Promise(function(r) { return setTimeout(r, 800); });
   }
-  btn.textContent = orig;
+  saveData();
+  renderCards();
+  btn.textContent = origText;
   btn.disabled = false;
-}
-
-function applyExploredCover(idx) {
-  var container = document.getElementById('coverExplorerOptions');
-  var covers = container._covers || [];
-  if (!covers[idx]) return;
-  var animeId = container._animeId;
-
-  if (animeId) {
-    var a = animeList.find(function(x) { return x.id === animeId; });
-    if (a) {
-      var existing = a.covers || [];
-      var seen = new Set();
-      var merged = [];
-      for (var i = 0; i < existing.length; i++) {
-        if (existing[i].url && !seen.has(existing[i].url)) {
-          seen.add(existing[i].url);
-          merged.push(existing[i]);
-        }
-      }
-      for (var i = 0; i < covers.length; i++) {
-        if (covers[i].url && !seen.has(covers[i].url)) {
-          seen.add(covers[i].url);
-          merged.push(covers[i]);
-        }
-      }
-      a.covers = merged;
-      a.cover = covers[idx].url;
-      saveData();
-      renderCards();
-      showToast('封面已更新 ✓ — ' + a.title);
-    }
-  } else {
-    showToast('请先在「选择番剧」中选择要应用封面的番剧');
-  }
-
-  var options = container.querySelectorAll('.cover-option');
-  options.forEach(function(el, i) { el.classList.toggle('selected', i === idx); });
+  showToast('封面探索完成！共为 ' + enriched + '/' + done + ' 部番剧找到多张封面 ✓');
 }
 
 function renderCoverOptions(covers) {
