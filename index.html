@@ -3296,12 +3296,23 @@ async function aiFillCard(id) {
     const data = (resp && resp.data) ? resp.data : resp;
     if (data && data.title) {
       if (data.synopsis && data.synopsis.trim()) a.synopsis = data.synopsis;
-      if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) a.genres = data.genres;
-      if (data.episodes > 0 && !a.totalEpisodes) a.totalEpisodes = data.episodes;
-      if (data.category && data.category.trim() && !a.category) a.category = normalizeCategory(data.category);
-      if (!a.cover && data.cover) { a.cover = data.cover; }
-      if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; }
-      if (data.score && !a.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
+      if (data.genres && data.genres.length > 0) a.genres = data.genres;
+      if (data.episodes > 0) a.totalEpisodes = data.episodes;
+      if (data.category && data.category.trim()) a.category = normalizeCategory(data.category);
+      if (data.cover) a.cover = data.cover;
+      if (data.covers && data.covers.length > 1) {
+        var seen = new Set();
+        var covers = [];
+        if (data.cover) { covers.push({ url: data.cover, source: '主封面', title: '' }); seen.add(data.cover); }
+        for (var i = 0; i < data.covers.length; i++) {
+          if (data.covers[i].url && !seen.has(data.covers[i].url)) {
+            seen.add(data.covers[i].url);
+            covers.push(data.covers[i]);
+          }
+        }
+        a.covers = covers;
+      }
+      if (data.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
       saveData();
       renderCards();
       if (detailPopupId === id) renderDetailPopup(id);
