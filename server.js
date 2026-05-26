@@ -589,10 +589,8 @@ function saveConfig(cfg) {
 // GET /api/config — get public config
 app.get('/api/config', (_req, res) => {
   const cfg = loadConfig();
-  const key = cfg.deepseekApiKey || '';
   const sb = cfg.supabase || {};
   res.json({
-    deepseekApiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '',
     supabaseUrl: sb.url || '',
     supabaseAnonKey: sb.anonKey || '',
   });
@@ -1042,8 +1040,8 @@ app.post('/api/semantic-search', async (req, res) => {
 
 // ========== Test AI API ==========
 app.post('/api/test-ai', optionalAuth, async (req, res) => {
-  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
-  if (!apiKey) return res.status(400).json({ error: '未配置 API Key' });
+  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey;
+  if (!apiKey) return res.status(400).json({ error: '请先在设置中配置你的 DeepSeek API Key' });
   try {
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
@@ -1073,8 +1071,8 @@ app.post('/api/test-ai', optionalAuth, async (req, res) => {
 app.post('/api/reclassify', optionalAuth, async (req, res) => {
   const titles = (req.body.titles || []).map(t => (t || '').trim()).filter(Boolean);
   if (titles.length === 0) return res.status(400).json({ error: '需要至少一个番剧名称' });
-  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
-  if (!apiKey) return res.status(400).json({ error: '未配置 DeepSeek API Key' });
+  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey;
+  if (!apiKey) return res.status(400).json({ error: '请先在设置中配置你的 DeepSeek API Key' });
 
   const rules = `【8大分类 · 严格判定规则】
 1. chinese_anime（国漫/国产动画）→ 中国出品的动画，TV连载或网络播出。例：一人之下、狐妖小红娘、时光代理人、伍六七
@@ -1192,7 +1190,7 @@ async function resolveApiKey(userId) {
       } catch(e) { console.error('resolveApiKey error:', e.message); }
     }
   }
-  return loadConfig().deepseekApiKey || '';
+  return '';
 }
 
 // ========== Auth Middleware ==========
