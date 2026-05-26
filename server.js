@@ -563,16 +563,33 @@ app.delete('/api/custom-sources/:id', (req, res) => {
 });
 
 // ========== Config Storage ==========
+// Priority: environment variables > config.json file > defaults
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 
 function loadConfig() {
+  let cfg = {};
   try {
-    if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    if (fs.existsSync(CONFIG_FILE)) cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
   } catch(e) {}
-  return {};
+
+  // Merge environment variables (Render Dashboard, etc.)
+  if (process.env.DEEPSEEK_API_KEY) cfg.deepseekApiKey = process.env.DEEPSEEK_API_KEY;
+
+  if (process.env.FIREBASE_ENABLED === 'true' || process.env.FIREBASE_API_KEY) {
+    cfg.firebase = cfg.firebase || {};
+    cfg.firebase.enabled = process.env.FIREBASE_ENABLED !== 'false';
+    if (process.env.FIREBASE_API_KEY) cfg.firebase.apiKey = process.env.FIREBASE_API_KEY;
+    if (process.env.FIREBASE_AUTH_DOMAIN) cfg.firebase.authDomain = process.env.FIREBASE_AUTH_DOMAIN;
+    if (process.env.FIREBASE_PROJECT_ID) cfg.firebase.projectId = process.env.FIREBASE_PROJECT_ID;
+    if (process.env.FIREBASE_STORAGE_BUCKET) cfg.firebase.storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
+    if (process.env.FIREBASE_MESSAGING_SENDER_ID) cfg.firebase.messagingSenderId = process.env.FIREBASE_MESSAGING_SENDER_ID;
+    if (process.env.FIREBASE_APP_ID) cfg.firebase.appId = process.env.FIREBASE_APP_ID;
+  }
+
+  return cfg;
 }
 function saveConfig(cfg) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
+  try { fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8'); } catch(e) {}
 }
 
 // GET /api/config — get config (API key masked)
@@ -650,8 +667,8 @@ async function searchAniList(title) {
 }
 
 // ========== AI Enrich ==========
-async function callAI(query, overrideApiKey) {
-  const apiKey = overrideApiKey || loadConfig().deepseekApiKey;
+async function callAI(query, userId) {
+  const apiKey = resolveApiKey(userId);
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
 
   const prompt = `请识别这部动漫/影视作品：「${query}」，返回严格JSON（不要markdown代码块）：
@@ -721,15 +738,14 @@ function fuzzyMatchScore(a, b) {
   return Math.round((overlap / Math.max(ca.length, cb.length)) * 60);
 }
 
-app.post('/api/ai-enrich', async (req, res) => {
+app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
   const q = (req.body.query || req.body.title || '').trim();
-  const apiKey = req.body.apiKey || '';
   if (!q) return res.status(400).json({ error: '需要番剧名称' });
   try {
     // Step 1: Get AI identification
     let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
-      aiData = await callAI(q, apiKey);
+      aiData = await callAI(q, req.user?.id);
     } catch(e) { console.error('AI call failed:', e.message); }
 
     // Step 2: Search real sources with multiple title variants
@@ -1045,8 +1061,8 @@ app.post('/api/semantic-search', async (req, res) => {
 });
 
 // ========== Test AI API ==========
-app.post('/api/test-ai', async (req, res) => {
-  const apiKey = req.body.apiKey || loadConfig().deepseekApiKey;
+app.post('/api/test-ai', optionalAuth, async (req, res) => {
+  const apiKey = resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
   if (!apiKey) return res.status(400).json({ error: '未配置 API Key' });
   try {
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -1074,10 +1090,10 @@ app.post('/api/test-ai', async (req, res) => {
 });
 
 // ========== Reclassify ==========
-app.post('/api/reclassify', async (req, res) => {
+app.post('/api/reclassify', optionalAuth, async (req, res) => {
   const titles = (req.body.titles || []).map(t => (t || '').trim()).filter(Boolean);
   if (titles.length === 0) return res.status(400).json({ error: '需要至少一个番剧名称' });
-  const apiKey = req.body.apiKey || loadConfig().deepseekApiKey;
+  const apiKey = resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
   if (!apiKey) return res.status(400).json({ error: '未配置 DeepSeek API Key' });
 
   const rules = `【8大分类 · 严格判定规则】
@@ -1172,7 +1188,7 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// Auth middleware
+// Auth middleware — required
 function authMiddleware(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ error: '未登录' });
@@ -1180,6 +1196,17 @@ function authMiddleware(req, res, next) {
   const user = users.find(u => u.token === token);
   if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
   req.user = { id: user.id, username: user.username };
+  next();
+}
+
+// Optional auth — attaches user if token valid, otherwise continues
+function optionalAuth(req, res, next) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (token) {
+    const users = loadUsers();
+    const user = users.find(u => u.token === token);
+    if (user) req.user = { id: user.id, username: user.username };
+  }
   next();
 }
 
@@ -1200,6 +1227,7 @@ app.post('/api/auth/register', async (req, res) => {
     username: name,
     passwordHash: hash,
     token,
+    apiKey: '',  // user's own API key
     createdAt: new Date().toISOString(),
   };
   users.push(user);
@@ -1237,6 +1265,41 @@ app.post('/api/auth/logout', authMiddleware, (req, res) => {
   }
   res.json({ ok: true });
 });
+
+// GET /api/auth/api-key — get current user's API key (masked)
+app.get('/api/auth/api-key', authMiddleware, (req, res) => {
+  const users = loadUsers();
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: '用户不存在' });
+  const key = user.apiKey || '';
+  res.json({
+    apiKeySet: !!key,
+    apiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '',
+  });
+});
+
+// POST /api/auth/api-key — save user's own API key
+app.post('/api/auth/api-key', authMiddleware, (req, res) => {
+  const { apiKey, apiUrl, apiProvider } = req.body;
+  const users = loadUsers();
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: '用户不存在' });
+  if (apiKey !== undefined) user.apiKey = apiKey.trim();
+  if (apiUrl !== undefined) user.apiUrl = apiUrl.trim();
+  if (apiProvider !== undefined) user.apiProvider = apiProvider;
+  saveUsers(users);
+  res.json({ ok: true });
+});
+
+// Helper: resolve API key — user's key first, then server default
+function resolveApiKey(userId) {
+  if (userId) {
+    const users = loadUsers();
+    const user = users.find(u => u.id === userId);
+    if (user && user.apiKey) return user.apiKey;
+  }
+  return loadConfig().deepseekApiKey || '';
+}
 
 // Health check for Render
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

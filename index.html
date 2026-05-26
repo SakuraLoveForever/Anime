@@ -3714,7 +3714,7 @@ function updateThemeButton() {
 }
 
 // ===== Settings =====
-const apiKeyConfigured = !!localStorage.getItem('anime_api_key');
+const apiKeyConfigured = !!(localStorage.getItem('anime_api_key') || localStorage.getItem('anime_api_key_server'));
 
 function openSettingsModal() {
   document.getElementById('settingsBackendUrl').value = BACKEND_URL;
@@ -3797,7 +3797,17 @@ async function saveSettings() {
 
   localStorage.setItem('anime_api_provider', provider);
   localStorage.setItem('anime_api_url', url);
-  localStorage.setItem('anime_api_key', key);
+  if (key) { localStorage.setItem('anime_api_key', key); localStorage.setItem('anime_api_key_server', '1'); }
+  else { localStorage.removeItem('anime_api_key'); localStorage.removeItem('anime_api_key_server'); }
+  // Sync API key to server (local auth)
+  var localToken = localStorage.getItem('anime_auth_token');
+  if (localToken && BACKEND_URL) {
+    fetch(BACKEND_URL + '/api/auth/api-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localToken },
+      body: JSON.stringify({ apiKey: key, apiProvider: provider, apiUrl: url })
+    }).catch(function(e) { console.error('API key sync error:', e); });
+  }
   // Sync settings to cloud
   if (useCloudAuth() && window.AnimeCloud.loggedIn) {
     window.AnimeCloud.saveSettings({ apiKey: key, apiProvider: provider, apiUrl: url, theme: currentTheme }).catch(function(e) {
@@ -4292,6 +4302,7 @@ async function handleAuthSubmit() {
     localStorage.setItem('anime_auth_token', data.token);
     localStorage.setItem('anime_auth_username', data.username);
     rememberAccount(data.username, data.token, false, password);
+    syncUserApiKey(data.token);
     updateAuthUI();
     closeAuthModal();
     showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + data.username + ' ✓');
@@ -4303,6 +4314,24 @@ async function handleAuthSubmit() {
 
 function jsStr(s) {
   return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+}
+
+// Sync per-user API key status with server
+async function syncUserApiKey(token) {
+  if (!token || !BACKEND_URL) return;
+  try {
+    var resp = await fetch(BACKEND_URL + '/api/auth/api-key', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (resp.ok) {
+      var data = await resp.json();
+      if (data.apiKeySet) {
+        localStorage.setItem('anime_api_key_server', '1');
+      } else {
+        localStorage.removeItem('anime_api_key_server');
+      }
+    }
+  } catch(e) {}
 }
 
 // ===== Remembered Accounts =====
@@ -4403,6 +4432,7 @@ async function tryLocalAutoLogin(entry, username) {
         var data = await resp.json();
         localStorage.setItem('anime_auth_token', entry.token);
         localStorage.setItem('anime_auth_username', data.username || username);
+        syncUserApiKey(entry.token);
         await loadSourceList();
         updateAuthUI();
         showToast('已切换至 ' + (data.username || username));
@@ -4424,6 +4454,7 @@ async function tryLocalAutoLogin(entry, username) {
         localStorage.setItem('anime_auth_token', loginData.token);
         localStorage.setItem('anime_auth_username', loginData.username);
         rememberAccount(loginData.username, loginData.token, false, atob(entry.password));
+        syncUserApiKey(loginData.token);
         await loadSourceList();
         updateAuthUI();
         showToast('已切换至 ' + loginData.username);
@@ -4710,6 +4741,8 @@ function initAuth() {
           if (!r.ok) {
             localStorage.removeItem('anime_auth_token');
             localStorage.removeItem('anime_auth_username');
+          } else {
+            syncUserApiKey(token);
           }
           updateAuthUI();
           done();
