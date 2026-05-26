@@ -1,12 +1,8 @@
 {
   "deepseekApiKey": "sk-your-deepseek-api-key-here",
-  "firebase": {
-    "enabled": false,
-    "apiKey": "YOUR_API_KEY",
-    "authDomain": "YOUR_PROJECT.firebaseapp.com",
-    "projectId": "YOUR_PROJECT",
-    "storageBucket": "YOUR_PROJECT.firebasestorage.app",
-    "messagingSenderId": "000000000000",
-    "appId": "1:000000000000:web:xxxxxxxxxxxxxxxxxxxx"
+  "supabase": {
+    "url": "https://YOUR_PROJECT.supabase.co",
+    "anonKey": "eyJ...your-anon-key",
+    "serviceRoleKey": "eyJ...your-service-role-key"
   }
 }

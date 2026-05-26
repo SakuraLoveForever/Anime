@@ -1379,20 +1379,18 @@
 <!-- ===== Toast Container ===== -->
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ===== Firebase SDK ===== -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- ===== Supabase SDK ===== -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- ===== Firebase Config ===== -->
+<!-- ===== Supabase Config ===== -->
 <!-- 配置从服务端 config.json 动态加载，不写入源码 -->
 <script>
-  window.FIREBASE_ENABLED = false;
-  window.FIREBASE_CONFIG = null;
+  window.SUPABASE_URL = '';
+  window.SUPABASE_ANON_KEY = '';
   // 将在 init 阶段从后端 /api/config 加载
 </script>
 
-<script src="js/firebase.js"></script>
+<script src="js/supabase.js"></script>
 
 <script>
 // ===== Config =====
@@ -3799,12 +3797,12 @@ async function saveSettings() {
   localStorage.setItem('anime_api_url', url);
   if (key) { localStorage.setItem('anime_api_key', key); localStorage.setItem('anime_api_key_server', '1'); }
   else { localStorage.removeItem('anime_api_key'); localStorage.removeItem('anime_api_key_server'); }
-  // Sync API key to server (local auth)
-  var localToken = localStorage.getItem('anime_auth_token');
-  if (localToken && BACKEND_URL) {
+  // Sync API key to server
+  var authToken = await getAuthToken();
+  if (authToken && BACKEND_URL) {
     fetch(BACKEND_URL + '/api/auth/api-key', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localToken },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
       body: JSON.stringify({ apiKey: key, apiProvider: provider, apiUrl: url })
     }).catch(function(e) { console.error('API key sync error:', e); });
   }
@@ -4071,7 +4069,7 @@ function closeCloudModePopover() {
 function renderCloudModePopover() {
   const popover = document.getElementById('cloudModePopover');
   const options = [
-    { mode: 'online', icon: '☁️', label: '在线模式', desc: 'Firebase 云端同步，支持多设备', active: cloudMode },
+    { mode: 'online', icon: '☁️', label: '在线模式', desc: 'Supabase 云端同步，支持多设备', active: cloudMode },
     { mode: 'offline', icon: '💻', label: '离线模式', desc: '数据仅存储在本浏览器本地', active: !cloudMode }
   ];
   popover.innerHTML = options.map(function(o) {
@@ -4100,7 +4098,7 @@ function updateCloudModeUI() {
   if (cloudMode) {
     btn.innerHTML = '☁️ <span id="btnCloudModeLabel">在线</span>';
     btn.style.borderColor = 'color-mix(in srgb, var(--color-success) 20%, transparent)';
-    btn.title = '当前：在线模式（Firebase 云端同步）。点击切换';
+    btn.title = '当前：在线模式（Supabase 云端同步）。点击切换';
   } else {
     btn.innerHTML = '💻 <span id="btnCloudModeLabel">离线</span>';
     btn.style.borderColor = 'color-mix(in srgb, var(--color-warning, #f59e0b) 30%, transparent)';
@@ -4110,24 +4108,34 @@ function updateCloudModeUI() {
 
 // ===== Auth =====
 let authMode = 'login'; // 'login' | 'register'
-const useCloudAuth = function() { return cloudMode && window.AnimeCloud && window.AnimeCloud.ready; };
+const useCloudAuth = function() { return window.SUPABASE_URL && window.SUPABASE_ANON_KEY; };
+
+async function getAuthToken() {
+  // Get Supabase session token
+  if (window.AnimeCloud && window.AnimeCloud.ready && window.AnimeCloud.loggedIn) {
+    return await window.AnimeCloud.getToken();
+  }
+  // Fallback to localStorage (legacy)
+  var t = localStorage.getItem('anime_auth_token') || '';
+  return t === 'supabase' ? null : t;
+}
 
 function isLoggedIn() {
-  if (useCloudAuth()) return window.AnimeCloud.loggedIn;
+  if (useCloudAuth() && window.AnimeCloud && window.AnimeCloud.loggedIn) return true;
   return !!(localStorage.getItem('anime_auth_token'));
 }
 
 function getUserDisplayName() {
-  if (useCloudAuth() && window.AnimeCloud.loggedIn) return window.AnimeCloud.displayName;
+  if (useCloudAuth() && window.AnimeCloud && window.AnimeCloud.loggedIn) return window.AnimeCloud.displayName;
   return localStorage.getItem('anime_auth_username') || '';
 }
 
 function updateAuthUI() {
   const btn = document.getElementById('btnAuth');
-  if (!cloudMode) {
+  if (!useCloudAuth()) {
     btn.style.opacity = '0.4';
     btn.style.pointerEvents = 'none';
-    btn.title = '离线模式下不可登录，请切换到在线模式';
+    btn.title = '认证服务未配置，请检查 config.json';
     return;
   }
   btn.style.opacity = '1';
@@ -4144,7 +4152,7 @@ function updateAuthUI() {
   // Update label based on auth mode
   const labelEl = document.getElementById('authModalFieldLabel');
   if (labelEl) {
-    labelEl.textContent = useCloudAuth() ? '邮箱' : '用户名';
+    labelEl.textContent = '邮箱';
   }
 }
 
@@ -4176,8 +4184,7 @@ function renderAuthRememberedAccounts() {
   var html = '';
   for (var i = 0; i < remembered.length; i++) {
     var acc = remembered[i];
-    var icon = acc.isCloud ? '☁️' : '🖥';
-    html += '<button onclick="fillRememberedAccount(\'' + jsStr(acc.username) + '\')" style="padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-family:inherit;font-size:0.78rem;white-space:nowrap;transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'var(--color-primary)\';this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\';this.style.background=\'transparent\'">' + icon + ' ' + escapeHtml(acc.username) + '</button>';
+    html += '<button onclick="fillRememberedAccount(\'' + jsStr(acc.username) + '\')" style="padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-family:inherit;font-size:0.78rem;white-space:nowrap;transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'var(--color-primary)\';this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\';this.style.background=\'transparent\'">☁️ ' + escapeHtml(acc.username) + '</button>';
   }
   listEl.innerHTML = html;
 }
@@ -4218,23 +4225,15 @@ function toggleAuthMode() {
 
 function setAuthModeUI() {
   const isLogin = authMode === 'login';
-  const isCloud = useCloudAuth();
   document.getElementById('authModalTitle').textContent = isLogin ? '登录' : '注册';
   document.getElementById('btnAuthSubmit').textContent = isLogin ? '登录' : '注册';
   document.getElementById('btnAuthToggle').textContent = isLogin ? '没有账号？点击注册' : '已有账号？点击登录';
-  document.getElementById('authConfirmField').style.display = (isLogin || isCloud) ? 'none' : 'block';
-  // Update label based on auth mode
+  document.getElementById('authConfirmField').style.display = isLogin ? 'none' : 'block';
   const labelEl = document.getElementById('authModalFieldLabel');
-  if (labelEl) labelEl.textContent = isCloud ? '邮箱' : '用户名';
-  // Update input placeholders for cloud vs local
+  if (labelEl) labelEl.textContent = '邮箱';
   const userInput = document.getElementById('authUsername');
-  if (isCloud) {
-    userInput.placeholder = isLogin ? '请输入邮箱' : '请输入邮箱';
-    userInput.type = 'email';
-  } else {
-    userInput.placeholder = '请输入用户名';
-    userInput.type = 'text';
-  }
+  userInput.placeholder = '请输入邮箱';
+  userInput.type = 'email';
 }
 
 async function handleAuthSubmit() {
@@ -4242,73 +4241,40 @@ async function handleAuthSubmit() {
   const password = document.getElementById('authPassword').value;
   const msgEl = document.getElementById('authMsg');
 
-  if (!account) {
-    msgEl.style.display = 'block';
-    msgEl.textContent = useCloudAuth() ? '请输入邮箱' : '请输入用户名';
-    return;
-  }
-  if (useCloudAuth() && !account.includes('@')) {
+  if (!account || !account.includes('@')) {
     msgEl.style.display = 'block';
     msgEl.textContent = '请输入有效的邮箱地址';
     return;
   }
-  if (!password || password.length < 4) { msgEl.style.display = 'block'; msgEl.textContent = '密码至少4位'; return; }
+  if (!password || password.length < 6) { msgEl.style.display = 'block'; msgEl.textContent = '密码至少6位'; return; }
 
-  // ===== Firebase Cloud Auth =====
-  if (useCloudAuth()) {
-    try {
-      if (authMode === 'register') {
-        const displayName = account.split('@')[0];
-        await window.AnimeCloud.register(account, password, displayName);
-      } else {
-        await window.AnimeCloud.login(account, password);
-      }
-      // After successful login, load cloud data
-      await loadCloudData();
-      await loadSourceList(); // merge built-in sources
-      rememberAccount(account, null, true, password);
-      updateAuthUI();
-      closeAuthModal();
-      renderFolderList();
-      renderCards();
-      showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + getUserDisplayName() + ' ✓');
-    } catch(e) {
-      msgEl.style.display = 'block';
-      if (e.code === 'auth/email-already-in-use') msgEl.textContent = '该邮箱已注册';
-      else if (e.code === 'auth/invalid-email') msgEl.textContent = '邮箱格式不正确';
-      else if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msgEl.textContent = '邮箱或密码错误';
-      else if (e.code === 'auth/weak-password') msgEl.textContent = '密码强度不够，请至少使用6位密码';
-      else msgEl.textContent = e.message || '操作失败';
-    }
+  if (!window.AnimeCloud || !window.AnimeCloud.ready) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = '认证服务未配置';
     return;
   }
 
-  // ===== Local Server Auth =====
-  if (authMode === 'register') {
-    const confirm = document.getElementById('authPasswordConfirm').value;
-    if (password !== confirm) { msgEl.style.display = 'block'; msgEl.textContent = '两次密码不一致'; return; }
-  }
-
-  const endpoint = authMode === 'login' ? BACKEND_URL + '/api/auth/login' : BACKEND_URL + '/api/auth/register';
   try {
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: account, password }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) { msgEl.style.display = 'block'; msgEl.textContent = data.error || '操作失败'; return; }
-
-    localStorage.setItem('anime_auth_token', data.token);
-    localStorage.setItem('anime_auth_username', data.username);
-    rememberAccount(data.username, data.token, false, password);
-    syncUserApiKey(data.token);
-    updateAuthUI();
-    closeAuthModal();
-    showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + data.username + ' ✓');
+    if (authMode === 'register') {
+      var displayName = account.split('@')[0];
+      await window.AnimeCloud.register(account, password, displayName);
+      rememberAccount(account, null, true, password);
+      syncUserApiKey(null);
+      closeAuthModal();
+      showToast('注册成功，欢迎 ' + displayName + ' ✓');
+    } else {
+      await window.AnimeCloud.login(account, password);
+      rememberAccount(account, null, true, password);
+      syncUserApiKey(null);
+      closeAuthModal();
+      showToast('登录成功，欢迎 ' + getUserDisplayName() + ' ✓');
+    }
   } catch(e) {
     msgEl.style.display = 'block';
-    msgEl.textContent = '网络错误：' + e.message;
+    if (e.code === 'auth/email-already-in-use' || (e.message && e.message.includes('already registered'))) msgEl.textContent = '该邮箱已注册';
+    else if (e.code === 'auth/weak-password' || (e.message && e.message.includes('weak password'))) msgEl.textContent = '密码强度不够，请至少使用6位密码';
+    else if (e.code === 'auth/invalid-credential' || (e.message && e.message.includes('Invalid login credentials'))) msgEl.textContent = '邮箱或密码错误';
+    else msgEl.textContent = e.message || '操作失败';
   }
 }
 
@@ -4318,7 +4284,11 @@ function jsStr(s) {
 
 // Sync per-user API key status with server
 async function syncUserApiKey(token) {
-  if (!token || !BACKEND_URL) return;
+  if (!BACKEND_URL) return;
+  if (!token && window.AnimeCloud && window.AnimeCloud.ready) {
+    token = await window.AnimeCloud.getToken();
+  }
+  if (!token) return;
   try {
     var resp = await fetch(BACKEND_URL + '/api/auth/api-key', {
       headers: { 'Authorization': 'Bearer ' + token }
@@ -4362,7 +4332,7 @@ async function switchToRememberedAccount(username, isCloud) {
   var menu = document.getElementById('authUserMenu');
   if (menu) menu.remove();
 
-  // Quiet logout (skip server-side token invalidation to preserve other accounts' tokens)
+  // Quiet logout
   await handleLogout(true);
 
   var list = loadRememberedAccounts();
@@ -4373,39 +4343,11 @@ async function switchToRememberedAccount(username, isCloud) {
     }
   }
 
-  // ===== Cloud account =====
-  if (isCloud) {
-    if (entry && entry.password) {
-      try {
-        await window.AnimeCloud.login(username, atob(entry.password));
-        await loadCloudData();
-        await loadSourceList();
-        rememberAccount(username, null, true, atob(entry.password));
-        updateAuthUI();
-        renderFolderList();
-        renderCards();
-        showToast('已切换至 ' + window.AnimeCloud.displayName);
-        return;
-      } catch(e) {
-        forgetAccount(username);
-        showToast('云同步登录失败：' + (e.message || '密码可能已变更'));
-      }
-    }
-    // No stored password — open modal (user needs to enter password once)
-    authMode = 'login';
-    setAuthModeUI();
-    document.getElementById('authModalOverlay').style.display = 'flex';
-    fillRememberedAccount(username);
-    renderAuthRememberedAccounts();
-    return;
-  }
-
-  // ===== Local account =====
-  // Try token, then password re-login
+  // Try auto-login with stored password (Supabase)
   var loginOk = await tryLocalAutoLogin(entry, username);
   if (loginOk) return;
 
-  // Auto-login failed — try filling form and submitting (last resort)
+  // Auto-login failed — open modal for manual entry
   authMode = 'login';
   setAuthModeUI();
   document.getElementById('authModalOverlay').style.display = 'flex';
@@ -4417,49 +4359,38 @@ async function switchToRememberedAccount(username, isCloud) {
   }
 }
 
-// Try to log in a local account: token first, then stored password
+// Try to log in a remembered account: Supabase session first, then password re-login
 // Returns true if login succeeded
 async function tryLocalAutoLogin(entry, username) {
   if (!entry) return false;
+  if (!window.AnimeCloud || !window.AnimeCloud.ready) return false;
 
-  // 1) Try stored token
-  if (entry.token) {
-    try {
-      var resp = await fetch(BACKEND_URL + '/api/auth/me', {
-        headers: { 'Authorization': 'Bearer ' + entry.token }
-      });
-      if (resp.ok) {
-        var data = await resp.json();
-        localStorage.setItem('anime_auth_token', entry.token);
-        localStorage.setItem('anime_auth_username', data.username || username);
-        syncUserApiKey(entry.token);
-        await loadSourceList();
-        updateAuthUI();
-        showToast('已切换至 ' + (data.username || username));
-        return true;
-      }
-    } catch(e) {}
+  // 1) Try restoring existing Supabase session for this account
+  var token = await window.AnimeCloud.getToken();
+  if (token && window.AnimeCloud.email === username) {
+    localStorage.setItem('anime_auth_token', 'supabase');
+    localStorage.setItem('anime_auth_username', window.AnimeCloud.displayName || username);
+    syncUserApiKey(token);
+    if (cloudMode) { await loadCloudData(); }
+    await loadSourceList();
+    updateAuthUI();
+    showToast('已切换至 ' + (window.AnimeCloud.displayName || username));
+    return true;
   }
 
-  // 2) Token invalid — re-login with stored password
+  // 2) Re-login with stored password
   if (entry.password) {
     try {
-      var loginResp = await fetch(BACKEND_URL + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username, password: atob(entry.password) })
-      });
-      if (loginResp.ok) {
-        var loginData = await loginResp.json();
-        localStorage.setItem('anime_auth_token', loginData.token);
-        localStorage.setItem('anime_auth_username', loginData.username);
-        rememberAccount(loginData.username, loginData.token, false, atob(entry.password));
-        syncUserApiKey(loginData.token);
-        await loadSourceList();
-        updateAuthUI();
-        showToast('已切换至 ' + loginData.username);
-        return true;
-      }
+      var result = await window.AnimeCloud.login(username, atob(entry.password));
+      localStorage.setItem('anime_auth_token', 'supabase');
+      localStorage.setItem('anime_auth_username', result.displayName || username);
+      rememberAccount(username, null, true, atob(entry.password));
+      syncUserApiKey(null);
+      if (cloudMode) { await loadCloudData(); }
+      await loadSourceList();
+      updateAuthUI();
+      showToast('已切换至 ' + (result.displayName || username));
+      return true;
     } catch(e) {}
   }
 
@@ -4483,9 +4414,8 @@ function showAuthUserMenu() {
     html += '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">';
     for (var i = 0; i < otherAccounts.length; i++) {
       var acc = otherAccounts[i];
-      var icon = acc.isCloud ? '☁️' : '🖥';
-      html += '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s ease;font-size:0.85rem" onclick="switchToRememberedAccount(\'' + jsStr(acc.username) + '\', ' + (acc.isCloud ? 'true' : 'false') + ')" onmouseenter="this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.background=\'transparent\'">'
-        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + icon + ' ' + escapeHtml(acc.username) + '</span>'
+      html += '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s ease;font-size:0.85rem" onclick="switchToRememberedAccount(\'' + jsStr(acc.username) + '\')" onmouseenter="this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.background=\'transparent\'">'
+        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">☁️ ' + escapeHtml(acc.username) + '</span>'
         + '<span onclick="event.stopPropagation();forgetAccount(\'' + jsStr(acc.username) + '\');showAuthUserMenu()" style="font-size:0.7rem;opacity:0.35;cursor:pointer;padding:2px 4px" title="移除记住">✕</span>'
         + '</div>';
     }
@@ -4516,9 +4446,7 @@ async function handleSwitchAccount() {
   if (menu) menu.remove();
   // Remember current account before switching away
   var name = getUserDisplayName();
-  var isCloud = useCloudAuth();
-  var token = null;
-  if (!isCloud) token = localStorage.getItem('anime_auth_token');
+  var token = localStorage.getItem('anime_auth_token');
   // Get password from existing remembered entry if available
   var existingList = loadRememberedAccounts();
   var existingPwd = null;
@@ -4528,7 +4456,7 @@ async function handleSwitchAccount() {
       break;
     }
   }
-  if (name) rememberAccount(name, token, isCloud, existingPwd);
+  if (name) rememberAccount(name, token, true, existingPwd);
   await handleLogout(true);
   // Open login modal after logout
   authMode = 'login';
@@ -4542,9 +4470,7 @@ async function handleSwitchAccount() {
 
 async function handleLogout(quiet) {
   var currentName = getUserDisplayName();
-  var isCloud = useCloudAuth();
-  var token = null;
-  if (!isCloud) token = localStorage.getItem('anime_auth_token');
+  var token = localStorage.getItem('anime_auth_token');
   // Remember account before normal logout (switch already saved via handleSwitchAccount)
   if (currentName && !quiet) {
     var existingPwd = null;
@@ -4555,12 +4481,11 @@ async function handleLogout(quiet) {
         break;
       }
     }
-    rememberAccount(currentName, token, isCloud, existingPwd);
+    rememberAccount(currentName, token, true, existingPwd);
   }
 
-  if (useCloudAuth()) {
-    // Clear data BEFORE logout — logout triggers onAuthStateChanged
-    // which would otherwise reload localStorage before we get to clear it
+  // Clear cloud data before Supabase logout (onAuthStateChange would reload)
+  if (cloudMode) {
     animeList = [];
     folderList = [];
     sourceList = [];
@@ -4570,27 +4495,21 @@ async function handleLogout(quiet) {
     localStorage.removeItem(SOURCES_KEY);
     localStorage.removeItem(SEARCH_HISTORY_KEY);
     selectedIds.clear();
-    await window.AnimeCloud.logout();
-    updateAuthUI();
-    renderFolderList();
-    renderCards();
-    if (!quiet) showToast('已退出登录，数据已清除');
-  } else {
-    if (!quiet) {
-      try {
-        await fetch(BACKEND_URL + '/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('anime_auth_token') },
-        });
-      } catch(e) {}
-    }
-    localStorage.removeItem('anime_auth_token');
-    localStorage.removeItem('anime_auth_username');
-    updateAuthUI();
-    const menu = document.getElementById('authUserMenu');
-    if (menu) menu.remove();
-    if (!quiet) showToast('已退出登录');
   }
+  // Sign out from Supabase
+  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    var su = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    await su.auth.signOut().catch(function() {});
+  }
+  localStorage.removeItem('anime_auth_token');
+  localStorage.removeItem('anime_auth_username');
+  localStorage.removeItem('anime_api_key_server');
+  updateAuthUI();
+  var menu = document.getElementById('authUserMenu');
+  if (menu) menu.remove();
+  renderFolderList();
+  renderCards();
+  if (!quiet) showToast('已退出登录');
 }
 
 // ===== Cloud Data Loader =====
@@ -4679,80 +4598,55 @@ async function loadCloudData() {
   return true;
 }
 
-// Load Firebase config from server (keeps secrets out of source code)
-async function loadFirebaseConfig() {
+// Load Supabase config from server (keeps secrets out of source code)
+async function loadSupabaseConfig() {
   try {
     var resp = await fetch(BACKEND_URL + '/api/config');
     if (resp.ok) {
       var cfg = await resp.json();
-      if (cfg.firebaseEnabled && cfg.firebaseConfig) {
-        window.FIREBASE_ENABLED = true;
-        window.FIREBASE_CONFIG = cfg.firebaseConfig;
+      if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
+        window.SUPABASE_URL = cfg.supabaseUrl;
+        window.SUPABASE_ANON_KEY = cfg.supabaseAnonKey;
         return;
       }
     }
   } catch(e) {
-    console.warn('无法加载 Firebase 配置，云端功能不可用');
+    console.warn('无法加载 Supabase 配置，云端功能不可用');
   }
-  window.FIREBASE_ENABLED = false;
-  window.FIREBASE_CONFIG = null;
+  window.SUPABASE_URL = '';
+  window.SUPABASE_ANON_KEY = '';
 }
 
-// Init Firebase & Auth
+// Init Supabase & Auth
 function initAuth() {
-  // Only init Firebase in cloud mode
-  if (cloudMode && window.FIREBASE_ENABLED && window.FIREBASE_CONFIG) {
-    window.AnimeCloud.init(window.FIREBASE_CONFIG);
+  // Always init Supabase for auth (persisted session works regardless of network)
+  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    window.AnimeCloud.init({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
   }
 
-  if (useCloudAuth()) {
-    var _cloudDataLoaded = false;
-    var _authResolved = false;
-    _initAuthReady = new Promise(function(resolve) {
-      window.AnimeCloud.onAuthChange(async function(loggedIn) {
-        updateAuthUI();
-        if (loggedIn) {
-          if (!_cloudDataLoaded) {
-            _cloudDataLoaded = true;
-            await loadCloudData();
-            await loadSourceList(); // merge built-in sources
-          }
-        } else {
-          _cloudDataLoaded = false;
-          loadData();
-          loadFolders();
-          loadSourceList();
-          loadSearchHistory();
-        }
-        if (!_authResolved) { _authResolved = true; resolve(); }
-      });
+  var _cloudDataLoaded = false;
+  var _authResolved = false;
+  _initAuthReady = new Promise(function(resolve) {
+    window.AnimeCloud.onAuthChange(async function(loggedIn) {
       updateAuthUI();
-    });
-  } else {
-    // Local server auth — verify existing token
-    _initAuthReady = new Promise(function(resolve) {
-      var _authResolved = false;
-      function done() { if (!_authResolved) { _authResolved = true; resolve(); } }
-      const token = localStorage.getItem('anime_auth_token');
-      if (token) {
-        fetch(BACKEND_URL + '/api/auth/me', {
-          headers: { 'Authorization': 'Bearer ' + token },
-        }).then(function(r) {
-          if (!r.ok) {
-            localStorage.removeItem('anime_auth_token');
-            localStorage.removeItem('anime_auth_username');
-          } else {
-            syncUserApiKey(token);
-          }
-          updateAuthUI();
-          done();
-        }).catch(function() { updateAuthUI(); done(); });
+      if (loggedIn) {
+        syncUserApiKey(null);
+        if (cloudMode && !_cloudDataLoaded) {
+          _cloudDataLoaded = true;
+          await loadCloudData();
+        }
+        await loadSourceList();
       } else {
-        updateAuthUI();
-        done();
+        _cloudDataLoaded = false;
+        loadData();
+        loadFolders();
+        loadSourceList();
+        loadSearchHistory();
       }
+      if (!_authResolved) { _authResolved = true; resolve(); }
     });
-  }
+    updateAuthUI();
+  });
 }
 
 // ===== Init =====
@@ -4762,7 +4656,7 @@ function initAuth() {
   loadFolders();
   loadSearchHistory();
   applyTheme(currentTheme);
-  await loadFirebaseConfig(); // load Firebase secrets from server config.json
+  await loadSupabaseConfig(); // load Supabase config from server config.json
   initAuth();
   await _initAuthReady;
   await checkBackend();

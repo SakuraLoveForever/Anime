@@ -1,10 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const cheerio = require('cheerio');
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(cors());
@@ -13,7 +12,6 @@ app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3456;
 const CUSTOM_SOURCES_FILE = path.join(__dirname, 'custom-sources.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
 
 // ========== Helpers ==========
 
@@ -575,15 +573,11 @@ function loadConfig() {
   // Merge environment variables (Render Dashboard, etc.)
   if (process.env.DEEPSEEK_API_KEY) cfg.deepseekApiKey = process.env.DEEPSEEK_API_KEY;
 
-  if (process.env.FIREBASE_ENABLED === 'true' || process.env.FIREBASE_API_KEY) {
-    cfg.firebase = cfg.firebase || {};
-    cfg.firebase.enabled = process.env.FIREBASE_ENABLED !== 'false';
-    if (process.env.FIREBASE_API_KEY) cfg.firebase.apiKey = process.env.FIREBASE_API_KEY;
-    if (process.env.FIREBASE_AUTH_DOMAIN) cfg.firebase.authDomain = process.env.FIREBASE_AUTH_DOMAIN;
-    if (process.env.FIREBASE_PROJECT_ID) cfg.firebase.projectId = process.env.FIREBASE_PROJECT_ID;
-    if (process.env.FIREBASE_STORAGE_BUCKET) cfg.firebase.storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
-    if (process.env.FIREBASE_MESSAGING_SENDER_ID) cfg.firebase.messagingSenderId = process.env.FIREBASE_MESSAGING_SENDER_ID;
-    if (process.env.FIREBASE_APP_ID) cfg.firebase.appId = process.env.FIREBASE_APP_ID;
+  if (process.env.SUPABASE_URL || process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    cfg.supabase = cfg.supabase || {};
+    if (process.env.SUPABASE_URL) cfg.supabase.url = process.env.SUPABASE_URL;
+    if (process.env.SUPABASE_ANON_KEY) cfg.supabase.anonKey = process.env.SUPABASE_ANON_KEY;
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) cfg.supabase.serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   }
 
   return cfg;
@@ -592,44 +586,30 @@ function saveConfig(cfg) {
   try { fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8'); } catch(e) {}
 }
 
-// GET /api/config — get config (API key masked)
+// GET /api/config — get public config
 app.get('/api/config', (_req, res) => {
   const cfg = loadConfig();
   const key = cfg.deepseekApiKey || '';
-  const fb = cfg.firebase || {};
+  const sb = cfg.supabase || {};
   res.json({
-    deepseekApiKeySet: !!key,
-    deepseekApiKey: key,
     deepseekApiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '',
-    firebaseEnabled: !!fb.enabled,
-    firebaseConfig: fb.enabled ? {
-      apiKey: fb.apiKey || '',
-      authDomain: fb.authDomain || '',
-      projectId: fb.projectId || '',
-      storageBucket: fb.storageBucket || '',
-      messagingSenderId: fb.messagingSenderId || '',
-      appId: fb.appId || '',
-    } : null,
+    supabaseUrl: sb.url || '',
+    supabaseAnonKey: sb.anonKey || '',
   });
 });
 
 // POST /api/config — set config
 app.post('/api/config', (req, res) => {
-  const { deepseekApiKey, firebase } = req.body;
+  const { deepseekApiKey, supabase } = req.body;
   const cfg = loadConfig();
   if (deepseekApiKey && deepseekApiKey.trim()) {
     cfg.deepseekApiKey = deepseekApiKey.trim();
   }
-  if (firebase) {
-    cfg.firebase = {
-      enabled: !!firebase.enabled,
-      apiKey: firebase.apiKey || '',
-      authDomain: firebase.authDomain || '',
-      projectId: firebase.projectId || '',
-      storageBucket: firebase.storageBucket || '',
-      messagingSenderId: firebase.messagingSenderId || '',
-      appId: firebase.appId || '',
-    };
+  if (supabase) {
+    cfg.supabase = cfg.supabase || {};
+    if (supabase.url) cfg.supabase.url = supabase.url;
+    if (supabase.anonKey) cfg.supabase.anonKey = supabase.anonKey;
+    if (supabase.serviceRoleKey) cfg.supabase.serviceRoleKey = supabase.serviceRoleKey;
   }
   saveConfig(cfg);
   res.json({ ok: true });
@@ -668,7 +648,7 @@ async function searchAniList(title) {
 
 // ========== AI Enrich ==========
 async function callAI(query, userId) {
-  const apiKey = resolveApiKey(userId);
+  const apiKey = await resolveApiKey(userId);
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
 
   const prompt = `请识别这部动漫/影视作品：「${query}」，返回严格JSON（不要markdown代码块）：
@@ -1062,7 +1042,7 @@ app.post('/api/semantic-search', async (req, res) => {
 
 // ========== Test AI API ==========
 app.post('/api/test-ai', optionalAuth, async (req, res) => {
-  const apiKey = resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
+  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
   if (!apiKey) return res.status(400).json({ error: '未配置 API Key' });
   try {
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -1093,7 +1073,7 @@ app.post('/api/test-ai', optionalAuth, async (req, res) => {
 app.post('/api/reclassify', optionalAuth, async (req, res) => {
   const titles = (req.body.titles || []).map(t => (t || '').trim()).filter(Boolean);
   if (titles.length === 0) return res.status(400).json({ error: '需要至少一个番剧名称' });
-  const apiKey = resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
+  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey || loadConfig().deepseekApiKey;
   if (!apiKey) return res.status(400).json({ error: '未配置 DeepSeek API Key' });
 
   const rules = `【8大分类 · 严格判定规则】
@@ -1171,135 +1151,128 @@ app.get('/api/proxy-image', async (req, res) => {
   }
 });
 
-// ========== User Auth ==========
+// ========== Supabase Client ==========
 
-function loadUsers() {
-  try {
-    if (fs.existsSync(USERS_FILE)) return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
-  } catch(e) {}
-  return [];
+function getSupabaseAdmin() {
+  const cfg = loadConfig();
+  const sb = cfg.supabase || {};
+  if (!sb.url || !sb.serviceRoleKey) {
+    console.error('[supabase] Missing url or serviceRoleKey in config');
+    return null;
+  }
+  return createClient(sb.url, sb.serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8');
+// ========== User Data (Supabase DB) ==========
+
+// Ensure user_settings row exists for a user
+async function ensureUserSettings(supabase, userId) {
+  if (!supabase || !userId) return;
+  const { data } = await supabase.from('user_settings').select('user_id').eq('user_id', userId).maybeSingle();
+  if (!data) {
+    await supabase.from('user_settings').insert({
+      user_id: userId,
+      api_key: '',
+      api_provider: 'deepseek',
+      api_url: 'https://api.deepseek.com',
+    });
+  }
 }
 
-function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
+// Helper: resolve API key — user's key from Supabase first, then server default
+async function resolveApiKey(userId) {
+  if (userId) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('user_settings').select('api_key').eq('user_id', userId).maybeSingle();
+        if (data && data.api_key) return data.api_key;
+      } catch(e) { console.error('resolveApiKey error:', e.message); }
+    }
+  }
+  return loadConfig().deepseekApiKey || '';
 }
 
-// Auth middleware — required
-function authMiddleware(req, res, next) {
+// ========== Auth Middleware ==========
+
+// Verify Supabase JWT and attach user
+async function authMiddleware(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ error: '未登录' });
-  const users = loadUsers();
-  const user = users.find(u => u.token === token);
-  if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
-  req.user = { id: user.id, username: user.username };
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(500).json({ error: '认证服务不可用' });
+
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+
+  req.user = { id: user.id, email: user.email, username: user.user_metadata?.username || user.email };
   next();
 }
 
-// Optional auth — attaches user if token valid, otherwise continues
-function optionalAuth(req, res, next) {
+// Optional auth — attaches user if JWT valid, otherwise continues
+async function optionalAuth(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (token) {
-    const users = loadUsers();
-    const user = users.find(u => u.token === token);
-    if (user) req.user = { id: user.id, username: user.username };
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user) req.user = { id: user.id, email: user.email, username: user.user_metadata?.username || user.email };
+      } catch(e) {}
+    }
   }
   next();
 }
 
-// POST /api/auth/register
-app.post('/api/auth/register', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !username.trim()) return res.status(400).json({ error: '用户名不能为空' });
-  if (!password || password.length < 4) return res.status(400).json({ error: '密码至少4位' });
-  const name = username.trim();
-  const users = loadUsers();
-  if (users.find(u => u.username.toLowerCase() === name.toLowerCase())) {
-    return res.status(409).json({ error: '用户名已存在' });
-  }
-  const hash = await bcrypt.hash(password, 10);
-  const token = generateToken();
-  const user = {
-    id: 'user_' + Date.now(),
-    username: name,
-    passwordHash: hash,
-    token,
-    apiKey: '',  // user's own API key
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  saveUsers(users);
-  res.json({ token, username: name });
-});
+// ========== Auth Endpoints ==========
 
-// POST /api/auth/login
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
-  const users = loadUsers();
-  const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-  if (!user) return res.status(401).json({ error: '用户名或密码错误' });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: '用户名或密码错误' });
-  // Rotate token on login
-  user.token = generateToken();
-  saveUsers(users);
-  res.json({ token: user.token, username: user.username });
-});
-
-// GET /api/auth/me — get current user
+// GET /api/auth/me — verify current session
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  res.json({ username: req.user.username });
+  res.json({ username: req.user.username, email: req.user.email });
 });
 
-// POST /api/auth/logout
-app.post('/api/auth/logout', authMiddleware, (req, res) => {
-  const users = loadUsers();
-  const user = users.find(u => u.id === req.user.id);
-  if (user) {
-    user.token = null;
-    saveUsers(users);
-  }
+// POST /api/auth/logout — notify server (client handles actual Supabase signOut)
+app.post('/api/auth/logout', authMiddleware, (_req, res) => {
   res.json({ ok: true });
 });
 
 // GET /api/auth/api-key — get current user's API key (masked)
-app.get('/api/auth/api-key', authMiddleware, (req, res) => {
-  const users = loadUsers();
-  const user = users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: '用户不存在' });
-  const key = user.apiKey || '';
+app.get('/api/auth/api-key', authMiddleware, async (req, res) => {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(500).json({ error: '数据库不可用' });
+
+  await ensureUserSettings(supabase, req.user.id);
+  const { data } = await supabase.from('user_settings').select('api_key,api_provider,api_url').eq('user_id', req.user.id).single();
+
+  const key = (data && data.api_key) || '';
   res.json({
     apiKeySet: !!key,
     apiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '',
+    apiProvider: (data && data.api_provider) || 'deepseek',
+    apiUrl: (data && data.api_url) || 'https://api.deepseek.com',
   });
 });
 
 // POST /api/auth/api-key — save user's own API key
-app.post('/api/auth/api-key', authMiddleware, (req, res) => {
+app.post('/api/auth/api-key', authMiddleware, async (req, res) => {
   const { apiKey, apiUrl, apiProvider } = req.body;
-  const users = loadUsers();
-  const user = users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: '用户不存在' });
-  if (apiKey !== undefined) user.apiKey = apiKey.trim();
-  if (apiUrl !== undefined) user.apiUrl = apiUrl.trim();
-  if (apiProvider !== undefined) user.apiProvider = apiProvider;
-  saveUsers(users);
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(500).json({ error: '数据库不可用' });
+
+  await ensureUserSettings(supabase, req.user.id);
+  const updates = {};
+  if (apiKey !== undefined) updates.api_key = (apiKey || '').trim();
+  if (apiUrl !== undefined) updates.api_url = (apiUrl || '').trim();
+  if (apiProvider !== undefined) updates.api_provider = apiProvider;
+  updates.updated_at = new Date().toISOString();
+
+  const { error } = await supabase.from('user_settings').update(updates).eq('user_id', req.user.id);
+  if (error) return res.status(500).json({ error: '保存失败' });
   res.json({ ok: true });
 });
-
-// Helper: resolve API key — user's key first, then server default
-function resolveApiKey(userId) {
-  if (userId) {
-    const users = loadUsers();
-    const user = users.find(u => u.id === userId);
-    if (user && user.apiKey) return user.apiKey;
-  }
-  return loadConfig().deepseekApiKey || '';
-}
 
 // Health check for Render
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
