@@ -1220,6 +1220,14 @@
       <div class="modal-field" id="aiTestResult" style="display:none"></div>
       <button class="btn-ai-fill" onclick="testAiApi()" style="width:100%;margin-bottom:4px">🧪 测试 API 连接</button>
     </div>
+    <div class="settings-section">
+      <h3>数据管理</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ai-fill" onclick="exportAllData()" style="flex:1">📥 导出数据</button>
+        <button class="btn-ai-fill" onclick="importAllData()" style="flex:1">📤 导入数据</button>
+      </div>
+      <p style="font-size:0.7rem;opacity:0.5;margin:8px 0 0 0">导出所有番剧、收藏夹、搜索源、设置数据为 JSON 文件。导入将覆盖当前数据。</p>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeSettingsModal()">取消</button>
       <button class="btn-save" onclick="saveSettings()">保存设置</button>
@@ -3043,6 +3051,121 @@ async function saveSettings() {
   }
   closeSettingsModal();
   showToast('设置已保存 ✓');
+}
+
+// ===== Export / Import =====
+function exportAllData() {
+  const data = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    animeList: animeList,
+    folderList: folderList,
+    sourceList: sourceList,
+    searchHistory: searchHistory,
+    settings: {
+      theme: currentTheme,
+      apiProvider: localStorage.getItem('anime_api_provider') || 'deepseek',
+      apiUrl: localStorage.getItem('anime_api_url') || 'https://api.deepseek.com',
+      apiKey: localStorage.getItem('anime_api_key') || ''
+    }
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'anime-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('数据已导出 ✓');
+}
+
+async function importAllData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (!data.version || !data.animeList) {
+        showToast('无效的备份文件格式 ✗');
+        return;
+      }
+
+      if (!confirm('导入将覆盖当前所有数据（番剧 ' + data.animeList.length + ' 部、收藏夹 ' + (data.folderList ? data.folderList.length : 0) + ' 个、搜索源 ' + (data.sourceList ? data.sourceList.length : 0) + ' 个），确定继续？')) return;
+
+      // Restore anime list
+      animeList = data.animeList;
+      for (var i = 0; i < animeList.length; i++) {
+        if (!animeList[i].category || VALID_CATEGORIES.indexOf(animeList[i].category) < 0) {
+          animeList[i].category = DEFAULT_CATEGORY;
+        }
+      }
+      localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
+
+      // Restore folders
+      if (data.folderList && Array.isArray(data.folderList)) {
+        folderList = data.folderList;
+        localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList));
+      }
+
+      // Restore sources
+      if (data.sourceList && Array.isArray(data.sourceList)) {
+        sourceList = data.sourceList;
+        localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+      }
+
+      // Restore search history
+      if (data.searchHistory && Array.isArray(data.searchHistory)) {
+        searchHistory = data.searchHistory;
+        localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+      }
+
+      // Restore settings
+      if (data.settings) {
+        if (data.settings.theme) {
+          currentTheme = data.settings.theme;
+          localStorage.setItem('app-theme', currentTheme);
+          applyTheme(currentTheme);
+        }
+        if (data.settings.apiProvider) localStorage.setItem('anime_api_provider', data.settings.apiProvider);
+        if (data.settings.apiUrl) localStorage.setItem('anime_api_url', data.settings.apiUrl);
+        if (data.settings.apiKey) localStorage.setItem('anime_api_key', data.settings.apiKey);
+      }
+
+      // Sync to cloud if logged in
+      if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+        showToast('正在同步到云端...');
+        await Promise.all([
+          window.AnimeCloud.batchSaveAnime(animeList),
+          window.AnimeCloud.saveAllFolders(folderList),
+          window.AnimeCloud.saveAllSources(sourceList),
+          window.AnimeCloud.saveSearchHistory(searchHistory),
+          window.AnimeCloud.saveSettings({
+            apiKey: localStorage.getItem('anime_api_key') || '',
+            apiProvider: localStorage.getItem('anime_api_provider') || 'deepseek',
+            apiUrl: localStorage.getItem('anime_api_url') || '',
+            theme: currentTheme
+          })
+        ]);
+      }
+
+      // Refresh UI
+      renderFolderList();
+      renderCards();
+      closeSettingsModal();
+      showToast('数据已导入 ✓');
+    } catch (err) {
+      console.error('Import error:', err);
+      showToast('导入失败：文件格式错误 ✗');
+    }
+  };
+  input.click();
 }
 
 let _undoAction = null;
