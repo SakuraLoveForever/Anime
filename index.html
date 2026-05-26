@@ -1385,19 +1385,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
 <!-- ===== Firebase Config ===== -->
-<!-- 将下面的配置替换为你自己的 Firebase 项目配置 -->
-<!-- 在 Firebase Console → 项目设置 → 通用 → 您的应用 → Web 应用 中获取 -->
+<!-- 配置从服务端 config.json 动态加载，不写入源码 -->
 <script>
-// 设置为 true 并填入你的 Firebase 配置以启用云端存储
-  window.FIREBASE_ENABLED = true;
-  window.FIREBASE_CONFIG = {
-    apiKey: "AIzaSyBN6dWXeELEKQazmEk_LwsT8OqwfsTVM8M",           // 你复制的值
-    authDomain: "anime-tracker-4885e.firebaseapp.com",
-    projectId: "anime-tracker-4885e",
-    storageBucket: "anime-tracker-4885e.firebasestorage.app",
-    messagingSenderId: "108177069518",
-    appId: "1:108177069518:web:35438fa4a288af4280079f"
-  };
+  window.FIREBASE_ENABLED = false;
+  window.FIREBASE_CONFIG = null;
+  // 将在 init 阶段从后端 /api/config 加载
 </script>
 
 <script src="js/firebase.js"></script>
@@ -4656,6 +4648,25 @@ async function loadCloudData() {
   return true;
 }
 
+// Load Firebase config from server (keeps secrets out of source code)
+async function loadFirebaseConfig() {
+  try {
+    var resp = await fetch(BACKEND_URL + '/api/config');
+    if (resp.ok) {
+      var cfg = await resp.json();
+      if (cfg.firebaseEnabled && cfg.firebaseConfig) {
+        window.FIREBASE_ENABLED = true;
+        window.FIREBASE_CONFIG = cfg.firebaseConfig;
+        return;
+      }
+    }
+  } catch(e) {
+    console.warn('无法加载 Firebase 配置，云端功能不可用');
+  }
+  window.FIREBASE_ENABLED = false;
+  window.FIREBASE_CONFIG = null;
+}
+
 // Init Firebase & Auth
 function initAuth() {
   // Only init Firebase in cloud mode
@@ -4718,6 +4729,7 @@ function initAuth() {
   loadFolders();
   loadSearchHistory();
   applyTheme(currentTheme);
+  await loadFirebaseConfig(); // load Firebase secrets from server config.json
   initAuth();
   await _initAuthReady;
   await checkBackend();

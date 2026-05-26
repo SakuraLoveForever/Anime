@@ -579,15 +579,41 @@ function saveConfig(cfg) {
 app.get('/api/config', (_req, res) => {
   const cfg = loadConfig();
   const key = cfg.deepseekApiKey || '';
-  res.json({ deepseekApiKeySet: !!key, deepseekApiKey: key, deepseekApiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '' });
+  const fb = cfg.firebase || {};
+  res.json({
+    deepseekApiKeySet: !!key,
+    deepseekApiKey: key,
+    deepseekApiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '',
+    firebaseEnabled: !!fb.enabled,
+    firebaseConfig: fb.enabled ? {
+      apiKey: fb.apiKey || '',
+      authDomain: fb.authDomain || '',
+      projectId: fb.projectId || '',
+      storageBucket: fb.storageBucket || '',
+      messagingSenderId: fb.messagingSenderId || '',
+      appId: fb.appId || '',
+    } : null,
+  });
 });
 
-// POST /api/config — set API key
+// POST /api/config — set config
 app.post('/api/config', (req, res) => {
-  const { deepseekApiKey } = req.body;
-  if (!deepseekApiKey || !deepseekApiKey.trim()) return res.status(400).json({ error: 'API key 不能为空' });
+  const { deepseekApiKey, firebase } = req.body;
   const cfg = loadConfig();
-  cfg.deepseekApiKey = deepseekApiKey.trim();
+  if (deepseekApiKey && deepseekApiKey.trim()) {
+    cfg.deepseekApiKey = deepseekApiKey.trim();
+  }
+  if (firebase) {
+    cfg.firebase = {
+      enabled: !!firebase.enabled,
+      apiKey: firebase.apiKey || '',
+      authDomain: firebase.authDomain || '',
+      projectId: firebase.projectId || '',
+      storageBucket: firebase.storageBucket || '',
+      messagingSenderId: firebase.messagingSenderId || '',
+      appId: firebase.appId || '',
+    };
+  }
   saveConfig(cfg);
   res.json({ ok: true });
 });
