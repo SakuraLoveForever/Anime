@@ -126,7 +126,11 @@
 
   /* Sub-items — indent only when expanded */
   .nav-sub { padding-left: 42px !important; font-size: 0.82rem; }
-  .sidebar.collapsed .nav-sub { padding-left: 6px !important; }
+  .sidebar.collapsed .nav-sub { padding-left: 0 !important; }
+
+  /* Collapsed state — center icons, remove padding to avoid clipping */
+  .sidebar.collapsed .nav-item { padding: 0; justify-content: center; }
+  .sidebar.collapsed .sidebar-nav { padding-left: 0; padding-right: 0; }
 
   /* Icon wrapper — fixed 36×40px, always at same position */
   .nav-icon {
