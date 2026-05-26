@@ -53,6 +53,7 @@ DESIGN_tesla.md
 index.html
 install-autostart.bat
 js/firebase.js
+js/supabase.js
 open-localhost.bat
 package.json
 public/output.css
@@ -60,6 +61,7 @@ README.md
 server.js
 src/input.css
 start.bat
+supabase-schema.sql
 uninstall-autostart.bat
 </directory_structure>
 
@@ -141,12 +143,6 @@ AI 调用时会按照判定优先级进行：
 3. **渠道**：真人中区分院线 vs TV vs 网播
 
 不确定时默认为 `japanese_anime`。
-</file>
-
-<file path="config.example.json">
-{
-  "deepseekApiKey": "sk-your-deepseek-api-key-here"
-}
 </file>
 
 <file path="DESIGN_apple.md">
@@ -6363,6 +6359,456 @@ custom-sources.json
 users.json
 </file>
 
+<file path="js/supabase.js">
+// ===== Anime Tracker Supabase Integration =====
+// Supabase Auth + Database for multi-user cloud sync.
+// When disabled or offline, falls back to localStorage only.
+
+(function() {
+  'use strict';
+
+  const CLOUD = window.AnimeCloud = {
+    ready: false,
+    loggedIn: false,
+    uid: null,
+    displayName: '',
+    email: '',
+    _listeners: [],
+  };
+
+  let supabase = null;
+  let _authListener = null;
+
+  // ========== Init ==========
+
+  CLOUD.init = function(config) {
+    if (!config || !config.url || !config.anonKey || config.anonKey === 'YOUR_ANON_KEY') {
+      console.log('[AnimeCloud] Supabase not configured, using localStorage mode');
+      CLOUD.ready = false;
+      return false;
+    }
+    try {
+      supabase = window.supabase.createClient(config.url, config.anonKey);
+
+      // Remove previous listener if any
+      if (_authListener) {
+        _authListener.subscription.unsubscribe();
+        _authListener = null;
+      }
+
+      // Auth state listener
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(function(event, session) {
+        if (session && session.user) {
+          CLOUD.loggedIn = true;
+          CLOUD.uid = session.user.id;
+          CLOUD.email = session.user.email || '';
+          CLOUD.displayName = session.user.user_metadata?.display_name || session.user.email || '';
+          console.log('[AnimeCloud] User signed in:', CLOUD.displayName);
+        } else {
+          CLOUD.loggedIn = false;
+          CLOUD.uid = null;
+          CLOUD.email = '';
+          CLOUD.displayName = '';
+          console.log('[AnimeCloud] User signed out');
+        }
+        CLOUD._listeners.forEach(function(fn) { try { fn(CLOUD.loggedIn); } catch(e) {} });
+      });
+      _authListener = { subscription };
+
+      // Restore existing session immediately
+      supabase.auth.getSession().then(function({ data: { session } }) {
+        if (session && session.user) {
+          CLOUD.loggedIn = true;
+          CLOUD.uid = session.user.id;
+          CLOUD.email = session.user.email || '';
+          CLOUD.displayName = session.user.user_metadata?.display_name || session.user.email || '';
+        }
+        CLOUD._listeners.forEach(function(fn) { try { fn(CLOUD.loggedIn); } catch(e) {} });
+      });
+
+      CLOUD.ready = true;
+      console.log('[AnimeCloud] Supabase initialized');
+      return true;
+    } catch(e) {
+      console.error('[AnimeCloud] Init error:', e.message);
+      CLOUD.ready = false;
+      return false;
+    }
+  };
+
+  CLOUD.onAuthChange = function(fn) {
+    CLOUD._listeners.push(fn);
+  };
+
+  CLOUD.getToken = async function() {
+    if (!supabase) return null;
+    const { data: { session } } = await supabase.auth.getSession();
+    return session ? session.access_token : null;
+  };
+
+  // ========== Auth ==========
+
+  CLOUD.register = async function(email, password, displayName) {
+    const { data, error } = await supabase.auth.signUp({
+      email: email,
+      password: password,
+      options: { data: { display_name: displayName || email.split('@')[0] } },
+    });
+    if (error) {
+      const err = new Error(error.message);
+      if (error.message.includes('already registered') || error.message.includes('already exists')) {
+        err.code = 'auth/email-already-in-use';
+      } else if (error.message.includes('valid email')) {
+        err.code = 'auth/invalid-email';
+      } else if (error.message.includes('weak password')) {
+        err.code = 'auth/weak-password';
+      }
+      throw err;
+    }
+    if (!data.user) throw new Error('注册失败');
+    if (data.session) {
+      CLOUD.loggedIn = true;
+      CLOUD.uid = data.user.id;
+      CLOUD.email = data.user.email || '';
+      CLOUD.displayName = displayName || email.split('@')[0];
+    }
+    return { uid: data.user.id, email: data.user.email, displayName: displayName || email.split('@')[0] };
+  };
+
+  CLOUD.login = async function(email, password) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      const err = new Error(error.message);
+      if (error.message.includes('Invalid login credentials')) {
+        err.code = 'auth/invalid-credential';
+      }
+      throw err;
+    }
+    CLOUD.loggedIn = true;
+    CLOUD.uid = data.user.id;
+    CLOUD.email = data.user.email || '';
+    CLOUD.displayName = data.user.user_metadata?.display_name || email;
+    return { uid: data.user.id, email: data.user.email, displayName: CLOUD.displayName };
+  };
+
+  CLOUD.logout = async function() {
+    await supabase.auth.signOut();
+  };
+
+  // ========== Data: Anime ==========
+
+  function animeTbl() { return supabase.from('anime_items'); }
+
+  CLOUD.loadAnimeList = async function() {
+    if (!CLOUD.loggedIn) return null;
+    const { data, error } = await animeTbl().select('*').eq('user_id', CLOUD.uid).order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(function(d) {
+      return {
+        id: d.id,
+        title: d.title || '',
+        category: d.category || 'japanese_anime',
+        status: d.status || 'towatch',
+        episodes: d.episodes || 0,
+        currentEp: d.current_ep || 0,
+        totalEpisodes: d.total_episodes || 0,
+        cover: d.cover || '',
+        url: d.url || '',
+        synopsis: d.synopsis || '',
+        score: d.score || null,
+        genres: d.genres || [],
+        covers: d.covers || [],
+        year: d.year || null,
+        sourceUrl: d.source_url || '',
+        folderId: d.folder_id || null,
+        notes: d.notes || '',
+        createdAt: d.created_at || new Date().toISOString(),
+        _fromCloud: true,
+      };
+    });
+  };
+
+  function animeRow(anime) {
+    return {
+      user_id: CLOUD.uid,
+      id: String(anime.id),
+      title: anime.title || '',
+      category: anime.category || 'japanese_anime',
+      status: anime.status || 'towatch',
+      episodes: anime.episodes || 0,
+      current_ep: anime.currentEp || 0,
+      total_episodes: anime.totalEpisodes || 0,
+      cover: anime.cover || '',
+      url: anime.url || '',
+      synopsis: anime.synopsis || '',
+      score: anime.score || null,
+      genres: anime.genres || [],
+      covers: anime.covers || [],
+      year: anime.year || null,
+      source_url: anime.sourceUrl || '',
+      folder_id: anime.folderId || null,
+      notes: anime.notes || '',
+      updated_at: new Date().toISOString(),
+      created_at: anime.createdAt || new Date().toISOString(),
+    };
+  }
+
+  CLOUD.saveAnime = async function(anime) {
+    if (!CLOUD.loggedIn) return;
+    await animeTbl().upsert(animeRow(anime), { onConflict: 'user_id,id' });
+  };
+
+  CLOUD.deleteAnime = async function(id) {
+    if (!CLOUD.loggedIn) return;
+    await animeTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+  };
+
+  CLOUD.batchSaveAnime = async function(list) {
+    if (!CLOUD.loggedIn) return;
+    const rows = list.map(function(a) { return animeRow(a); });
+    await animeTbl().upsert(rows, { onConflict: 'user_id,id' });
+  };
+
+  CLOUD.batchDeleteAnime = async function(ids) {
+    if (!CLOUD.loggedIn) return;
+    for (var i = 0; i < ids.length; i++) {
+      await animeTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(ids[i]));
+    }
+  };
+
+  // ========== Data: Folders ==========
+
+  function folderTbl() { return supabase.from('folders'); }
+
+  CLOUD.loadFolders = async function() {
+    if (!CLOUD.loggedIn) return null;
+    const { data, error } = await folderTbl().select('*').eq('user_id', CLOUD.uid).order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []).map(function(d) {
+      return { id: d.id, name: d.name || '', icon: d.icon || '📁', createdAt: d.created_at || new Date().toISOString(), _fromCloud: true };
+    });
+  };
+
+  function folderRow(f) {
+    return {
+      user_id: CLOUD.uid,
+      id: String(f.id),
+      name: f.name || '',
+      icon: f.icon || '📁',
+      created_at: f.createdAt || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  CLOUD.saveFolder = async function(folder) {
+    if (!CLOUD.loggedIn) return;
+    await folderTbl().upsert(folderRow(folder), { onConflict: 'user_id,id' });
+  };
+
+  CLOUD.deleteFolder = async function(id) {
+    if (!CLOUD.loggedIn) return;
+    await folderTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+  };
+
+  CLOUD.saveAllFolders = async function(list) {
+    if (!CLOUD.loggedIn) return;
+    // Delete existing then insert new
+    await folderTbl().delete().eq('user_id', CLOUD.uid);
+    if (list.length > 0) {
+      await folderTbl().insert(list.map(function(f) { return folderRow(f); }));
+    }
+  };
+
+  // ========== Data: Sources ==========
+
+  function sourceTbl() { return supabase.from('sources'); }
+
+  CLOUD.loadSources = async function() {
+    if (!CLOUD.loggedIn) return null;
+    const { data, error } = await sourceTbl().select('*').eq('user_id', CLOUD.uid).order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []).map(function(d) {
+      return { id: d.id, name: d.name || '', url: d.url || '', createdAt: d.created_at || new Date().toISOString(), _fromCloud: true };
+    });
+  };
+
+  function sourceRow(s) {
+    return {
+      user_id: CLOUD.uid,
+      id: String(s.id),
+      name: s.name || '',
+      url: s.url || '',
+      created_at: s.createdAt || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  CLOUD.saveSource = async function(source) {
+    if (!CLOUD.loggedIn) return;
+    await sourceTbl().upsert(sourceRow(source), { onConflict: 'user_id,id' });
+  };
+
+  CLOUD.deleteSource = async function(id) {
+    if (!CLOUD.loggedIn) return;
+    await sourceTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+  };
+
+  CLOUD.saveAllSources = async function(list) {
+    if (!CLOUD.loggedIn) return;
+    await sourceTbl().delete().eq('user_id', CLOUD.uid);
+    if (list.length > 0) {
+      await sourceTbl().insert(list.map(function(s) { return sourceRow(s); }));
+    }
+  };
+
+  // ========== Data: Settings ==========
+
+  CLOUD.loadSettings = async function() {
+    if (!CLOUD.loggedIn) return null;
+    const { data } = await supabase.from('user_settings').select('*').eq('user_id', CLOUD.uid).maybeSingle();
+    if (!data) return {};
+    return {
+      apiKey: data.api_key || '',
+      apiProvider: data.api_provider || 'deepseek',
+      apiUrl: data.api_url || 'https://api.deepseek.com',
+      theme: data.theme || 'anime',
+    };
+  };
+
+  CLOUD.saveSettings = async function(settings) {
+    if (!CLOUD.loggedIn) return;
+    const row = {
+      user_id: CLOUD.uid,
+      api_key: settings.apiKey || '',
+      api_provider: settings.apiProvider || 'deepseek',
+      api_url: settings.apiUrl || 'https://api.deepseek.com',
+      theme: settings.theme || 'anime',
+      updated_at: new Date().toISOString(),
+    };
+    await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' });
+  };
+
+  // ========== Data: Search History ==========
+
+  CLOUD.loadSearchHistory = async function() {
+    if (!CLOUD.loggedIn) return null;
+    const { data } = await supabase.from('user_settings').select('search_history').eq('user_id', CLOUD.uid).maybeSingle();
+    return (data && data.search_history) || [];
+  };
+
+  CLOUD.saveSearchHistory = async function(terms) {
+    if (!CLOUD.loggedIn) return;
+    await supabase.from('user_settings').upsert({
+      user_id: CLOUD.uid,
+      search_history: (terms || []).slice(0, 50),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+  };
+
+})();
+</file>
+
+<file path="supabase-schema.sql">
+-- Run this SQL in your Supabase project's SQL Editor (https://app.supabase.com)
+
+-- === For existing installations: add covers column ===
+-- ALTER TABLE anime_items ADD COLUMN IF NOT EXISTS covers jsonb DEFAULT '[]'::jsonb;
+
+-- User settings (API keys, preferences)
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  api_key text DEFAULT '',
+  api_provider text DEFAULT 'deepseek',
+  api_url text DEFAULT 'https://api.deepseek.com',
+  theme text DEFAULT 'anime',
+  search_history jsonb DEFAULT '[]'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own settings" ON user_settings
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Anime items
+CREATE TABLE IF NOT EXISTS anime_items (
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  title text DEFAULT '',
+  category text DEFAULT 'japanese_anime',
+  status text DEFAULT 'towatch',
+  episodes integer DEFAULT 0,
+  current_ep integer DEFAULT 0,
+  total_episodes integer DEFAULT 0,
+  cover text DEFAULT '',
+  url text DEFAULT '',
+  synopsis text DEFAULT '',
+  score real,
+  genres jsonb DEFAULT '[]'::jsonb,
+  covers jsonb DEFAULT '[]'::jsonb,
+  year integer,
+  source_url text DEFAULT '',
+  folder_id text,
+  notes text DEFAULT '',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (user_id, id)
+);
+
+ALTER TABLE anime_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own anime" ON anime_items
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Folders
+CREATE TABLE IF NOT EXISTS folders (
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  name text DEFAULT '',
+  icon text DEFAULT '📁',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (user_id, id)
+);
+
+ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own folders" ON folders
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Sources
+CREATE TABLE IF NOT EXISTS sources (
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  name text DEFAULT '',
+  url text DEFAULT '',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (user_id, id)
+);
+
+ALTER TABLE sources ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own sources" ON sources
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+</file>
+
+<file path="config.example.json">
+{
+  "deepseekApiKey": "sk-your-deepseek-api-key-here",
+  "supabase": {
+    "url": "https://YOUR_PROJECT.supabase.co",
+    "anonKey": "eyJ...your-anon-key",
+    "serviceRoleKey": "eyJ...your-service-role-key"
+  }
+}
+</file>
+
 <file path="js/firebase.js">
 // ===== Anime Tracker Firebase Integration =====
 // Provides auth + Firestore data storage for multi-user GitHub Pages deployment.
@@ -6626,6 +7072,7 @@ users.json
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",
@@ -6639,14 +7086,112 @@ users.json
 }
 </file>
 
+<file path="README.md">
+# 追番管理器
+
+自定义看番追剧管理工具，支持多源搜索、DeepSeek AI 智能填充番剧信息。
+
+# 画面预览
+
+<img width="1864" height="995" alt="Clip_20260518_004804" src="https://github.com/user-attachments/assets/ee20b1fb-3088-4193-ad52-da9d974d7311" />
+
+# 在线网页模式
+
+[番剧管理](https://anime-tracker-0ptb.onrender.com/)
+
+在线版完整支持搜索番剧、AI 智能填充、链接解析等全部功能，基于 **Firebase** 提供多用户云端同步。
+
+> 首次访问 Render 可能需要等待 ~30 秒唤醒（免费实例休眠）。纯前端镜像站：[GitHub Pages](https://sakuraloveforever.github.io/Anime/)（无 AI 功能）
+
+### 注册 / 登录
+
+打开网页后，点击右上角 **🔑 登录** 按钮：
+
+- 输入邮箱和密码，点击注册即可创建账号
+- 注册后自动登录，所有数据保存在云端
+- 后续登录同一账号即可跨设备同步番剧数据
+
+### AI 功能
+
+点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys) → 点击「🧪 测试」→ 保存。
+
+- 每个人的 API Key 只保存在自己浏览器中，不会上传到服务器
+- 添加番剧时点击「🤖 AI 填充」即可自动补全信息
+- 支持一键「🔄 重新分类」批量修正番剧分类
+
+### 云端功能
+
+| 功能 | 说明 |
+|------|------|
+| 多用户隔离 | 每个账号拥有独立的番剧库、文件夹、自定义搜索源 |
+| 自动同步 | 添加/删除/编辑番剧实时同步到 Firestore |
+| 离线降级 | 网络异常时自动切换本地存储，恢复后重新同步 |
+| 跨设备 | 登录同一账号即可在不同设备间使用 |
+
+### 数据备份
+
+点击右上角齿轮 ⚙ → 设置面板底部「数据管理」：
+
+| 操作 | 说明 |
+|------|------|
+| 📥 导出数据 | 将所有番剧、收藏夹、搜索源、设置打包下载为 JSON 文件 |
+| 📤 导入数据 | 选择备份文件恢复数据，在线模式下自动同步到云端 |
+
+> 建议定期导出备份，方便迁移或恢复数据。
+
+### 数据存储
+
+- **Firebase Authentication** — 邮箱/密码登录认证
+- **Cloud Firestore** — 番剧列表、文件夹、搜索源、偏好设置（按用户 UID 隔离）
+- 首次登录后，本地存储的番剧数据会自动合并上传到云端
+
+# 本地搭建
+## 食用手册
+
+### 准备工作
+
+- 安装 [Node.js](https://nodejs.org/)（建议 18 以上版本）
+- 准备一个 [DeepSeek API Key](https://platform.deepseek.com/api_keys)
+
+### 安装 & 启动
+
+```bash
+# 1. 克隆项目
+git clone <repo-url> && cd Anime
+
+# 2. 安装依赖（只需一次）
+npm install
+
+# 3. 启动
+# Windows: 双击 start.bat
+# 其他: node server.js
+```
+
+### 配置 API Key
+
+1. 打开浏览器访问 `http://localhost:3456`
+2. 点击顶栏右侧 ⚙ 齿轮按钮
+3. 粘贴你的 DeepSeek API Key（以 `sk-` 开头）
+4. 点击「🔍 测试」验证连通性
+5. 测试成功后点击「保存」
+
+### 添加番剧
+
+点击右上角「＋ 添加番剧」按钮：
+
+- **手动输入** — 输入番剧名称，后端自动从 Bangumi / MyAnimeList / AniList 搜索并填充信息
+- **AI 填充** — 先输入名称，再点击「🤖 AI 填充」让 DeepSeek 智能补全
+- **粘贴链接** — 支持 Bangumi、MyAnimeList、AniList 等链接，自动抓取解析
+- **自定义来源** — 左侧边栏可添加自己的番剧搜索网站
+</file>
+
 <file path="server.js">
 const express = require('express');
 const cors = require('cors');
 const cheerio = require('cheerio');
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(cors());
@@ -6655,7 +7200,6 @@ app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3456;
 const CUSTOM_SOURCES_FILE = path.join(__dirname, 'custom-sources.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
 
 // ========== Helpers ==========
 
@@ -7205,31 +7749,54 @@ app.delete('/api/custom-sources/:id', (req, res) => {
 });
 
 // ========== Config Storage ==========
+// Priority: environment variables > config.json file > defaults
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 
 function loadConfig() {
+  let cfg = {};
   try {
-    if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    if (fs.existsSync(CONFIG_FILE)) cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
   } catch(e) {}
-  return {};
+
+  // Merge environment variables (Render Dashboard, etc.)
+  if (process.env.DEEPSEEK_API_KEY) cfg.deepseekApiKey = process.env.DEEPSEEK_API_KEY;
+
+  if (process.env.SUPABASE_URL || process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    cfg.supabase = cfg.supabase || {};
+    if (process.env.SUPABASE_URL) cfg.supabase.url = process.env.SUPABASE_URL;
+    if (process.env.SUPABASE_ANON_KEY) cfg.supabase.anonKey = process.env.SUPABASE_ANON_KEY;
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) cfg.supabase.serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  }
+
+  return cfg;
 }
 function saveConfig(cfg) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
+  try { fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8'); } catch(e) {}
 }
 
-// GET /api/config — get config (API key masked)
+// GET /api/config — get public config
 app.get('/api/config', (_req, res) => {
   const cfg = loadConfig();
-  const key = cfg.deepseekApiKey || '';
-  res.json({ deepseekApiKeySet: !!key, deepseekApiKey: key, deepseekApiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '' });
+  const sb = cfg.supabase || {};
+  res.json({
+    supabaseUrl: sb.url || '',
+    supabaseAnonKey: sb.anonKey || '',
+  });
 });
 
-// POST /api/config — set API key
+// POST /api/config — set config
 app.post('/api/config', (req, res) => {
-  const { deepseekApiKey } = req.body;
-  if (!deepseekApiKey || !deepseekApiKey.trim()) return res.status(400).json({ error: 'API key 不能为空' });
+  const { deepseekApiKey, supabase } = req.body;
   const cfg = loadConfig();
-  cfg.deepseekApiKey = deepseekApiKey.trim();
+  if (deepseekApiKey && deepseekApiKey.trim()) {
+    cfg.deepseekApiKey = deepseekApiKey.trim();
+  }
+  if (supabase) {
+    cfg.supabase = cfg.supabase || {};
+    if (supabase.url) cfg.supabase.url = supabase.url;
+    if (supabase.anonKey) cfg.supabase.anonKey = supabase.anonKey;
+    if (supabase.serviceRoleKey) cfg.supabase.serviceRoleKey = supabase.serviceRoleKey;
+  }
   saveConfig(cfg);
   res.json({ ok: true });
 });
@@ -7266,8 +7833,8 @@ async function searchAniList(title) {
 }
 
 // ========== AI Enrich ==========
-async function callAI(query, overrideApiKey) {
-  const apiKey = overrideApiKey || loadConfig().deepseekApiKey;
+async function callAI(query, userId) {
+  const apiKey = await resolveApiKey(userId);
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
 
   const prompt = `请识别这部动漫/影视作品：「${query}」，返回严格JSON（不要markdown代码块）：
@@ -7337,15 +7904,14 @@ function fuzzyMatchScore(a, b) {
   return Math.round((overlap / Math.max(ca.length, cb.length)) * 60);
 }
 
-app.post('/api/ai-enrich', async (req, res) => {
+app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
   const q = (req.body.query || req.body.title || '').trim();
-  const apiKey = req.body.apiKey || '';
   if (!q) return res.status(400).json({ error: '需要番剧名称' });
   try {
     // Step 1: Get AI identification
     let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
-      aiData = await callAI(q, apiKey);
+      aiData = await callAI(q, req.user?.id);
     } catch(e) { console.error('AI call failed:', e.message); }
 
     // Step 2: Search real sources with multiple title variants
@@ -7661,9 +8227,9 @@ app.post('/api/semantic-search', async (req, res) => {
 });
 
 // ========== Test AI API ==========
-app.post('/api/test-ai', async (req, res) => {
-  const apiKey = req.body.apiKey || loadConfig().deepseekApiKey;
-  if (!apiKey) return res.status(400).json({ error: '未配置 API Key' });
+app.post('/api/test-ai', optionalAuth, async (req, res) => {
+  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey;
+  if (!apiKey) return res.status(400).json({ error: '请先在设置中配置你的 DeepSeek API Key' });
   try {
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
@@ -7690,11 +8256,11 @@ app.post('/api/test-ai', async (req, res) => {
 });
 
 // ========== Reclassify ==========
-app.post('/api/reclassify', async (req, res) => {
+app.post('/api/reclassify', optionalAuth, async (req, res) => {
   const titles = (req.body.titles || []).map(t => (t || '').trim()).filter(Boolean);
   if (titles.length === 0) return res.status(400).json({ error: '需要至少一个番剧名称' });
-  const apiKey = req.body.apiKey || loadConfig().deepseekApiKey;
-  if (!apiKey) return res.status(400).json({ error: '未配置 DeepSeek API Key' });
+  const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey;
+  if (!apiKey) return res.status(400).json({ error: '请先在设置中配置你的 DeepSeek API Key' });
 
   const rules = `【8大分类 · 严格判定规则】
 1. chinese_anime（国漫/国产动画）→ 中国出品的动画，TV连载或网络播出。例：一人之下、狐妖小红娘、时光代理人、伍六七
@@ -7771,86 +8337,126 @@ app.get('/api/proxy-image', async (req, res) => {
   }
 });
 
-// ========== User Auth ==========
+// ========== Supabase Client ==========
 
-function loadUsers() {
-  try {
-    if (fs.existsSync(USERS_FILE)) return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
-  } catch(e) {}
-  return [];
+function getSupabaseAdmin() {
+  const cfg = loadConfig();
+  const sb = cfg.supabase || {};
+  if (!sb.url || !sb.serviceRoleKey) {
+    console.error('[supabase] Missing url or serviceRoleKey in config');
+    return null;
+  }
+  return createClient(sb.url, sb.serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8');
+// ========== User Data (Supabase DB) ==========
+
+// Ensure user_settings row exists for a user
+async function ensureUserSettings(supabase, userId) {
+  if (!supabase || !userId) return;
+  const { data } = await supabase.from('user_settings').select('user_id').eq('user_id', userId).maybeSingle();
+  if (!data) {
+    await supabase.from('user_settings').insert({
+      user_id: userId,
+      api_key: '',
+      api_provider: 'deepseek',
+      api_url: 'https://api.deepseek.com',
+    });
+  }
 }
 
-function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
+// Helper: resolve API key — user's key from Supabase first, then server default
+async function resolveApiKey(userId) {
+  if (userId) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('user_settings').select('api_key').eq('user_id', userId).maybeSingle();
+        if (data && data.api_key) return data.api_key;
+      } catch(e) { console.error('resolveApiKey error:', e.message); }
+    }
+  }
+  return '';
 }
 
-// Auth middleware
-function authMiddleware(req, res, next) {
+// ========== Auth Middleware ==========
+
+// Verify Supabase JWT and attach user
+async function authMiddleware(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ error: '未登录' });
-  const users = loadUsers();
-  const user = users.find(u => u.token === token);
-  if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
-  req.user = { id: user.id, username: user.username };
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(500).json({ error: '认证服务不可用' });
+
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+
+  req.user = { id: user.id, email: user.email, username: user.user_metadata?.username || user.email };
   next();
 }
 
-// POST /api/auth/register
-app.post('/api/auth/register', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !username.trim()) return res.status(400).json({ error: '用户名不能为空' });
-  if (!password || password.length < 4) return res.status(400).json({ error: '密码至少4位' });
-  const name = username.trim();
-  const users = loadUsers();
-  if (users.find(u => u.username.toLowerCase() === name.toLowerCase())) {
-    return res.status(409).json({ error: '用户名已存在' });
+// Optional auth — attaches user if JWT valid, otherwise continues
+async function optionalAuth(req, res, next) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (token) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user) req.user = { id: user.id, email: user.email, username: user.user_metadata?.username || user.email };
+      } catch(e) {}
+    }
   }
-  const hash = await bcrypt.hash(password, 10);
-  const token = generateToken();
-  const user = {
-    id: 'user_' + Date.now(),
-    username: name,
-    passwordHash: hash,
-    token,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  saveUsers(users);
-  res.json({ token, username: name });
-});
+  next();
+}
 
-// POST /api/auth/login
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
-  const users = loadUsers();
-  const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-  if (!user) return res.status(401).json({ error: '用户名或密码错误' });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: '用户名或密码错误' });
-  // Rotate token on login
-  user.token = generateToken();
-  saveUsers(users);
-  res.json({ token: user.token, username: user.username });
-});
+// ========== Auth Endpoints ==========
 
-// GET /api/auth/me — get current user
+// GET /api/auth/me — verify current session
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  res.json({ username: req.user.username });
+  res.json({ username: req.user.username, email: req.user.email });
 });
 
-// POST /api/auth/logout
-app.post('/api/auth/logout', authMiddleware, (req, res) => {
-  const users = loadUsers();
-  const user = users.find(u => u.id === req.user.id);
-  if (user) {
-    user.token = null;
-    saveUsers(users);
-  }
+// POST /api/auth/logout — notify server (client handles actual Supabase signOut)
+app.post('/api/auth/logout', authMiddleware, (_req, res) => {
+  res.json({ ok: true });
+});
+
+// GET /api/auth/api-key — get current user's API key (masked)
+app.get('/api/auth/api-key', authMiddleware, async (req, res) => {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(500).json({ error: '数据库不可用' });
+
+  await ensureUserSettings(supabase, req.user.id);
+  const { data } = await supabase.from('user_settings').select('api_key,api_provider,api_url').eq('user_id', req.user.id).single();
+
+  const key = (data && data.api_key) || '';
+  res.json({
+    apiKeySet: !!key,
+    apiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '',
+    apiProvider: (data && data.api_provider) || 'deepseek',
+    apiUrl: (data && data.api_url) || 'https://api.deepseek.com',
+  });
+});
+
+// POST /api/auth/api-key — save user's own API key
+app.post('/api/auth/api-key', authMiddleware, async (req, res) => {
+  const { apiKey, apiUrl, apiProvider } = req.body;
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(500).json({ error: '数据库不可用' });
+
+  await ensureUserSettings(supabase, req.user.id);
+  const updates = {};
+  if (apiKey !== undefined) updates.api_key = (apiKey || '').trim();
+  if (apiUrl !== undefined) updates.api_url = (apiUrl || '').trim();
+  if (apiProvider !== undefined) updates.api_provider = apiProvider;
+  updates.updated_at = new Date().toISOString();
+
+  const { error } = await supabase.from('user_settings').update(updates).eq('user_id', req.user.id);
+  if (error) return res.status(500).json({ error: '保存失败' });
   res.json({ ok: true });
 });
 
@@ -7863,105 +8469,6 @@ app.listen(PORT, () => {
   console.log(`Built-in sources: ${Object.keys(SOURCE_NAMES).join(', ')}`);
   console.log(`Custom sources loaded: ${customSources.length}`);
 });
-</file>
-
-<file path="README.md">
-# 追番管理器
-
-自定义看番追剧管理工具，支持多源搜索、DeepSeek AI 智能填充番剧信息。
-
-# 画面预览
-
-<img width="1864" height="995" alt="Clip_20260518_004804" src="https://github.com/user-attachments/assets/ee20b1fb-3088-4193-ad52-da9d974d7311" />
-
-# 在线网页模式
-
-[番剧管理](https://anime-tracker-0ptb.onrender.com/)
-
-在线版完整支持搜索番剧、AI 智能填充、链接解析等全部功能，基于 **Firebase** 提供多用户云端同步。
-
-> 首次访问 Render 可能需要等待 ~30 秒唤醒（免费实例休眠）。纯前端镜像站：[GitHub Pages](https://sakuraloveforever.github.io/Anime/)（无 AI 功能）
-
-### 注册 / 登录
-
-打开网页后，点击右上角 **🔑 登录** 按钮：
-
-- 输入邮箱和密码，点击注册即可创建账号
-- 注册后自动登录，所有数据保存在云端
-- 后续登录同一账号即可跨设备同步番剧数据
-
-### AI 功能
-
-点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys) → 点击「🧪 测试」→ 保存。
-
-- 每个人的 API Key 只保存在自己浏览器中，不会上传到服务器
-- 添加番剧时点击「🤖 AI 填充」即可自动补全信息
-- 支持一键「🔄 重新分类」批量修正番剧分类
-
-### 云端功能
-
-| 功能 | 说明 |
-|------|------|
-| 多用户隔离 | 每个账号拥有独立的番剧库、文件夹、自定义搜索源 |
-| 自动同步 | 添加/删除/编辑番剧实时同步到 Firestore |
-| 离线降级 | 网络异常时自动切换本地存储，恢复后重新同步 |
-| 跨设备 | 登录同一账号即可在不同设备间使用 |
-
-### 数据备份
-
-点击右上角齿轮 ⚙ → 设置面板底部「数据管理」：
-
-| 操作 | 说明 |
-|------|------|
-| 📥 导出数据 | 将所有番剧、收藏夹、搜索源、设置打包下载为 JSON 文件 |
-| 📤 导入数据 | 选择备份文件恢复数据，在线模式下自动同步到云端 |
-
-> 建议定期导出备份，方便迁移或恢复数据。
-
-### 数据存储
-
-- **Firebase Authentication** — 邮箱/密码登录认证
-- **Cloud Firestore** — 番剧列表、文件夹、搜索源、偏好设置（按用户 UID 隔离）
-- 首次登录后，本地存储的番剧数据会自动合并上传到云端
-
-# 本地搭建
-## 食用手册
-
-### 准备工作
-
-- 安装 [Node.js](https://nodejs.org/)（建议 18 以上版本）
-- 准备一个 [DeepSeek API Key](https://platform.deepseek.com/api_keys)
-
-### 安装 & 启动
-
-```bash
-# 1. 克隆项目
-git clone <repo-url> && cd Anime
-
-# 2. 安装依赖（只需一次）
-npm install
-
-# 3. 启动
-# Windows: 双击 start.bat
-# 其他: node server.js
-```
-
-### 配置 API Key
-
-1. 打开浏览器访问 `http://localhost:3456`
-2. 点击顶栏右侧 ⚙ 齿轮按钮
-3. 粘贴你的 DeepSeek API Key（以 `sk-` 开头）
-4. 点击「🔍 测试」验证连通性
-5. 测试成功后点击「保存」
-
-### 添加番剧
-
-点击右上角「＋ 添加番剧」按钮：
-
-- **手动输入** — 输入番剧名称，后端自动从 Bangumi / MyAnimeList / AniList 搜索并填充信息
-- **AI 填充** — 先输入名称，再点击「🤖 AI 填充」让 DeepSeek 智能补全
-- **粘贴链接** — 支持 Bangumi、MyAnimeList、AniList 等链接，自动抓取解析
-- **自定义来源** — 左侧边栏可添加自己的番剧搜索网站
 </file>
 
 <file path="index.html">
@@ -9077,6 +9584,7 @@ npm install
       <label>📁 上传封面图片</label>
       <input type="file" id="mCoverFile" accept="image/*" onchange="previewCoverFile()">
       <div class="modal-cover-preview" id="coverPreview"><span class="placeholder">预览</span></div>
+      <button class="btn-ai-fill" onclick="fetchCovers(event)" style="width:100%;margin-top:6px;font-size:0.82rem">🔍 搜索更多封面</button>
     </div>
 
     <div id="coverPicker" style="display:none">
@@ -9316,6 +9824,10 @@ npm install
       <label>确认密码</label>
       <input type="password" id="authPasswordConfirm" placeholder="请再次输入密码" maxlength="50">
     </div>
+    <div class="modal-field" id="authRememberedSection" style="display:none;margin-bottom:12px">
+      <label style="opacity:0.5;font-size:0.72rem;letter-spacing:0.06em">已记住的账号（点击快速填充）</label>
+      <div id="authRememberedList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+    </div>
     <div class="modal-field" id="authMsg" style="display:none;font-size:0.82rem;color:var(--color-error)"></div>
     <div class="modal-actions" style="flex-direction:column;align-items:center;gap:10px">
       <div style="display:flex;gap:10px;width:100%;justify-content:flex-end">
@@ -9342,28 +9854,18 @@ npm install
 <!-- ===== Toast Container ===== -->
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ===== Firebase SDK ===== -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- ===== Supabase SDK ===== -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- ===== Firebase Config ===== -->
-<!-- 将下面的配置替换为你自己的 Firebase 项目配置 -->
-<!-- 在 Firebase Console → 项目设置 → 通用 → 您的应用 → Web 应用 中获取 -->
+<!-- ===== Supabase Config ===== -->
+<!-- 配置从服务端 config.json 动态加载，不写入源码 -->
 <script>
-// 设置为 true 并填入你的 Firebase 配置以启用云端存储
-  window.FIREBASE_ENABLED = true;
-  window.FIREBASE_CONFIG = {
-    apiKey: "AIzaSyBN6dWXeELEKQazmEk_LwsT8OqwfsTVM8M",           // 你复制的值
-    authDomain: "anime-tracker-4885e.firebaseapp.com",
-    projectId: "anime-tracker-4885e",
-    storageBucket: "anime-tracker-4885e.firebasestorage.app",
-    messagingSenderId: "108177069518",
-    appId: "1:108177069518:web:35438fa4a288af4280079f"
-  };
+  window.SUPABASE_URL = '';
+  window.SUPABASE_ANON_KEY = '';
+  // 将在 init 阶段从后端 /api/config 加载
 </script>
 
-<script src="js/firebase.js"></script>
+<script src="js/supabase.js"></script>
 
 <script>
 // ===== Config =====
@@ -9376,6 +9878,7 @@ const _DK = 'anime_tracker_data';
 const _FK = 'anime_folders';
 const _SK = 'anime_sources_v2';
 const _SHK = 'anime_search_history';
+const _RAK = 'anime_remembered_accounts';
 let DATA_KEY = cloudMode ? _DK : 'offline_' + _DK;
 let FOLDERS_KEY = cloudMode ? _FK : 'offline_' + _FK;
 let SOURCES_KEY = cloudMode ? _SK : 'offline_' + _SK;
@@ -9464,80 +9967,120 @@ function syncFoldersToCloud() {
   });
 }
 async function loadSourceList() {
-  try { sourceList = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]'); } catch(e) { sourceList = []; }
-  var sf = false;
-  for (var si = 0; si < sourceList.length; si++) {
-    var sid = parseInt(sourceList[si].id, 10);
-    if (!isNaN(sid) && typeof sourceList[si].id === 'string') { sourceList[si].id = sid; sf = true; }
+  // 1. Load built-in sources as base (deep copy from constant)
+  sourceList = BUILTIN_SOURCES.map(function(s) {
+    return { id: s.id, name: s.name, url: s.url, enabled: s.enabled, builtin: true };
+  });
+
+  // 2. Load custom sources from localStorage (user-added only)
+  var customSources = [];
+  try { customSources = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]'); } catch(e) { customSources = []; }
+
+  // 3. Build URL set of built-in sources for dedup
+  var builtinUrls = {};
+  var builtinById = {};
+  for (var i = 0; i < sourceList.length; i++) {
+    builtinUrls[sourceList[i].url.trim().toLowerCase()] = i;
+    builtinById[sourceList[i].id] = i;
   }
-  if (sf) saveSources();
-  // Migrate from old version: enabledSources in anime_tracker_settings_v2
-  if (sourceList.length === 0) {
+
+  var newCustoms = [];
+  for (var ci = 0; ci < customSources.length; ci++) {
+    var cs = customSources[ci];
+    // Normalize ID
+    var nid = parseInt(cs.id, 10);
+    if (!isNaN(nid) && typeof cs.id === 'string') { cs.id = nid; }
+    // Match built-in by ID first, then by URL
+    if (cs.builtin || isBuiltinSource(cs.id)) {
+      // Saved built-in state — apply enabled setting
+      var idx = builtinById[cs.id];
+      if (idx !== undefined) sourceList[idx].enabled = cs.enabled !== false;
+    } else {
+      var csUrl = (cs.url || '').trim().toLowerCase();
+      var urlMatchIdx = builtinUrls[csUrl];
+      if (urlMatchIdx !== undefined) {
+        // Old-format source that matches a built-in by URL — apply enabled state
+        sourceList[urlMatchIdx].enabled = cs.enabled !== false;
+      } else {
+        // Genuinely custom source — add to list
+        newCustoms.push({ id: cs.id, name: cs.name, url: cs.url, enabled: cs.enabled !== false, builtin: false });
+      }
+    }
+  }
+  // Append custom sources after built-in
+  sourceList = sourceList.concat(newCustoms);
+
+  // Migrate from old version keys (only for custom sources)
+  if (customSources.length === 0) {
+    var migrated = false;
     try {
-      const oldSettings = JSON.parse(localStorage.getItem('anime_tracker_settings_v2') || '{}');
-      const enabled = oldSettings.enabledSources || [];
-      const nameOverrides = oldSettings.builtInNames || {};
-      const urlOverrides = oldSettings.builtInUrls || {};
-      const hidden = oldSettings.hiddenBuiltIn || [];
-      const migrated = [];
-      // Built-in sources from old version
-      const builtInDefs = [
-        { key: 'bgm.tv', name: 'Bangumi 番组计划', url: 'https://bgm.tv/subject_search/{query}?cat=2' },
-        { key: 'myanimelist.net', name: 'MyAnimeList', url: 'https://myanimelist.net/anime.php?q={query}' },
-        { key: 'anilist.co', name: 'AniList', url: 'https://anilist.co/search/anime/{query}' },
-        { key: 'bilibili', name: 'Bilibili', url: 'https://search.bilibili.com/bangumi?keyword={query}' },
+      var oldSettings = JSON.parse(localStorage.getItem('anime_tracker_settings_v2') || '{}');
+      var hidden = oldSettings.hiddenBuiltIn || [];
+      var nameOverrides = oldSettings.builtInNames || {};
+      var urlOverrides = oldSettings.builtInUrls || {};
+      var enabled = oldSettings.enabledSources || [];
+      var customDefs = oldSettings.customSources || [];
+      // Apply built-in overrides
+      var oldBuiltInDefs = [
+        { key: 'bgm.tv', id: 'builtin_bgm' },
+        { key: 'myanimelist.net', id: 'builtin_mal' },
+        { key: 'bilibili', id: 'builtin_bilibili' },
       ];
-      for (const def of builtInDefs) {
-        if (!hidden.includes(def.key)) {
-          migrated.push({
-            id: Date.now() + Math.random(),
-            name: nameOverrides[def.key] || def.name,
-            url: urlOverrides[def.key] || def.url,
-            enabled: enabled.length === 0 || enabled.includes(def.key),
-          });
+      for (var obi = 0; obi < oldBuiltInDefs.length; obi++) {
+        var ob = oldBuiltInDefs[obi];
+        if (hidden.indexOf(ob.key) !== -1) {
+          // disable if hidden
+          var obIdx = builtinById[ob.id];
+          if (obIdx !== undefined) sourceList[obIdx].enabled = false;
+        }
+        if (nameOverrides[ob.key]) {
+          var nIdx = builtinById[ob.id];
+          if (nIdx !== undefined) sourceList[nIdx].name = nameOverrides[ob.key];
+        }
+        if (urlOverrides[ob.key]) {
+          var uIdx = builtinById[ob.id];
+          if (uIdx !== undefined) sourceList[uIdx].url = urlOverrides[ob.key];
         }
       }
-      // Custom sources from old settings (if any stored locally)
-      const customDefs = oldSettings.customSources || [];
-      for (const cs of customDefs) {
-        migrated.push({
-          id: Date.now() + Math.random(),
-          name: cs.name,
-          url: cs.searchUrl,
-          enabled: enabled.length === 0 || enabled.includes(cs.id || cs.key),
-        });
+      // Migrate old custom sources
+      for (var csi = 0; csi < customDefs.length; csi++) {
+        var csd = customDefs[csi];
+        sourceList.push({ id: Date.now() + Math.random(), name: csd.name, url: csd.searchUrl, enabled: true, builtin: false });
+        migrated = true;
       }
-      if (migrated.length > 0) {
-        sourceList = migrated;
-        saveSourceList();
-      }
+      if (migrated) saveSourceList();
     } catch(e) {}
   }
+
   // Fallback: fetch from server's custom-sources.json
-  if (sourceList.length === 0) {
+  if (newCustoms.length === 0 && customSources.length === 0) {
     try {
-      const resp = await fetch(BACKEND_URL + '/api/custom-sources');
+      var resp = await fetch(BACKEND_URL + '/api/custom-sources');
       if (resp.ok) {
-        const serverSources = await resp.json();
-        sourceList = serverSources.map(s => ({
-          id: s.id, name: s.name, url: s.searchUrl, enabled: true
-        }));
-        if (sourceList.length > 0) saveSourceList();
+        var serverSources = await resp.json();
+        for (var ssi = 0; ssi < serverSources.length; ssi++) {
+          var ss = serverSources[ssi];
+          if (!isBuiltinSource(ss.id)) {
+            sourceList.push({ id: ss.id, name: ss.name, url: ss.searchUrl, enabled: true, builtin: false });
+          }
+        }
+        if (serverSources.length > 0) saveSourceList();
       }
     } catch(e) {}
-  }
-  // Fallback: first-time user — add built-in defaults
-  if (sourceList.length === 0) {
-    sourceList = [
-      { id: Date.now(), name: 'Bangumi 番组计划', url: 'https://bgm.tv/subject_search/{query}?cat=2', enabled: true },
-      { id: Date.now() + 1, name: 'MyAnimeList', url: 'https://myanimelist.net/anime.php?q={query}', enabled: true },
-      { id: Date.now() + 2, name: 'AniList', url: 'https://anilist.co/search/anime/{query}', enabled: true },
-    ];
-    saveSourceList();
   }
 }
 function saveSourceList() {
-  localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+  // Only persist custom (non-builtin) sources
+  var customOnly = [];
+  for (var i = 0; i < sourceList.length; i++) {
+    if (!sourceList[i].builtin) {
+      customOnly.push({ id: sourceList[i].id, name: sourceList[i].name, url: sourceList[i].url, enabled: sourceList[i].enabled !== false });
+    } else {
+      // Persist built-in enabled state so it survives across refreshes
+      customOnly.push({ id: sourceList[i].id, builtin: true, enabled: sourceList[i].enabled !== false });
+    }
+  }
+  localStorage.setItem(SOURCES_KEY, JSON.stringify(customOnly));
   syncSourcesToCloud();
 }
 var _cloudSourceTimer = null;
@@ -9622,13 +10165,14 @@ async function aiEnrich(title) {
 // ===== Sources =====
 function renderSourceList() {
   const container = document.getElementById('sidebarSources');
-  container.innerHTML = sourceList.map(s =>
-    `<div class="sidebar-source-item${s.enabled !== false ? ' enabled' : ''}" onclick="toggleSource(${s.id})" title="${escapeHtml(s.name)}${s.enabled !== false ? ' · 已启用' : ' · 已禁用'}">
+  container.innerHTML = sourceList.map(s => {
+    var delBtn = s.builtin ? '' : `<span class="src-del" onclick="event.stopPropagation();deleteSource(${s.id})" title="删除来源">✕</span>`;
+    return `<div class="sidebar-source-item${s.enabled !== false ? ' enabled' : ''}" onclick="toggleSource(${s.id})" title="${escapeHtml(s.name)}${s.builtin ? ' · 内置' : ''}${s.enabled !== false ? ' · 已启用' : ' · 已禁用'}">
       <span class="src-dot"></span>
       <span class="src-name">${escapeHtml(s.name)}</span>
-      <span class="src-del" onclick="event.stopPropagation();deleteSource(${s.id})" title="删除来源">✕</span>
-    </div>`
-  ).join('');
+      ${delBtn}
+    </div>`;
+  }).join('');
 }
 
 function renderSourceManagerList() {
@@ -9644,24 +10188,32 @@ function renderSourceManagerList() {
   var html = '';
   for (var i = 0; i < sourceList.length; i++) {
     var s = sourceList[i];
+    var isBuiltin = s.builtin === true;
     var enabled = s.enabled !== false;
     var dotColor = enabled ? 'var(--color-success)' : 'var(--color-base-content)';
     var dotOpacity = enabled ? '1' : '0.25';
     var toggleLabel = enabled ? '已启用' : '已禁用';
-    var isSel = _sourceSelectMode && _selectedSourceIds.has(s.id);
+    var isSel = _sourceSelectMode && _selectedSourceIds.has(s.id) && !isBuiltin;
+    var canSelect = _sourceSelectMode && !isBuiltin;
     var bg = isSel ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'color-mix(in srgb, var(--color-base-content) 3%, transparent)';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:' + bg + ';border:1px solid ' + (isSel ? 'var(--color-primary)' : 'transparent') + ';transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\'" onmouseleave="this.style.borderColor=\'' + (isSel ? 'var(--color-primary)' : 'transparent') + '\'"' + (_sourceSelectMode ? ' onclick="sourceToggleSelect(' + s.id + ')" style="cursor:pointer"' : '') + '>';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:' + bg + ';border:1px solid ' + (isSel ? 'var(--color-primary)' : 'transparent') + ';transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\'" onmouseleave="this.style.borderColor=\'' + (isSel ? 'var(--color-primary)' : 'transparent') + '\'"' + (canSelect ? ' onclick="sourceToggleSelect(' + s.id + ')" style="cursor:pointer"' : '') + '>';
     if (_sourceSelectMode) {
-      html += '<input type="checkbox" ' + (isSel ? 'checked' : '') + ' onclick="event.stopPropagation();sourceToggleSelect(' + s.id + ')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--color-primary);flex-shrink:0">';
+      if (isBuiltin) {
+        html += '<span style="width:16px;height:16px;flex-shrink:0;opacity:0.25" title="内置来源不可删除">🔒</span>';
+      } else {
+        html += '<input type="checkbox" ' + (isSel ? 'checked' : '') + ' onclick="event.stopPropagation();sourceToggleSelect(' + s.id + ')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--color-primary);flex-shrink:0">';
+      }
     }
     html += '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + dotColor + ';opacity:' + dotOpacity + '"></span>';
     html += '<div style="flex:1;min-width:0">';
-    html += '<div style="font-size:0.85rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(s.name) + '</div>';
+    html += '<div style="font-size:0.85rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(s.name);
+    if (isBuiltin) html += ' <span style="font-size:0.6rem;font-weight:600;padding:1px 6px;border-radius:999px;background:color-mix(in srgb, var(--color-primary) 12%, transparent);color:var(--color-primary);vertical-align:middle">内置</span>';
+    html += '</div>';
     html += '<div style="font-size:0.72rem;opacity:0.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(s.url) + '</div>';
     html += '</div>';
     html += '<button onclick="event.stopPropagation();testSourceById(' + s.id + ',this)" style="padding:4px 8px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-info) 20%, transparent);background:transparent;color:var(--color-info);cursor:pointer;font-size:0.7rem;white-space:nowrap;font-family:inherit" title="测试连接">测试</button>';
     html += '<button onclick="event.stopPropagation();toggleSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-size:0.75rem;white-space:nowrap;font-family:inherit">' + toggleLabel + '</button>';
-    if (!_sourceSelectMode) {
+    if (!_sourceSelectMode && !isBuiltin) {
       html += '<button onclick="event.stopPropagation();deleteSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 8px;border-radius:6px;border:none;background:transparent;color:var(--color-error);cursor:pointer;font-size:0.75rem;opacity:0.6;font-family:inherit" title="删除">✕</button>';
     }
     html += '</div>';
@@ -9726,10 +10278,17 @@ function sourceDeselectAll() {
 }
 
 function batchDeleteSources() {
-  if (_selectedSourceIds.size === 0) return;
-  var count = _selectedSourceIds.size;
+  // Skip built-in sources
+  var customSelected = [];
+  _selectedSourceIds.forEach(function(id) {
+    if (!isBuiltinSource(id)) customSelected.push(id);
+  });
+  if (customSelected.length === 0) { showToast('未选中可删除的自定义来源（内置来源不可删除）'); return; }
+  var count = customSelected.length;
   if (!confirm('确定删除选中的 ' + count + ' 个搜索源吗？')) return;
-  sourceList = sourceList.filter(function(s) { return !_selectedSourceIds.has(s.id); });
+  var deleteSet = {};
+  for (var di = 0; di < customSelected.length; di++) { deleteSet[customSelected[di]] = true; }
+  sourceList = sourceList.filter(function(s) { return !deleteSet[s.id]; });
   _selectedSourceIds.clear();
   saveSourceList();
   renderSourceManagerList();
@@ -9883,6 +10442,7 @@ function toggleSource(id) {
 }
 
 function deleteSource(id) {
+  if (isBuiltinSource(id)) { showToast('内置来源不可删除'); return; }
   if (!confirm('确定删除这个搜索来源吗？')) return;
   sourceList = sourceList.filter(function(s) { return s.id !== id; });
   saveSourceList();
@@ -9977,10 +10537,11 @@ function saveSource() {
   if (!url.includes('{query}')) { showToast('搜索链接必须包含 {query} 占位符'); return; }
   const editId = document.getElementById('srcName')._editId;
   if (editId) {
+    if (isBuiltinSource(editId)) { showToast('内置来源不可修改'); return; }
     const s = sourceList.find(x => x.id === editId);
     if (s) { s.name = name; s.url = url; }
   } else {
-    sourceList.push({ id: Date.now(), name, url, enabled: true });
+    sourceList.push({ id: Date.now(), name, url, enabled: true, builtin: false });
   }
   saveSourceList();
   renderSourceManagerList();
@@ -10519,6 +11080,39 @@ function normalizeCategory(c) {
   if (c && VALID_CATEGORIES.indexOf(c) >= 0) return c;
   return DEFAULT_CATEGORY;
 }
+
+// Built-in search sources — immutable, always available
+const BUILTIN_SOURCES = [
+  { id: 'builtin_bgm', name: 'Bangumi', url: 'https://bgm.tv/subject_search/{query}?cat=2', enabled: true, builtin: true },
+  { id: 'builtin_mal', name: 'MyAnimeList', url: 'https://myanimelist.net/anime.php?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_acfun', name: 'AcFun', url: 'https://www.acfun.cn/search?keyword={query}', enabled: true, builtin: true },
+  { id: 'builtin_bilibili', name: 'Bilibili', url: 'https://search.bilibili.com/bangumi?keyword={query}', enabled: true, builtin: true },
+  { id: 'builtin_livechart', name: 'LiveChart', url: 'https://www.livechart.me/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_notifymoe', name: 'Notify.moe', url: 'https://notify.moe/search/{query}', enabled: true, builtin: true },
+  { id: 'builtin_anisearch', name: 'AniSearch', url: 'https://www.anisearch.com/anime/index?char={query}', enabled: true, builtin: true },
+  { id: 'builtin_amazon', name: 'AmazonPrimeVideo', url: 'https://www.amazon.com/s?k={query}&i=instant-video', enabled: true, builtin: true },
+  { id: 'builtin_netflix', name: 'Netflix', url: 'https://www.netflix.com/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_hulu', name: 'Hulu', url: 'https://www.hulu.com/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_danime', name: 'DAnimeStore', url: 'https://animestore.docomo.ne.jp/animestore/sch_pc?searchKey={query}', enabled: true, builtin: true },
+  { id: 'builtin_unext', name: 'UNEXT', url: 'https://video.unext.jp/freeword?query={query}', enabled: true, builtin: true },
+  { id: 'builtin_anime1', name: 'Anime1', url: 'https://anime1.me/?s={query}', enabled: true, builtin: true },
+  { id: 'builtin_nyaa', name: 'Nyaa', url: 'https://nyaa.si/?f=0&c=1_2&q={query}', enabled: true, builtin: true },
+  { id: 'builtin_mikan', name: '蜜柑计划', url: 'https://mikanani.me/Home/Search?searchstr={query}', enabled: true, builtin: true },
+  { id: 'builtin_masteranime', name: 'MasterAnime', url: 'https://masteranime.tv/search?key={query}', enabled: true, builtin: true },
+  { id: 'builtin_jkanime', name: 'JKAnime', url: 'https://jkanime.net/buscar/{query}', enabled: true, builtin: true },
+  { id: 'builtin_subsplease', name: 'SubsPlease', url: 'https://subsplease.org/shows/?search={query}', enabled: true, builtin: true },
+  { id: 'builtin_erairaws', name: 'Erai-raws', url: 'https://www.erai-raws.info/?s={query}', enabled: true, builtin: true },
+  { id: 'builtin_nimegami', name: 'Nimegami', url: 'https://nimegami.id/?s={query}', enabled: true, builtin: true },
+  { id: 'builtin_animetosho', name: 'AnimeTosho', url: 'https://animetosho.org/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_otakudesu', name: 'OtakuDesu', url: 'https://otakudesu.cloud/?s={query}', enabled: true, builtin: true },
+];
+
+function isBuiltinSource(id) {
+  for (var i = 0; i < BUILTIN_SOURCES.length; i++) {
+    if (BUILTIN_SOURCES[i].id === id) return true;
+  }
+  return false;
+}
 const CAT_ICONS = {
   chinese_anime:'🇨🇳', japanese_anime:'🇯🇵', theatrical_anime:'🎬',
   anime_movie:'🎥', movie:'🍿', tv_drama:'📺', web_drama:'💻', documentary:'📚'
@@ -10907,6 +11501,7 @@ async function batchAiFillAll() {
         if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) { a.genres = data.genres; updated = true; }
         if (data.score && !a.score) { a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null; updated = true; }
         if (!a.cover && data.cover) { a.cover = data.cover; updated = true; }
+        if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; updated = true; }
       }
     } catch(e) {}
     done++;
@@ -10990,7 +11585,8 @@ async function aiFillCard(id) {
       if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) a.genres = data.genres;
       if (data.episodes > 0 && !a.totalEpisodes) a.totalEpisodes = data.episodes;
       if (data.category && data.category.trim() && !a.category) a.category = normalizeCategory(data.category);
-      if (!a.cover && data.cover) a.cover = data.cover;
+      if (!a.cover && data.cover) { a.cover = data.cover; }
+      if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; }
       if (data.score && !a.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
       saveData();
       renderCards();
@@ -11116,6 +11712,55 @@ function setCover(url) {
   document.getElementById('coverPreview').innerHTML = `<img src="${escapeHtml(url)}" alt="预览">`;
 }
 
+async function fetchCovers(ev) {
+  var title = document.getElementById('mTitle').value.trim();
+  if (!title || title.length < 2) { showToast('请先输入番剧名称'); return; }
+  if (!backendOnline) { showToast('后端未连接'); return; }
+  if (!apiKeyConfigured) { showToast('请先配置 API Key'); return; }
+  var btn = ev.target;
+  var orig = btn.textContent;
+  btn.textContent = '⏳ 搜索中...';
+  btn.disabled = true;
+  try {
+    var resp = await aiEnrich(title);
+    var data = (resp && resp.data) ? resp.data : resp;
+    var newCovers = (data && data.covers) ? data.covers : [];
+    if (newCovers.length === 0) {
+      showToast('未搜索到封面图片');
+      btn.textContent = orig;
+      btn.disabled = false;
+      return;
+    }
+    // Merge with existing covers, deduplicate
+    var container = document.getElementById('coverOptions');
+    var existing = [];
+    if (container._covers && container._covers.length > 0) {
+      existing = container._covers;
+    } else if (editingId) {
+      var a = animeList.find(function(x) { return x.id === editingId; });
+      if (a && a.covers && a.covers.length > 0) existing = a.covers;
+    }
+    var seen = new Set();
+    var merged = [];
+    var addAll = function(list) {
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].url && !seen.has(list[i].url)) {
+          seen.add(list[i].url);
+          merged.push(list[i]);
+        }
+      }
+    };
+    addAll(existing);
+    addAll(newCovers);
+    renderCoverOptions(merged);
+    showToast('找到 ' + newCovers.length + ' 张封面，共 ' + merged.length + ' 张可选 ✓');
+  } catch(e) {
+    showToast('搜索封面失败：' + e.message);
+  }
+  btn.textContent = orig;
+  btn.disabled = false;
+}
+
 function renderCoverOptions(covers) {
   const picker = document.getElementById('coverPicker');
   const container = document.getElementById('coverOptions');
@@ -11175,7 +11820,6 @@ function openEditModal(animeId) {
   const a = animeList.find(x => x.id === animeId);
   if (!a) { showToast('未找到番剧'); return; }
   editingId = animeId; pendingCoverDataUrl = null; sourceResults = []; chosenSourceIdx = -1;
-  document.getElementById('coverPicker').style.display = 'none';
   document.getElementById('modalTitle').textContent = '编辑番剧';
   document.getElementById('btnSave').textContent = '保存';
   document.getElementById('mTitle').value = a.title; document.getElementById('mTitle')._genres = a.genres || null;
@@ -11193,6 +11837,13 @@ function openEditModal(animeId) {
   const preview = document.getElementById('coverPreview');
   if (a.cover) preview.innerHTML = `<img src="${escapeHtml(a.cover)}" alt="封面预览" onerror="this.parentElement.innerHTML='<span class=\\'placeholder\\'>预览</span>'">`;
   else preview.innerHTML = '<span class="placeholder">预览</span>';
+  if (a.covers && a.covers.length > 1) {
+    renderCoverOptions(a.covers);
+    var selIdx = a.covers.findIndex(function(c) { return c.url === a.cover; });
+    if (selIdx >= 0) selectCover(selIdx);
+  } else {
+    document.getElementById('coverPicker').style.display = 'none';
+  }
   document.getElementById('modalOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('mTitle').focus(), 100);
 }
@@ -11222,13 +11873,20 @@ function saveAnime() {
   let score = scoreRaw ? parseFloat(scoreRaw) : null;
   if (score !== null && (isNaN(score) || score < 0 || score > 10)) score = null;
   const finalCover = pendingCoverDataUrl || coverUrl;
+  // Collect all cover options from picker if visible
+  const coverOptsContainer = document.getElementById('coverOptions');
+  var savedCovers = [];
+  if (coverOptsContainer._covers && coverOptsContainer._covers.length > 0) {
+    savedCovers = coverOptsContainer._covers;
+  }
 
   if (editingId) {
     const a = animeList.find(x => x.id === editingId); if (!a) return;
-    const before = { title: a.title, status: a.status, totalEpisodes: a.totalEpisodes, score: a.score, cover: a.cover, synopsis: a.synopsis, genres: a.genres ? a.genres.slice() : [], category: a.category, folderId: a.folderId, sourceUrl: a.sourceUrl, watchedEpisodes: a.watchedEpisodes ? a.watchedEpisodes.slice() : [] };
+    if (!savedCovers.length && a.covers) savedCovers = a.covers;
+    const before = { title: a.title, status: a.status, totalEpisodes: a.totalEpisodes, score: a.score, cover: a.cover, synopsis: a.synopsis, genres: a.genres ? a.genres.slice() : [], covers: a.covers ? a.covers.slice() : [], category: a.category, folderId: a.folderId, sourceUrl: a.sourceUrl, watchedEpisodes: a.watchedEpisodes ? a.watchedEpisodes.slice() : [] };
     const oldTotal = a.totalEpisodes || 12;
     a.title = title; a.status = status; a.totalEpisodes = totalEpisodes;
-    a.score = score; a.cover = finalCover; a.synopsis = synopsis; a.sourceUrl = sourceUrl; a.genres = genres;
+    a.score = score; a.cover = finalCover; a.synopsis = synopsis; a.sourceUrl = sourceUrl; a.genres = genres; a.covers = savedCovers;
     a.category = category; a.folderId = folderId;
     if (totalEpisodes < oldTotal && a.watchedEpisodes) a.watchedEpisodes = a.watchedEpisodes.filter(e => e <= totalEpisodes);
     if (status === 'watched') a.watchedEpisodes = Array.from({length: totalEpisodes}, (_,i)=>i+1);
@@ -11239,7 +11897,7 @@ function saveAnime() {
     let we = [];
     if (status === 'watched') we = Array.from({length: totalEpisodes}, (_,i)=>i+1);
     var newId = Date.now();
-    animeList.push({ id: newId, title, status, totalEpisodes, watchedEpisodes: we, score, cover: finalCover, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() });
+    animeList.push({ id: newId, title, status, totalEpisodes, watchedEpisodes: we, score, cover: finalCover, covers: savedCovers, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() });
     saveData(); closeModal(); renderCards();
     showToast('已添加 ✓', { type: 'add', ids: [newId] });
   }
@@ -11593,7 +12251,7 @@ function updateThemeButton() {
 }
 
 // ===== Settings =====
-const apiKeyConfigured = !!localStorage.getItem('anime_api_key');
+const apiKeyConfigured = !!(localStorage.getItem('anime_api_key') || localStorage.getItem('anime_api_key_server'));
 
 function openSettingsModal() {
   document.getElementById('settingsBackendUrl').value = BACKEND_URL;
@@ -11676,7 +12334,17 @@ async function saveSettings() {
 
   localStorage.setItem('anime_api_provider', provider);
   localStorage.setItem('anime_api_url', url);
-  localStorage.setItem('anime_api_key', key);
+  if (key) { localStorage.setItem('anime_api_key', key); localStorage.setItem('anime_api_key_server', '1'); }
+  else { localStorage.removeItem('anime_api_key'); localStorage.removeItem('anime_api_key_server'); }
+  // Sync API key to server
+  var authToken = await getAuthToken();
+  if (authToken && BACKEND_URL) {
+    fetch(BACKEND_URL + '/api/auth/api-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+      body: JSON.stringify({ apiKey: key, apiProvider: provider, apiUrl: url })
+    }).catch(function(e) { console.error('API key sync error:', e); });
+  }
   // Sync settings to cloud
   if (useCloudAuth() && window.AnimeCloud.loggedIn) {
     window.AnimeCloud.saveSettings({ apiKey: key, apiProvider: provider, apiUrl: url, theme: currentTheme }).catch(function(e) {
@@ -11940,7 +12608,7 @@ function closeCloudModePopover() {
 function renderCloudModePopover() {
   const popover = document.getElementById('cloudModePopover');
   const options = [
-    { mode: 'online', icon: '☁️', label: '在线模式', desc: 'Firebase 云端同步，支持多设备', active: cloudMode },
+    { mode: 'online', icon: '☁️', label: '在线模式', desc: 'Supabase 云端同步，支持多设备', active: cloudMode },
     { mode: 'offline', icon: '💻', label: '离线模式', desc: '数据仅存储在本浏览器本地', active: !cloudMode }
   ];
   popover.innerHTML = options.map(function(o) {
@@ -11969,7 +12637,7 @@ function updateCloudModeUI() {
   if (cloudMode) {
     btn.innerHTML = '☁️ <span id="btnCloudModeLabel">在线</span>';
     btn.style.borderColor = 'color-mix(in srgb, var(--color-success) 20%, transparent)';
-    btn.title = '当前：在线模式（Firebase 云端同步）。点击切换';
+    btn.title = '当前：在线模式（Supabase 云端同步）。点击切换';
   } else {
     btn.innerHTML = '💻 <span id="btnCloudModeLabel">离线</span>';
     btn.style.borderColor = 'color-mix(in srgb, var(--color-warning, #f59e0b) 30%, transparent)';
@@ -11979,24 +12647,34 @@ function updateCloudModeUI() {
 
 // ===== Auth =====
 let authMode = 'login'; // 'login' | 'register'
-const useCloudAuth = function() { return cloudMode && window.AnimeCloud && window.AnimeCloud.ready; };
+const useCloudAuth = function() { return window.SUPABASE_URL && window.SUPABASE_ANON_KEY; };
+
+async function getAuthToken() {
+  // Get Supabase session token
+  if (window.AnimeCloud && window.AnimeCloud.ready && window.AnimeCloud.loggedIn) {
+    return await window.AnimeCloud.getToken();
+  }
+  // Fallback to localStorage (legacy)
+  var t = localStorage.getItem('anime_auth_token') || '';
+  return t === 'supabase' ? null : t;
+}
 
 function isLoggedIn() {
-  if (useCloudAuth()) return window.AnimeCloud.loggedIn;
+  if (useCloudAuth() && window.AnimeCloud && window.AnimeCloud.loggedIn) return true;
   return !!(localStorage.getItem('anime_auth_token'));
 }
 
 function getUserDisplayName() {
-  if (useCloudAuth() && window.AnimeCloud.loggedIn) return window.AnimeCloud.displayName;
+  if (useCloudAuth() && window.AnimeCloud && window.AnimeCloud.loggedIn) return window.AnimeCloud.displayName;
   return localStorage.getItem('anime_auth_username') || '';
 }
 
 function updateAuthUI() {
   const btn = document.getElementById('btnAuth');
-  if (!cloudMode) {
+  if (!useCloudAuth()) {
     btn.style.opacity = '0.4';
     btn.style.pointerEvents = 'none';
-    btn.title = '离线模式下不可登录，请切换到在线模式';
+    btn.title = '认证服务未配置，请检查 config.json';
     return;
   }
   btn.style.opacity = '1';
@@ -12013,7 +12691,7 @@ function updateAuthUI() {
   // Update label based on auth mode
   const labelEl = document.getElementById('authModalFieldLabel');
   if (labelEl) {
-    labelEl.textContent = useCloudAuth() ? '邮箱' : '用户名';
+    labelEl.textContent = '邮箱';
   }
 }
 
@@ -12029,6 +12707,49 @@ function openAuthModal() {
   document.getElementById('authPassword').value = '';
   document.getElementById('authPasswordConfirm').value = '';
   document.getElementById('authMsg').style.display = 'none';
+  renderAuthRememberedAccounts();
+}
+
+function renderAuthRememberedAccounts() {
+  var remembered = loadRememberedAccounts();
+  var section = document.getElementById('authRememberedSection');
+  var listEl = document.getElementById('authRememberedList');
+  if (!section || !listEl) return;
+  if (remembered.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  var html = '';
+  for (var i = 0; i < remembered.length; i++) {
+    var acc = remembered[i];
+    html += '<button onclick="fillRememberedAccount(\'' + jsStr(acc.username) + '\')" style="padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-family:inherit;font-size:0.78rem;white-space:nowrap;transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'var(--color-primary)\';this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\';this.style.background=\'transparent\'">☁️ ' + escapeHtml(acc.username) + '</button>';
+  }
+  listEl.innerHTML = html;
+}
+
+function fillRememberedAccount(username) {
+  document.getElementById('authUsername').value = username;
+  document.getElementById('authPasswordConfirm').value = '';
+  document.getElementById('authMsg').style.display = 'none';
+  // Auto-fill password from remembered entry
+  var list = loadRememberedAccounts();
+  var pwd = '';
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].username.toLowerCase() === username.toLowerCase() && list[i].password) {
+      pwd = atob(list[i].password);
+      break;
+    }
+  }
+  document.getElementById('authPassword').value = pwd;
+  if (pwd) {
+    document.getElementById('authPassword').focus();
+    document.getElementById('authPassword').select();
+    return true;
+  } else {
+    setTimeout(function() { document.getElementById('authPassword').focus(); }, 100);
+    return false;
+  }
 }
 
 function closeAuthModal() {
@@ -12043,23 +12764,15 @@ function toggleAuthMode() {
 
 function setAuthModeUI() {
   const isLogin = authMode === 'login';
-  const isCloud = useCloudAuth();
   document.getElementById('authModalTitle').textContent = isLogin ? '登录' : '注册';
   document.getElementById('btnAuthSubmit').textContent = isLogin ? '登录' : '注册';
   document.getElementById('btnAuthToggle').textContent = isLogin ? '没有账号？点击注册' : '已有账号？点击登录';
-  document.getElementById('authConfirmField').style.display = (isLogin || isCloud) ? 'none' : 'block';
-  // Update label based on auth mode
+  document.getElementById('authConfirmField').style.display = isLogin ? 'none' : 'block';
   const labelEl = document.getElementById('authModalFieldLabel');
-  if (labelEl) labelEl.textContent = isCloud ? '邮箱' : '用户名';
-  // Update input placeholders for cloud vs local
+  if (labelEl) labelEl.textContent = '邮箱';
   const userInput = document.getElementById('authUsername');
-  if (isCloud) {
-    userInput.placeholder = isLogin ? '请输入邮箱' : '请输入邮箱';
-    userInput.type = 'email';
-  } else {
-    userInput.placeholder = '请输入用户名';
-    userInput.type = 'text';
-  }
+  userInput.placeholder = '请输入邮箱';
+  userInput.type = 'email';
 }
 
 async function handleAuthSubmit() {
@@ -12067,79 +12780,193 @@ async function handleAuthSubmit() {
   const password = document.getElementById('authPassword').value;
   const msgEl = document.getElementById('authMsg');
 
-  if (!account) {
-    msgEl.style.display = 'block';
-    msgEl.textContent = useCloudAuth() ? '请输入邮箱' : '请输入用户名';
-    return;
-  }
-  if (useCloudAuth() && !account.includes('@')) {
+  if (!account || !account.includes('@')) {
     msgEl.style.display = 'block';
     msgEl.textContent = '请输入有效的邮箱地址';
     return;
   }
-  if (!password || password.length < 4) { msgEl.style.display = 'block'; msgEl.textContent = '密码至少4位'; return; }
+  if (!password || password.length < 6) { msgEl.style.display = 'block'; msgEl.textContent = '密码至少6位'; return; }
 
-  // ===== Firebase Cloud Auth =====
-  if (useCloudAuth()) {
-    try {
-      if (authMode === 'register') {
-        const displayName = account.split('@')[0];
-        await window.AnimeCloud.register(account, password, displayName);
-      } else {
-        await window.AnimeCloud.login(account, password);
-      }
-      // After successful login, load cloud data
-      await loadCloudData();
-      updateAuthUI();
-      closeAuthModal();
-      renderFolderList();
-      renderCards();
-      showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + getUserDisplayName() + ' ✓');
-    } catch(e) {
-      msgEl.style.display = 'block';
-      if (e.code === 'auth/email-already-in-use') msgEl.textContent = '该邮箱已注册';
-      else if (e.code === 'auth/invalid-email') msgEl.textContent = '邮箱格式不正确';
-      else if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msgEl.textContent = '邮箱或密码错误';
-      else if (e.code === 'auth/weak-password') msgEl.textContent = '密码强度不够，请至少使用6位密码';
-      else msgEl.textContent = e.message || '操作失败';
-    }
+  if (!window.AnimeCloud || !window.AnimeCloud.ready) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = '认证服务未配置';
     return;
   }
 
-  // ===== Local Server Auth =====
-  if (authMode === 'register') {
-    const confirm = document.getElementById('authPasswordConfirm').value;
-    if (password !== confirm) { msgEl.style.display = 'block'; msgEl.textContent = '两次密码不一致'; return; }
-  }
-
-  const endpoint = authMode === 'login' ? BACKEND_URL + '/api/auth/login' : BACKEND_URL + '/api/auth/register';
   try {
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: account, password }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) { msgEl.style.display = 'block'; msgEl.textContent = data.error || '操作失败'; return; }
-
-    localStorage.setItem('anime_auth_token', data.token);
-    localStorage.setItem('anime_auth_username', data.username);
-    updateAuthUI();
-    closeAuthModal();
-    showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + data.username + ' ✓');
+    if (authMode === 'register') {
+      var displayName = account.split('@')[0];
+      await window.AnimeCloud.register(account, password, displayName);
+      rememberAccount(account, null, true, password);
+      syncUserApiKey(null);
+      closeAuthModal();
+      showToast('注册成功，欢迎 ' + displayName + ' ✓');
+    } else {
+      await window.AnimeCloud.login(account, password);
+      rememberAccount(account, null, true, password);
+      syncUserApiKey(null);
+      closeAuthModal();
+      showToast('登录成功，欢迎 ' + getUserDisplayName() + ' ✓');
+    }
   } catch(e) {
     msgEl.style.display = 'block';
-    msgEl.textContent = '网络错误：' + e.message;
+    if (e.code === 'auth/email-already-in-use' || (e.message && e.message.includes('already registered'))) msgEl.textContent = '该邮箱已注册';
+    else if (e.code === 'auth/weak-password' || (e.message && e.message.includes('weak password'))) msgEl.textContent = '密码强度不够，请至少使用6位密码';
+    else if (e.code === 'auth/invalid-credential' || (e.message && e.message.includes('Invalid login credentials'))) msgEl.textContent = '邮箱或密码错误';
+    else msgEl.textContent = e.message || '操作失败';
   }
 }
 
+function jsStr(s) {
+  return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+}
+
+// Sync per-user API key status with server
+async function syncUserApiKey(token) {
+  if (!BACKEND_URL) return;
+  if (!token && window.AnimeCloud && window.AnimeCloud.ready) {
+    token = await window.AnimeCloud.getToken();
+  }
+  if (!token) return;
+  try {
+    var resp = await fetch(BACKEND_URL + '/api/auth/api-key', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (resp.ok) {
+      var data = await resp.json();
+      if (data.apiKeySet) {
+        localStorage.setItem('anime_api_key_server', '1');
+      } else {
+        localStorage.removeItem('anime_api_key_server');
+      }
+    }
+  } catch(e) {}
+}
+
+// ===== Remembered Accounts =====
+function loadRememberedAccounts() {
+  try { return JSON.parse(localStorage.getItem(_RAK) || '[]'); } catch(e) { return []; }
+}
+function saveRememberedAccounts(list) {
+  localStorage.setItem(_RAK, JSON.stringify(list));
+}
+function rememberAccount(username, token, isCloud, password) {
+  var list = loadRememberedAccounts();
+  // Remove existing entry with same username
+  list = list.filter(function(a) { return a.username.toLowerCase() !== username.toLowerCase(); });
+  var entry = { username: username, isCloud: !!isCloud };
+  if (token) entry.token = token;
+  if (password) entry.password = btoa(password); // base64 obfuscation
+  list.unshift(entry); // most recent first
+  // Keep max 5 remembered accounts
+  if (list.length > 5) list = list.slice(0, 5);
+  saveRememberedAccounts(list);
+}
+function forgetAccount(username) {
+  var list = loadRememberedAccounts();
+  list = list.filter(function(a) { return a.username.toLowerCase() !== username.toLowerCase(); });
+  saveRememberedAccounts(list);
+}
+async function switchToRememberedAccount(username, isCloud) {
+  var menu = document.getElementById('authUserMenu');
+  if (menu) menu.remove();
+
+  // Quiet logout
+  await handleLogout(true);
+
+  var list = loadRememberedAccounts();
+  var entry = null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].username.toLowerCase() === username.toLowerCase()) {
+      entry = list[i]; break;
+    }
+  }
+
+  // Try auto-login with stored password (Supabase)
+  var loginOk = await tryLocalAutoLogin(entry, username);
+  if (loginOk) return;
+
+  // Auto-login failed — open modal for manual entry
+  authMode = 'login';
+  setAuthModeUI();
+  document.getElementById('authModalOverlay').style.display = 'flex';
+  var hasPwd = fillRememberedAccount(username);
+  renderAuthRememberedAccounts();
+  if (hasPwd) {
+    // Auto-submit with stored credentials
+    handleAuthSubmit();
+  }
+}
+
+// Try to log in a remembered account: Supabase session first, then password re-login
+// Returns true if login succeeded
+async function tryLocalAutoLogin(entry, username) {
+  if (!entry) return false;
+  if (!window.AnimeCloud || !window.AnimeCloud.ready) return false;
+
+  // 1) Try restoring existing Supabase session for this account
+  var token = await window.AnimeCloud.getToken();
+  if (token && window.AnimeCloud.email === username) {
+    localStorage.setItem('anime_auth_token', 'supabase');
+    localStorage.setItem('anime_auth_username', window.AnimeCloud.displayName || username);
+    syncUserApiKey(token);
+    if (cloudMode) { await loadCloudData(); }
+    await loadSourceList();
+    updateAuthUI();
+    showToast('已切换至 ' + (window.AnimeCloud.displayName || username));
+    return true;
+  }
+
+  // 2) Re-login with stored password
+  if (entry.password) {
+    try {
+      var result = await window.AnimeCloud.login(username, atob(entry.password));
+      localStorage.setItem('anime_auth_token', 'supabase');
+      localStorage.setItem('anime_auth_username', result.displayName || username);
+      rememberAccount(username, null, true, atob(entry.password));
+      syncUserApiKey(null);
+      if (cloudMode) { await loadCloudData(); }
+      await loadSourceList();
+      updateAuthUI();
+      showToast('已切换至 ' + (result.displayName || username));
+      return true;
+    } catch(e) {}
+  }
+
+  return false;
+}
+
 function showAuthUserMenu() {
-  const name = getUserDisplayName();
-  const menu = document.createElement('div');
+  var name = getUserDisplayName();
+  var menu = document.createElement('div');
   menu.id = 'authUserMenu';
-  menu.style.cssText = 'position:fixed;top:56px;right:140px;z-index:300;background:var(--color-base-200);border:2px solid var(--color-primary);border-radius:10px;padding:16px;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5);text-align:center';
-  menu.innerHTML = '<div style="font-weight:700;margin-bottom:8px">👤 ' + name + '</div>'
-    + '<button onclick="handleLogout()" style="padding:6px 16px;border-radius:6px;border:1px solid var(--color-error);background:transparent;color:var(--color-error);cursor:pointer;font-family:inherit">退出登录</button>';
+  menu.style.cssText = 'position:fixed;top:56px;right:140px;z-index:300;background:var(--color-base-200);border:2px solid var(--color-primary);border-radius:10px;padding:12px;min-width:200px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
+  var html = '<div style="font-weight:700;margin-bottom:10px;text-align:center;font-size:0.9rem">👤 ' + name + '</div>';
+
+  // Show remembered accounts (excluding current)
+  var remembered = loadRememberedAccounts();
+  var otherAccounts = remembered.filter(function(a) {
+    return a.username.toLowerCase() !== name.toLowerCase();
+  });
+  if (otherAccounts.length > 0) {
+    html += '<div style="font-size:0.65rem;font-weight:600;opacity:0.4;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;text-align:left;padding-left:4px">已记住的账号</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">';
+    for (var i = 0; i < otherAccounts.length; i++) {
+      var acc = otherAccounts[i];
+      html += '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s ease;font-size:0.85rem" onclick="switchToRememberedAccount(\'' + jsStr(acc.username) + '\')" onmouseenter="this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.background=\'transparent\'">'
+        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">☁️ ' + escapeHtml(acc.username) + '</span>'
+        + '<span onclick="event.stopPropagation();forgetAccount(\'' + jsStr(acc.username) + '\');showAuthUserMenu()" style="font-size:0.7rem;opacity:0.35;cursor:pointer;padding:2px 4px" title="移除记住">✕</span>'
+        + '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '<div style="display:flex;flex-direction:column;gap:6px">'
+    + '<button onclick="handleSwitchAccount()" style="padding:8px 0;border-radius:6px;border:1px solid var(--color-primary);background:transparent;color:var(--color-primary);cursor:pointer;font-family:inherit;font-size:0.85rem;width:100%">🔄 切换其他账号</button>'
+    + '<button onclick="handleLogout()" style="padding:8px 0;border-radius:6px;border:1px solid var(--color-error);background:transparent;color:var(--color-error);cursor:pointer;font-family:inherit;font-size:0.85rem;width:100%">退出登录</button>'
+    + '</div>';
+  menu.innerHTML = html;
+
   const existing = document.getElementById('authUserMenu');
   if (existing) existing.remove();
   document.body.appendChild(menu);
@@ -12153,10 +12980,51 @@ function showAuthUserMenu() {
   }, 0);
 }
 
-async function handleLogout() {
-  if (useCloudAuth()) {
-    // Clear data BEFORE logout — logout triggers onAuthStateChanged
-    // which would otherwise reload localStorage before we get to clear it
+async function handleSwitchAccount() {
+  var menu = document.getElementById('authUserMenu');
+  if (menu) menu.remove();
+  // Remember current account before switching away
+  var name = getUserDisplayName();
+  var token = localStorage.getItem('anime_auth_token');
+  // Get password from existing remembered entry if available
+  var existingList = loadRememberedAccounts();
+  var existingPwd = null;
+  for (var i = 0; i < existingList.length; i++) {
+    if (existingList[i].username.toLowerCase() === name.toLowerCase()) {
+      existingPwd = existingList[i].password ? atob(existingList[i].password) : null;
+      break;
+    }
+  }
+  if (name) rememberAccount(name, token, true, existingPwd);
+  await handleLogout(true);
+  // Open login modal after logout
+  authMode = 'login';
+  setAuthModeUI();
+  document.getElementById('authModalOverlay').style.display = 'flex';
+  document.getElementById('authUsername').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authPasswordConfirm').value = '';
+  document.getElementById('authMsg').style.display = 'none';
+}
+
+async function handleLogout(quiet) {
+  var currentName = getUserDisplayName();
+  var token = localStorage.getItem('anime_auth_token');
+  // Remember account before normal logout (switch already saved via handleSwitchAccount)
+  if (currentName && !quiet) {
+    var existingPwd = null;
+    var existingList = loadRememberedAccounts();
+    for (var i = 0; i < existingList.length; i++) {
+      if (existingList[i].username.toLowerCase() === currentName.toLowerCase()) {
+        existingPwd = existingList[i].password ? atob(existingList[i].password) : null;
+        break;
+      }
+    }
+    rememberAccount(currentName, token, true, existingPwd);
+  }
+
+  // Clear cloud data before Supabase logout (onAuthStateChange would reload)
+  if (cloudMode) {
     animeList = [];
     folderList = [];
     sourceList = [];
@@ -12166,25 +13034,21 @@ async function handleLogout() {
     localStorage.removeItem(SOURCES_KEY);
     localStorage.removeItem(SEARCH_HISTORY_KEY);
     selectedIds.clear();
-    await window.AnimeCloud.logout();
-    updateAuthUI();
-    renderFolderList();
-    renderCards();
-    showToast('已退出登录，数据已清除');
-  } else {
-    try {
-      await fetch(BACKEND_URL + '/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('anime_auth_token') },
-      });
-    } catch(e) {}
-    localStorage.removeItem('anime_auth_token');
-    localStorage.removeItem('anime_auth_username');
-    updateAuthUI();
-    const menu = document.getElementById('authUserMenu');
-    if (menu) menu.remove();
-    showToast('已退出登录');
   }
+  // Sign out from Supabase
+  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    var su = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    await su.auth.signOut().catch(function() {});
+  }
+  localStorage.removeItem('anime_auth_token');
+  localStorage.removeItem('anime_auth_username');
+  localStorage.removeItem('anime_api_key_server');
+  updateAuthUI();
+  var menu = document.getElementById('authUserMenu');
+  if (menu) menu.remove();
+  renderFolderList();
+  renderCards();
+  if (!quiet) showToast('已退出登录');
 }
 
 // ===== Cloud Data Loader =====
@@ -12273,58 +13137,55 @@ async function loadCloudData() {
   return true;
 }
 
-// Init Firebase & Auth
+// Load Supabase config from server (keeps secrets out of source code)
+async function loadSupabaseConfig() {
+  try {
+    var resp = await fetch(BACKEND_URL + '/api/config');
+    if (resp.ok) {
+      var cfg = await resp.json();
+      if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
+        window.SUPABASE_URL = cfg.supabaseUrl;
+        window.SUPABASE_ANON_KEY = cfg.supabaseAnonKey;
+        return;
+      }
+    }
+  } catch(e) {
+    console.warn('无法加载 Supabase 配置，云端功能不可用');
+  }
+  window.SUPABASE_URL = '';
+  window.SUPABASE_ANON_KEY = '';
+}
+
+// Init Supabase & Auth
 function initAuth() {
-  // Only init Firebase in cloud mode
-  if (cloudMode && window.FIREBASE_ENABLED && window.FIREBASE_CONFIG) {
-    window.AnimeCloud.init(window.FIREBASE_CONFIG);
+  // Always init Supabase for auth (persisted session works regardless of network)
+  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    window.AnimeCloud.init({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
   }
 
-  if (useCloudAuth()) {
-    var _cloudDataLoaded = false;
-    var _authResolved = false;
-    _initAuthReady = new Promise(function(resolve) {
-      window.AnimeCloud.onAuthChange(async function(loggedIn) {
-        updateAuthUI();
-        if (loggedIn) {
-          if (!_cloudDataLoaded) {
-            _cloudDataLoaded = true;
-            await loadCloudData();
-          }
-        } else {
-          _cloudDataLoaded = false;
-          loadData();
-          loadFolders();
-          loadSourceList();
-          loadSearchHistory();
-        }
-        if (!_authResolved) { _authResolved = true; resolve(); }
-      });
+  var _cloudDataLoaded = false;
+  var _authResolved = false;
+  _initAuthReady = new Promise(function(resolve) {
+    window.AnimeCloud.onAuthChange(async function(loggedIn) {
       updateAuthUI();
-    });
-  } else {
-    // Local server auth — verify existing token
-    _initAuthReady = new Promise(function(resolve) {
-      var _authResolved = false;
-      function done() { if (!_authResolved) { _authResolved = true; resolve(); } }
-      const token = localStorage.getItem('anime_auth_token');
-      if (token) {
-        fetch(BACKEND_URL + '/api/auth/me', {
-          headers: { 'Authorization': 'Bearer ' + token },
-        }).then(function(r) {
-          if (!r.ok) {
-            localStorage.removeItem('anime_auth_token');
-            localStorage.removeItem('anime_auth_username');
-          }
-          updateAuthUI();
-          done();
-        }).catch(function() { updateAuthUI(); done(); });
+      if (loggedIn) {
+        syncUserApiKey(null);
+        if (cloudMode && !_cloudDataLoaded) {
+          _cloudDataLoaded = true;
+          await loadCloudData();
+        }
+        await loadSourceList();
       } else {
-        updateAuthUI();
-        done();
+        _cloudDataLoaded = false;
+        loadData();
+        loadFolders();
+        loadSourceList();
+        loadSearchHistory();
       }
+      if (!_authResolved) { _authResolved = true; resolve(); }
     });
-  }
+    updateAuthUI();
+  });
 }
 
 // ===== Init =====
@@ -12334,6 +13195,7 @@ function initAuth() {
   loadFolders();
   loadSearchHistory();
   applyTheme(currentTheme);
+  await loadSupabaseConfig(); // load Supabase config from server config.json
   initAuth();
   await _initAuthReady;
   await checkBackend();
