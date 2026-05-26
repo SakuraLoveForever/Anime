@@ -38,7 +38,7 @@
     position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
     width: var(--sidebar-w);
     display: flex; flex-direction: column;
-    overflow-y: auto; overflow-x: hidden;
+    overflow: hidden;
     will-change: width;
     transition: width var(--sidebar-duration) var(--sidebar-ease);
   }
@@ -138,6 +138,9 @@
   /* Collapsed state — center icons, remove padding to avoid clipping */
   .sidebar.collapsed .nav-item { padding: 0; justify-content: center; }
   .sidebar.collapsed .sidebar-nav { padding-left: 0; padding-right: 0; }
+  /* Remove badge and label from layout in collapsed mode (badge takes space even with opacity:0) */
+  .sidebar.collapsed .nav-badge { display: none; }
+  .sidebar.collapsed .nav-label { display: none; }
 
   /* Icon wrapper — fixed 36×40px, always at same position */
   .nav-icon {
@@ -170,10 +173,9 @@
   }
   .sidebar.collapsed .nav-badge { opacity: 0; }
 
-  /* Toggle button */
+  /* Toggle button — fixed at bottom */
   .sidebar-toggle {
-    position: sticky; bottom: 12px; left: 0; right: 0;
-    margin: 0 auto; width: 36px; height: 36px; border-radius: 8px;
+    margin: auto auto 12px auto; width: 36px; height: 36px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     background: color-mix(in srgb, var(--color-base-content) 4%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-base-content) 15%, transparent);
