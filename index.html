@@ -2998,15 +2998,21 @@ async function testAiApi() {
   resultDiv.style.color = 'var(--color-base-content)';
   resultDiv.style.opacity = '0.7';
   resultDiv.textContent = '正在测试 DeepSeek API...';
+
+  if (!backendOnline) {
+    resultDiv.style.color = 'var(--color-warning, #f59e0b)';
+    resultDiv.style.opacity = '1';
+    resultDiv.textContent = '⚠ 后端未连接，无法测试 API（在线版需本地搭建后端才能使用 AI 功能，参见 README）';
+    return;
+  }
+
   try {
-    // Save key temporarily so server can use it
     var resp = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deepseekApiKey: key })
     });
     if (!resp.ok) { throw new Error('保存 Key 失败'); }
-    // Test the AI API
     var testResp = await fetch('/api/test-ai', { method: 'POST' });
     if (testResp.ok) {
       var data = await testResp.json();
