@@ -932,7 +932,7 @@
         <span class="bdot"></span>
         <span id="backendLabel">后端未连接</span>
       </div>
-      <button class="backend-status" id="btnCloudMode" onclick="toggleCloudMode()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">☁️ <span id="btnCloudModeLabel">在线</span></button>
+      <button class="backend-status" id="btnCloudMode" onclick="toggleCloudModePopover()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">☁️ <span id="btnCloudModeLabel">在线</span></button>
       <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
       <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
       <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
@@ -1286,6 +1286,10 @@
 <!-- ===== Detail Popup ===== -->
 <div class="detail-overlay" id="detailOverlay" style="display:none" onclick="closeDetailPopup()"></div>
 <div class="detail-popup" id="detailPopup"></div>
+
+<!-- ===== Cloud Mode Popover ===== -->
+<div class="theme-popover-backdrop" id="cloudModeBackdrop" onclick="closeCloudModePopover()"></div>
+<div class="theme-popover" id="cloudModePopover" style="width:220px"></div>
 
 <!-- ===== Theme Popover ===== -->
 <div class="theme-popover-backdrop" id="themePopoverBackdrop" onclick="closeThemePopover()"></div>
@@ -2549,6 +2553,7 @@ function selectCover(idx) {
 document.addEventListener('click', e => {
   if (!e.target.closest('.search-field-wrap')) document.getElementById('searchResults').classList.remove('show');
   if (!e.target.closest('.theme-popover') && !e.target.closest('#btnTheme')) closeThemePopover();
+  if (!e.target.closest('#cloudModePopover') && !e.target.closest('#btnCloudMode')) closeCloudModePopover();
 });
 
 // ===== CRUD =====
@@ -3289,9 +3294,51 @@ function showToast(msg, undoAction) {
 })();
 
 // ===== Cloud Mode Toggle =====
-function toggleCloudMode() {
-  const newMode = cloudMode ? 'offline' : 'online';
-  localStorage.setItem(CLOUD_MODE_KEY, newMode);
+function toggleCloudModePopover() {
+  const popover = document.getElementById('cloudModePopover');
+  const backdrop = document.getElementById('cloudModeBackdrop');
+  if (popover.classList.contains('show')) {
+    closeCloudModePopover();
+    return;
+  }
+  renderCloudModePopover();
+  popover.classList.add('show');
+  backdrop.classList.add('show');
+  const btn = document.getElementById('btnCloudMode');
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    popover.style.top = (rect.bottom + 8) + 'px';
+    popover.style.right = (window.innerWidth - rect.right) + 'px';
+  }
+}
+
+function closeCloudModePopover() {
+  document.getElementById('cloudModePopover').classList.remove('show');
+  document.getElementById('cloudModeBackdrop').classList.remove('show');
+}
+
+function renderCloudModePopover() {
+  const popover = document.getElementById('cloudModePopover');
+  const options = [
+    { mode: 'online', icon: '☁️', label: '在线模式', desc: 'Firebase 云端同步，支持多设备', active: cloudMode },
+    { mode: 'offline', icon: '💻', label: '离线模式', desc: '数据仅存储在本浏览器本地', active: !cloudMode }
+  ];
+  popover.innerHTML = options.map(function(o) {
+    return '<button class="theme-option' + (o.active ? ' active' : '') + '" onclick="switchCloudMode(\'' + o.mode + '\')">' +
+      '<span class="theme-option-icon">' + o.icon + '</span>' +
+      '<div class="theme-option-info"><div class="theme-option-name">' + o.label + '</div>' +
+      '<div class="theme-option-desc">' + o.desc + '</div></div>' +
+      '<span class="theme-option-check" style="' + (o.active ? 'display:inline' : '') + '">✓</span></button>';
+  }).join('');
+}
+
+function switchCloudMode(mode) {
+  const target = mode === 'offline' ? 'offline' : 'online';
+  if ((cloudMode && target === 'online') || (!cloudMode && target === 'offline')) {
+    closeCloudModePopover();
+    return;
+  }
+  localStorage.setItem(CLOUD_MODE_KEY, target);
   location.reload();
 }
 
@@ -3302,11 +3349,11 @@ function updateCloudModeUI() {
   if (cloudMode) {
     btn.innerHTML = '☁️ <span id="btnCloudModeLabel">在线</span>';
     btn.style.borderColor = 'color-mix(in srgb, var(--color-success) 20%, transparent)';
-    btn.title = '当前：在线模式（Firebase 云端同步）。点击切换到离线模式';
+    btn.title = '当前：在线模式（Firebase 云端同步）。点击切换';
   } else {
     btn.innerHTML = '💻 <span id="btnCloudModeLabel">离线</span>';
     btn.style.borderColor = 'color-mix(in srgb, var(--color-warning, #f59e0b) 30%, transparent)';
-    btn.title = '当前：离线模式（仅本地存储）。点击切换到在线模式';
+    btn.title = '当前：离线模式（仅本地存储）。点击切换';
   }
 }
 
