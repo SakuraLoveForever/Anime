@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-const PORT = 3456;
+const PORT = process.env.PORT || 3456;
 const CUSTOM_SOURCES_FILE = path.join(__dirname, 'custom-sources.json');
 const USERS_FILE = path.join(__dirname, 'users.json');
 
@@ -991,6 +991,9 @@ app.post('/api/auth/logout', authMiddleware, (req, res) => {
   }
   res.json({ ok: true });
 });
+
+// Health check for Render
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, () => {
   console.log(`Anime tracker backend running at http://localhost:${PORT}`);

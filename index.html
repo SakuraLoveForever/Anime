@@ -1297,6 +1297,11 @@
 <script src="js/firebase.js"></script>
 
 <script>
+// ===== Config =====
+// Set this to your Render backend URL if the frontend is hosted separately (e.g. GitHub Pages)
+// e.g. const BACKEND_URL = 'https://anime-xxxx.onrender.com';
+const BACKEND_URL = '';
+
 // ===== Data =====
 const DATA_KEY = 'anime_tracker_data';
 const FOLDERS_KEY = 'anime_folders';
@@ -1424,7 +1429,7 @@ async function loadSourceList() {
   // Fallback: fetch from server's custom-sources.json
   if (sourceList.length === 0) {
     try {
-      const resp = await fetch('/api/custom-sources');
+      const resp = await fetch(BACKEND_URL + '/api/custom-sources');
       if (resp.ok) {
         const serverSources = await resp.json();
         sourceList = serverSources.map(s => ({
@@ -1453,7 +1458,7 @@ function syncSourcesToCloud() {
 // ===== Backend =====
 async function checkBackend() {
   try {
-    const resp = await fetch('/api/ping', { signal: AbortSignal.timeout(3000) });
+    const resp = await fetch(BACKEND_URL + '/api/ping', { signal: AbortSignal.timeout(3000) });
     backendOnline = resp.ok;
   } catch(e) { backendOnline = false; }
   updateBackendStatus();
@@ -1481,7 +1486,7 @@ async function backendSearch(q) {
       var s = sourceList[i];
       if (s.enabled !== false) params += '&url_' + encodeURIComponent(s.id) + '=' + encodeURIComponent(s.url);
     }
-    var resp = await fetch('/api/search?' + params, { signal: AbortSignal.timeout(15000) });
+    var resp = await fetch(BACKEND_URL + '/api/search?' + params, { signal: AbortSignal.timeout(15000) });
     if (!resp.ok) return [];
     var data = await resp.json();
     return data.results || [];
@@ -1491,7 +1496,7 @@ async function backendSearch(q) {
 async function backendFetchUrls(urls) {
   if (!backendOnline) return [];
   try {
-    const resp = await fetch('/api/fetch-urls', {
+    const resp = await fetch(BACKEND_URL + '/api/fetch-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls }),
@@ -1507,7 +1512,7 @@ async function aiEnrich(title) {
   if (!backendOnline) throw new Error('后端未连接');
   const apiKey = localStorage.getItem('anime_api_key') || '';
   const apiUrl = localStorage.getItem('anime_api_url') || 'https://api.deepseek.com';
-  const resp = await fetch('/api/ai-enrich', {
+  const resp = await fetch(BACKEND_URL + '/api/ai-enrich', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, apiKey, apiUrl }),
@@ -1612,7 +1617,7 @@ async function testSourceUrl() {
   resultDiv.style.opacity = '0.7';
   resultDiv.textContent = '正在测试...';
   try {
-    var resp = await fetch('/api/test-search', {
+    var resp = await fetch(BACKEND_URL + '/api/test-search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ searchUrl: url, query: 'test' })
@@ -1642,7 +1647,7 @@ async function testSourceById(id, btn) {
   btn.textContent = '...';
   btn.disabled = true;
   try {
-    var resp = await fetch('/api/test-search', {
+    var resp = await fetch(BACKEND_URL + '/api/test-search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ searchUrl: s.url, query: 'test' })
@@ -2322,7 +2327,7 @@ async function reclassifyAll() {
     var batch = all.slice(offset, offset + batchSize);
     btn.textContent = `🔄 分类中 ${offset + 1}-${Math.min(offset + batchSize, all.length)}/${all.length}...`;
     try {
-      var resp = await fetch('/api/reclassify', {
+      var resp = await fetch(BACKEND_URL + '/api/reclassify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ titles: batch.map(function(a) { return a.title; }) }),
@@ -3007,13 +3012,13 @@ async function testAiApi() {
   }
 
   try {
-    var resp = await fetch('/api/config', {
+    var resp = await fetch(BACKEND_URL + '/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deepseekApiKey: key })
     });
     if (!resp.ok) { throw new Error('保存 Key 失败'); }
-    var testResp = await fetch('/api/test-ai', { method: 'POST' });
+    var testResp = await fetch(BACKEND_URL + '/api/test-ai', { method: 'POST' });
     if (testResp.ok) {
       var data = await testResp.json();
       resultDiv.style.color = 'var(--color-success)';
@@ -3042,7 +3047,7 @@ async function saveSettings() {
   // Also save to server config.json so backend can use it
   if (key && backendOnline) {
     try {
-      await fetch('/api/config', {
+      await fetch(BACKEND_URL + '/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deepseekApiKey: key })
@@ -3361,7 +3366,7 @@ async function handleAuthSubmit() {
     if (password !== confirm) { msgEl.style.display = 'block'; msgEl.textContent = '两次密码不一致'; return; }
   }
 
-  const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+  const endpoint = authMode === 'login' ? BACKEND_URL + '/api/auth/login' : BACKEND_URL + '/api/auth/register';
   try {
     const resp = await fetch(endpoint, {
       method: 'POST',
@@ -3416,7 +3421,7 @@ async function handleLogout() {
     showToast('已退出登录');
   } else {
     try {
-      await fetch('/api/auth/logout', {
+      await fetch(BACKEND_URL + '/api/auth/logout', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + localStorage.getItem('anime_auth_token') },
       });
@@ -3544,7 +3549,7 @@ function initAuth() {
     // Local server auth — verify existing token
     const token = localStorage.getItem('anime_auth_token');
     if (token) {
-      fetch('/api/auth/me', {
+      fetch(BACKEND_URL + '/api/auth/me', {
         headers: { 'Authorization': 'Bearer ' + token },
       }).then(function(r) {
         if (!r.ok) {
