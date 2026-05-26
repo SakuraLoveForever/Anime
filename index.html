@@ -1354,6 +1354,7 @@ let sourceResults = [];
 let chosenSourceIdx = -1;
 let searchTimer = null;
 let detailPopupId = null;
+let _initAuthReady = null;    // Promise that resolves when auth state is settled
 
 function loadData() {
   try { animeList = JSON.parse(localStorage.getItem(DATA_KEY) || '[]'); } catch(e) { animeList = []; }
@@ -3679,63 +3680,66 @@ function initAuth() {
   }
 
   if (useCloudAuth()) {
-    // Firebase handles auth state via onAuthStateChanged listener
-    // Set up listener for data reload on auth change
-    window.AnimeCloud.onAuthChange(async function(loggedIn) {
-      updateAuthUI();
-      if (loggedIn) {
-        await loadCloudData();
-        renderFolderList();
-        renderCards();
-      } else {
-        // Fall back to local data
-        loadData();
-        loadFolders();
-        loadSourceList();
-        loadSearchHistory();
-        renderFolderList();
-        renderCards();
-      }
-    });
-    updateAuthUI();
-    // If already logged in (Firebase persists), load cloud data
-    if (window.AnimeCloud.loggedIn) {
-      loadCloudData().then(function() {
-        renderFolderList();
-        renderCards();
+    var _cloudDataLoaded = false;
+    var _authResolved = false;
+    _initAuthReady = new Promise(function(resolve) {
+      window.AnimeCloud.onAuthChange(async function(loggedIn) {
+        updateAuthUI();
+        if (loggedIn) {
+          if (!_cloudDataLoaded) {
+            _cloudDataLoaded = true;
+            await loadCloudData();
+          }
+        } else {
+          _cloudDataLoaded = false;
+          loadData();
+          loadFolders();
+          loadSourceList();
+          loadSearchHistory();
+        }
+        if (!_authResolved) { _authResolved = true; resolve(); }
       });
-    }
+      updateAuthUI();
+    });
   } else {
     // Local server auth — verify existing token
-    const token = localStorage.getItem('anime_auth_token');
-    if (token) {
-      fetch(BACKEND_URL + '/api/auth/me', {
-        headers: { 'Authorization': 'Bearer ' + token },
-      }).then(function(r) {
-        if (!r.ok) {
-          localStorage.removeItem('anime_auth_token');
-          localStorage.removeItem('anime_auth_username');
-        }
+    _initAuthReady = new Promise(function(resolve) {
+      var _authResolved = false;
+      function done() { if (!_authResolved) { _authResolved = true; resolve(); } }
+      const token = localStorage.getItem('anime_auth_token');
+      if (token) {
+        fetch(BACKEND_URL + '/api/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + token },
+        }).then(function(r) {
+          if (!r.ok) {
+            localStorage.removeItem('anime_auth_token');
+            localStorage.removeItem('anime_auth_username');
+          }
+          updateAuthUI();
+          done();
+        }).catch(function() { updateAuthUI(); done(); });
+      } else {
         updateAuthUI();
-      }).catch(function() { updateAuthUI(); });
-    } else {
-      updateAuthUI();
-    }
+        done();
+      }
+    });
   }
 }
 
 // ===== Init =====
-updateCloudModeUI();
-loadData();
-loadFolders();
-loadSearchHistory();
-applyTheme(currentTheme);
-initAuth();
-checkBackend().then(async () => {
+(async function() {
+  updateCloudModeUI();
+  loadData();
+  loadFolders();
+  loadSearchHistory();
+  applyTheme(currentTheme);
+  initAuth();
+  await _initAuthReady;
+  await checkBackend();
   if (!backendOnline) await loadSourceList();
   renderFolderList();
   renderCards();
-});
+})();
 </script>
 </body>
 </html>
