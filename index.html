@@ -932,7 +932,7 @@
         <span class="bdot"></span>
         <span id="backendLabel">后端未连接</span>
       </div>
-      <button class="backend-status" id="btnCloudMode" onclick="toggleCloudModePopover()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">☁️ <span id="btnCloudModeLabel">在线</span></button>
+      <button class="backend-status" id="btnCloudMode" onclick="toggleCloudModePopover()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px;min-width:70px;justify-content:center">☁️ <span id="btnCloudModeLabel">在线</span></button>
       <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
       <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
       <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
@@ -3374,10 +3374,12 @@ function getUserDisplayName() {
 function updateAuthUI() {
   const btn = document.getElementById('btnAuth');
   if (!cloudMode) {
-    btn.style.display = 'none';
+    btn.style.visibility = 'hidden';
+    btn.style.pointerEvents = 'none';
     return;
   }
-  btn.style.display = 'inline-flex';
+  btn.style.visibility = 'visible';
+  btn.style.pointerEvents = 'auto';
   const label = document.getElementById('btnAuthLabel');
   const name = getUserDisplayName();
   if (name) {
