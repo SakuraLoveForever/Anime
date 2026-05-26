@@ -1361,6 +1361,9 @@ function loadData() {
   var fixed = false;
   for (var i = 0; i < animeList.length; i++) {
     var a = animeList[i];
+    // Normalize string IDs (from old cloud sessions) to numbers
+    var nid = parseInt(a.id, 10);
+    if (!isNaN(nid) && typeof a.id === 'string') { a.id = nid; fixed = true; }
     if (!a.category || VALID_CATEGORIES.indexOf(a.category) < 0) {
       a.category = DEFAULT_CATEGORY;
       fixed = true;
@@ -1392,6 +1395,12 @@ function syncAnimeToCloud() {
 }
 function loadFolders() {
   try { folderList = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]'); } catch(e) { folderList = []; }
+  var ff = false;
+  for (var fi = 0; fi < folderList.length; fi++) {
+    var fid = parseInt(folderList[fi].id, 10);
+    if (!isNaN(fid) && typeof folderList[fi].id === 'string') { folderList[fi].id = fid; ff = true; }
+  }
+  if (ff) saveFolders();
   // Migrate from old key
   if (folderList.length === 0) {
     try {
@@ -1416,6 +1425,12 @@ function syncFoldersToCloud() {
 }
 async function loadSourceList() {
   try { sourceList = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]'); } catch(e) { sourceList = []; }
+  var sf = false;
+  for (var si = 0; si < sourceList.length; si++) {
+    var sid = parseInt(sourceList[si].id, 10);
+    if (!isNaN(sid) && typeof sourceList[si].id === 'string') { sourceList[si].id = sid; sf = true; }
+  }
+  if (sf) saveSources();
   // Migrate from old version: enabledSources in anime_tracker_settings_v2
   if (sourceList.length === 0) {
     try {
@@ -3612,8 +3627,10 @@ async function loadCloudData() {
 
   if (cloudAnime !== null) {
     animeList = cloudAnime;
-    // Fix categories
     for (var i = 0; i < animeList.length; i++) {
+      // Normalize string IDs from Firestore to numbers for strict equality comparisons
+      var nid = parseInt(animeList[i].id, 10);
+      if (!isNaN(nid)) animeList[i].id = nid;
       if (!animeList[i].category || VALID_CATEGORIES.indexOf(animeList[i].category) < 0) {
         animeList[i].category = DEFAULT_CATEGORY;
       }
@@ -3622,10 +3639,18 @@ async function loadCloudData() {
   }
   if (cloudFolders !== null) {
     folderList = cloudFolders;
+    for (var fi = 0; fi < folderList.length; fi++) {
+      var fid = parseInt(folderList[fi].id, 10);
+      if (!isNaN(fid)) folderList[fi].id = fid;
+    }
     localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList));
   }
   if (cloudSources !== null) {
     sourceList = cloudSources;
+    for (var si = 0; si < sourceList.length; si++) {
+      var sid = parseInt(sourceList[si].id, 10);
+      if (!isNaN(sid)) sourceList[si].id = sid;
+    }
     localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
   }
   if (cloudHistory !== null && cloudHistory.length > 0) {
