@@ -254,15 +254,42 @@
     border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 5%, transparent);
   }
   .hamburger { display: none; }
-  .search-wrap { flex: 1; max-width: 400px; position: relative; }
-  .search-input {
-    width: 100%; padding: 8px 14px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
-    background: color-mix(in srgb, var(--color-primary) 4%, transparent);
-    color: var(--color-base-content); font-size: 0.85rem; outline: none; font-family: inherit;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  .search-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; position: relative; }
+
+  /* Expanding search bars (both main + semantic) */
+  .expanding-search-bar {
+    position: relative; display: flex; align-items: center; gap: 0; flex-shrink: 0;
   }
-  .search-input:focus { border-color: var(--color-primary); }
-  .search-input::placeholder { color: var(--color-base-content); opacity: 0.35; }
+  .expanding-search-icon {
+    width: 36px; height: 36px; padding: 0; flex-shrink: 0;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+    color: var(--color-base-content); font-size: 0.95rem;
+    cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s ease;
+    z-index: 1;
+  }
+  .expanding-search-icon:hover { border-color: var(--color-primary); }
+  .expanding-search-icon.active { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+  .expanding-search-input {
+    position: absolute; left: 36px; top: 0;
+    width: 0; height: 36px; padding: 0; border: none; border-radius: 0 8px 8px 0;
+    background: var(--color-base-200);
+    color: var(--color-base-content); font-size: 0.82rem; outline: none; font-family: inherit;
+    direction: rtl; text-align: left;
+    transition: width 0.25s ease, padding 0.25s ease;
+    z-index: 100;
+    box-shadow: none;
+  }
+  .expanding-search-input.expanded {
+    width: 240px; padding: 0 10px;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+    border-left: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .expanding-search-input:focus { border-color: var(--color-primary); outline: none; }
+  .expanding-search-input::placeholder { color: var(--color-base-content); opacity: 0.3; }
 
   .search-history-dropdown {
     position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
@@ -905,15 +932,6 @@
     </nav>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">
-        <span>收藏夹</span>
-        <span style="cursor:pointer;color:var(--color-primary);font-size:0.78rem" onclick="openFolderModal()" title="新建收藏夹">＋</span>
-      </div>
-      <div id="sidebarFolders"></div>
-    </div>
-    <button class="sidebar-collapsed-btn" onclick="openFolderModal()" title="新建收藏夹">＋</button>
-
-    <div class="sidebar-section">
       <button class="src-add-btn" onclick="openSourceManager()" style="width:100%">🔍 管理搜索来源</button>
     </div>
     <button class="sidebar-collapsed-btn" onclick="openSourceManager()" title="搜索来源">🔍</button>
@@ -925,7 +943,14 @@
     <div class="topbar">
       <button class="hamburger btn btn-ghost btn-sm text-base-content" onclick="openSidebar()" aria-label="菜单">☰</button>
       <div class="search-wrap" id="searchWrap">
-        <input type="text" class="search-input" id="searchInput" placeholder="搜索番剧名称..." oninput="renderCards()" onfocus="showSearchHistory()" onkeydown="if(event.key==='Enter')saveSearchTerm()" autocomplete="off">
+        <div class="expanding-search-bar" id="mainSearchBar">
+          <button class="expanding-search-icon" id="btnMainSearchIcon" onclick="toggleMainSearch()" title="搜索番剧">🔍</button>
+          <input type="text" class="expanding-search-input" id="searchInput" placeholder="搜索番剧名称..." oninput="renderCards()" onfocus="showSearchHistory()" onkeydown="if(event.key==='Enter')saveSearchTerm()" autocomplete="off">
+        </div>
+        <div class="expanding-search-bar" id="semanticSearchBar">
+          <button class="expanding-search-icon" id="btnSemanticIcon" onclick="toggleSemanticSearch()" title="剧情语义搜索">📖</button>
+          <input type="text" class="expanding-search-input" id="semanticSearchInput" placeholder="输入剧情描述搜索番剧..." onkeydown="if(event.key==='Enter')doSemanticSearchFromBar()">
+        </div>
         <div class="search-history-dropdown" id="searchHistoryDropdown"></div>
       </div>
       <div class="backend-status offline" id="backendStatus" onclick="checkBackend()" title="点击重新检测后端">
@@ -940,6 +965,7 @@
       <button class="btn-add" onclick="openBatchAddModal()" title="批量添加，一行一个名字">📋 批量添加</button>
       <button class="btn-add" id="btnBatchAi" onclick="batchAiFillAll()" title="一键AI补全：自动为缺失简介的番剧填充信息" style="background:color-mix(in srgb, var(--color-secondary) 15%, transparent);border-color:var(--color-secondary)">🤖 一键AI补全</button>
       <button class="btn-add" id="btnReclassify" onclick="reclassifyAll()" title="重新分类：根据分类标准重新识别所有番剧的分类" style="background:color-mix(in srgb, var(--color-accent) 12%, transparent);border-color:var(--color-accent)">🔄 重新分类</button>
+      <button class="btn-add" id="btnRecommend" onclick="requestRecommendations()" title="智能推荐：根据你的番剧口味推荐相似作品" style="background:color-mix(in srgb, var(--color-warning) 12%, transparent);border-color:var(--color-warning)">🎯 智能推荐</button>
     </div>
 
     <div class="content">
@@ -1161,18 +1187,25 @@
 
 <!-- ===== Batch Add Source Modal ===== -->
 <div class="modal-overlay" id="batchSourceModalOverlay" style="display:none;z-index:210">
-  <div class="edit-modal-box small">
+  <div class="edit-modal-box" style="max-width:620px">
     <h2>批量添加搜索来源</h2>
     <div class="modal-note">
       每行一个来源，格式：<code>名称 链接</code>（名称和链接用空格隔开，链接需包含 <code>{query}</code>）<br>
       例如：<code>age动漫 https://m.agedongman.net/search?q={query}</code>
     </div>
     <div class="modal-field">
-      <textarea id="batchSourceInput" rows="8" placeholder="age动漫 https://m.agedongman.net/search?q={query}&#10;樱花动漫 https://example.com/search?q={query}&#10;Bilibili https://search.bilibili.com/bangumi?keyword={query}" style="resize:vertical;min-height:160px;width:100%;font-family:monospace;font-size:0.85rem;line-height:1.7;border-radius:10px;padding:12px 14px;background:var(--color-base-100);border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);color:var(--color-base-content);outline:none"></textarea>
+      <textarea id="batchSourceInput" rows="6" placeholder="age动漫 https://m.agedongman.net/search?q={query}&#10;樱花动漫 https://example.com/search?q={query}&#10;Bilibili https://search.bilibili.com/bangumi?keyword={query}" style="resize:vertical;min-height:120px;width:100%;font-family:monospace;font-size:0.85rem;line-height:1.7;border-radius:10px;padding:12px 14px;background:var(--color-base-100);border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);color:var(--color-base-content);outline:none" oninput="onBatchSourceInput()"></textarea>
     </div>
-    <div class="modal-actions">
+    <div id="batchSourceProgress" style="display:none;align-items:center;gap:8px;margin-bottom:8px;font-size:0.8rem">
+      <span style="color:var(--color-success)" id="batchPassedCount">✓ 0</span>
+      <span style="color:var(--color-error)" id="batchFailedCount">✗ 0</span>
+      <span style="opacity:0.4;margin-left:auto" id="batchProgressText"></span>
+    </div>
+    <div id="batchSourceResults" style="max-height:280px;overflow-y:auto"></div>
+    <div class="modal-actions" style="margin-top:12px">
       <button class="btn-cancel" onclick="closeBatchSourceModal()">取消</button>
-      <button class="btn-save" id="btnBatchSaveSource" onclick="batchSaveSources()">批量添加</button>
+      <button class="btn-save" id="btnBatchSaveSource" onclick="batchSaveSources()">仅格式校验并添加</button>
+      <button class="btn-save" id="btnBatchTestAndAdd" onclick="batchTestAndAddSources()" style="background:var(--color-primary);color:#fff">🧪 检测并添加</button>
     </div>
   </div>
 </div>
@@ -1180,14 +1213,58 @@
 <!-- ===== Source Manager Modal ===== -->
 <div class="modal-overlay" id="sourceManagerOverlay" style="display:none">
   <div class="edit-modal-box" style="max-width:560px">
-    <h2>管理搜索来源</h2>
+    <h2>管理搜索来源 <span style="font-size:0.7rem;opacity:0.4;font-weight:400" id="sourceTotalCount">(0)</span></h2>
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <button class="btn-save" onclick="openAddSourceModal()" style="flex:1;font-size:0.82rem">＋ 单个添加</button>
       <button class="btn-save" onclick="openBatchSourceModal()" style="flex:1;font-size:0.82rem">📋 批量添加</button>
     </div>
+    <div id="sourceSelectToolbar" style="display:none;align-items:center;gap:8px;margin-bottom:8px">
+      <button class="btn-save" onclick="sourceSelectAll()" style="font-size:0.75rem;padding:4px 10px">全选</button>
+      <button class="btn-cancel" onclick="sourceDeselectAll()" style="font-size:0.75rem;padding:4px 10px">取消选择</button>
+      <button class="btn-cancel" id="btnSourceBatchDelete" onclick="batchDeleteSources()" style="font-size:0.75rem;padding:4px 10px;color:var(--color-error);border-color:var(--color-error)" disabled>🗑 删除选中</button>
+      <span style="font-size:0.75rem;opacity:0.5;margin-left:auto" id="sourceSelectCount">已选 0 项</span>
+    </div>
     <div id="sourceManagerList" style="max-height:400px;overflow-y:auto"></div>
-    <div class="modal-actions" style="margin-top:12px">
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-save" onclick="exportSources()" style="flex:1;font-size:0.82rem">📥 导出搜索源</button>
+      <button class="btn-save" onclick="importSources()" style="flex:1;font-size:0.82rem">📤 导入搜索源</button>
+      <button class="btn-save" id="btnSourceSelectMode" onclick="toggleSourceSelectMode()" style="font-size:0.82rem;white-space:nowrap">☑ 多选删除</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn-save" id="btnBatchTest" onclick="batchTestSources()" style="width:100%;font-size:0.82rem">🧪 批量测试（自动删除失效链接）</button>
+    </div>
+    <div class="modal-actions" style="margin-top:8px">
       <button class="btn-cancel" onclick="closeSourceManager()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Semantic Search Modal ===== -->
+<div class="modal-overlay" id="semanticSearchOverlay" style="display:none">
+  <div class="edit-modal-box" style="max-width:600px">
+    <h2>🔍 剧情语义搜索</h2>
+    <div class="modal-note" style="margin-bottom:12px">
+      输入故事情节、主题关键词或剧情描述来搜索相关番剧。<br>例如：<code>赛博朋克侦探破案</code>、<code>校园恋爱三角关系</code>、<code>异世界转生龙傲天</code>
+    </div>
+    <div class="modal-field">
+      <textarea id="semanticQueryInput" rows="3" placeholder="描述你想找的番剧类型或剧情..." style="resize:vertical;min-height:80px;width:100%;font-size:0.9rem;line-height:1.6;border-radius:10px;padding:12px 14px;background:var(--color-base-100);border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);color:var(--color-base-content);outline:none"></textarea>
+    </div>
+    <div id="semanticSearchResults" style="max-height:450px;overflow-y:auto;margin-top:12px"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn-cancel" onclick="closeSemanticSearchModal()">关闭</button>
+      <button class="btn-save" id="btnSemanticSearch" onclick="doSemanticSearch()">搜索</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Recommend Modal ===== -->
+<div class="modal-overlay" id="recommendOverlay" style="display:none">
+  <div class="edit-modal-box" style="max-width:700px">
+    <h2>🎯 智能推荐</h2>
+    <div id="recommendProfile" style="font-size:0.78rem;opacity:0.5;margin-bottom:12px"></div>
+    <div id="recommendResults" style="max-height:500px;overflow-y:auto"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn-cancel" onclick="closeRecommendModal()">关闭</button>
     </div>
   </div>
 </div>
@@ -1272,6 +1349,10 @@
       <label>确认密码</label>
       <input type="password" id="authPasswordConfirm" placeholder="请再次输入密码" maxlength="50">
     </div>
+    <div class="modal-field" id="authRememberedSection" style="display:none;margin-bottom:12px">
+      <label style="opacity:0.5;font-size:0.72rem;letter-spacing:0.06em">已记住的账号（点击快速填充）</label>
+      <div id="authRememberedList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+    </div>
     <div class="modal-field" id="authMsg" style="display:none;font-size:0.82rem;color:var(--color-error)"></div>
     <div class="modal-actions" style="flex-direction:column;align-items:center;gap:10px">
       <div style="display:flex;gap:10px;width:100%;justify-content:flex-end">
@@ -1332,6 +1413,7 @@ const _DK = 'anime_tracker_data';
 const _FK = 'anime_folders';
 const _SK = 'anime_sources_v2';
 const _SHK = 'anime_search_history';
+const _RAK = 'anime_remembered_accounts';
 let DATA_KEY = cloudMode ? _DK : 'offline_' + _DK;
 let FOLDERS_KEY = cloudMode ? _FK : 'offline_' + _FK;
 let SOURCES_KEY = cloudMode ? _SK : 'offline_' + _SK;
@@ -1387,11 +1469,9 @@ var _cloudSyncTimer = null;
 function syncAnimeToCloud() {
   if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
   clearTimeout(_cloudSyncTimer);
-  _cloudSyncTimer = setTimeout(function() {
-    window.AnimeCloud.batchSaveAnime(animeList).catch(function(e) {
-      console.error('Cloud sync error:', e);
-    });
-  }, 1500);
+  window.AnimeCloud.batchSaveAnime(animeList).catch(function(e) {
+    console.error('Cloud sync error:', e);
+  });
 }
 function loadFolders() {
   try { folderList = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]'); } catch(e) { folderList = []; }
@@ -1417,88 +1497,134 @@ var _cloudFolderTimer = null;
 function syncFoldersToCloud() {
   if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
   clearTimeout(_cloudFolderTimer);
-  _cloudFolderTimer = setTimeout(function() {
-    window.AnimeCloud.saveAllFolders(folderList).catch(function(e) {
-      console.error('Cloud folder sync error:', e);
-    });
-  }, 1500);
+  window.AnimeCloud.saveAllFolders(folderList).catch(function(e) {
+    console.error('Cloud folder sync error:', e);
+  });
 }
 async function loadSourceList() {
-  try { sourceList = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]'); } catch(e) { sourceList = []; }
-  var sf = false;
-  for (var si = 0; si < sourceList.length; si++) {
-    var sid = parseInt(sourceList[si].id, 10);
-    if (!isNaN(sid) && typeof sourceList[si].id === 'string') { sourceList[si].id = sid; sf = true; }
+  // 1. Load built-in sources as base (deep copy from constant)
+  sourceList = BUILTIN_SOURCES.map(function(s) {
+    return { id: s.id, name: s.name, url: s.url, enabled: s.enabled, builtin: true };
+  });
+
+  // 2. Load custom sources from localStorage (user-added only)
+  var customSources = [];
+  try { customSources = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]'); } catch(e) { customSources = []; }
+
+  // 3. Build URL set of built-in sources for dedup
+  var builtinUrls = {};
+  var builtinById = {};
+  for (var i = 0; i < sourceList.length; i++) {
+    builtinUrls[sourceList[i].url.trim().toLowerCase()] = i;
+    builtinById[sourceList[i].id] = i;
   }
-  if (sf) saveSources();
-  // Migrate from old version: enabledSources in anime_tracker_settings_v2
-  if (sourceList.length === 0) {
+
+  var newCustoms = [];
+  for (var ci = 0; ci < customSources.length; ci++) {
+    var cs = customSources[ci];
+    // Normalize ID
+    var nid = parseInt(cs.id, 10);
+    if (!isNaN(nid) && typeof cs.id === 'string') { cs.id = nid; }
+    // Match built-in by ID first, then by URL
+    if (cs.builtin || isBuiltinSource(cs.id)) {
+      // Saved built-in state — apply enabled setting
+      var idx = builtinById[cs.id];
+      if (idx !== undefined) sourceList[idx].enabled = cs.enabled !== false;
+    } else {
+      var csUrl = (cs.url || '').trim().toLowerCase();
+      var urlMatchIdx = builtinUrls[csUrl];
+      if (urlMatchIdx !== undefined) {
+        // Old-format source that matches a built-in by URL — apply enabled state
+        sourceList[urlMatchIdx].enabled = cs.enabled !== false;
+      } else {
+        // Genuinely custom source — add to list
+        newCustoms.push({ id: cs.id, name: cs.name, url: cs.url, enabled: cs.enabled !== false, builtin: false });
+      }
+    }
+  }
+  // Append custom sources after built-in
+  sourceList = sourceList.concat(newCustoms);
+
+  // Migrate from old version keys (only for custom sources)
+  if (customSources.length === 0) {
+    var migrated = false;
     try {
-      const oldSettings = JSON.parse(localStorage.getItem('anime_tracker_settings_v2') || '{}');
-      const enabled = oldSettings.enabledSources || [];
-      const nameOverrides = oldSettings.builtInNames || {};
-      const urlOverrides = oldSettings.builtInUrls || {};
-      const hidden = oldSettings.hiddenBuiltIn || [];
-      const migrated = [];
-      // Built-in sources from old version
-      const builtInDefs = [
-        { key: 'bgm.tv', name: 'Bangumi 番组计划', url: 'https://bgm.tv/subject_search/{query}?cat=2' },
-        { key: 'myanimelist.net', name: 'MyAnimeList', url: 'https://myanimelist.net/anime.php?q={query}' },
-        { key: 'bilibili', name: 'Bilibili', url: 'https://search.bilibili.com/bangumi?keyword={query}' },
+      var oldSettings = JSON.parse(localStorage.getItem('anime_tracker_settings_v2') || '{}');
+      var hidden = oldSettings.hiddenBuiltIn || [];
+      var nameOverrides = oldSettings.builtInNames || {};
+      var urlOverrides = oldSettings.builtInUrls || {};
+      var enabled = oldSettings.enabledSources || [];
+      var customDefs = oldSettings.customSources || [];
+      // Apply built-in overrides
+      var oldBuiltInDefs = [
+        { key: 'bgm.tv', id: 'builtin_bgm' },
+        { key: 'myanimelist.net', id: 'builtin_mal' },
+        { key: 'bilibili', id: 'builtin_bilibili' },
       ];
-      for (const def of builtInDefs) {
-        if (!hidden.includes(def.key)) {
-          migrated.push({
-            id: Date.now() + Math.random(),
-            name: nameOverrides[def.key] || def.name,
-            url: urlOverrides[def.key] || def.url,
-            enabled: enabled.length === 0 || enabled.includes(def.key),
-          });
+      for (var obi = 0; obi < oldBuiltInDefs.length; obi++) {
+        var ob = oldBuiltInDefs[obi];
+        if (hidden.indexOf(ob.key) !== -1) {
+          // disable if hidden
+          var obIdx = builtinById[ob.id];
+          if (obIdx !== undefined) sourceList[obIdx].enabled = false;
+        }
+        if (nameOverrides[ob.key]) {
+          var nIdx = builtinById[ob.id];
+          if (nIdx !== undefined) sourceList[nIdx].name = nameOverrides[ob.key];
+        }
+        if (urlOverrides[ob.key]) {
+          var uIdx = builtinById[ob.id];
+          if (uIdx !== undefined) sourceList[uIdx].url = urlOverrides[ob.key];
         }
       }
-      // Custom sources from old settings (if any stored locally)
-      const customDefs = oldSettings.customSources || [];
-      for (const cs of customDefs) {
-        migrated.push({
-          id: Date.now() + Math.random(),
-          name: cs.name,
-          url: cs.searchUrl,
-          enabled: enabled.length === 0 || enabled.includes(cs.id || cs.key),
-        });
+      // Migrate old custom sources
+      for (var csi = 0; csi < customDefs.length; csi++) {
+        var csd = customDefs[csi];
+        sourceList.push({ id: Date.now() + Math.random(), name: csd.name, url: csd.searchUrl, enabled: true, builtin: false });
+        migrated = true;
       }
-      if (migrated.length > 0) {
-        sourceList = migrated;
-        saveSourceList();
-      }
+      if (migrated) saveSourceList();
     } catch(e) {}
   }
+
   // Fallback: fetch from server's custom-sources.json
-  if (sourceList.length === 0) {
+  if (newCustoms.length === 0 && customSources.length === 0) {
     try {
-      const resp = await fetch(BACKEND_URL + '/api/custom-sources');
+      var resp = await fetch(BACKEND_URL + '/api/custom-sources');
       if (resp.ok) {
-        const serverSources = await resp.json();
-        sourceList = serverSources.map(s => ({
-          id: s.id, name: s.name, url: s.searchUrl, enabled: true
-        }));
-        if (sourceList.length > 0) saveSourceList();
+        var serverSources = await resp.json();
+        for (var ssi = 0; ssi < serverSources.length; ssi++) {
+          var ss = serverSources[ssi];
+          if (!isBuiltinSource(ss.id)) {
+            sourceList.push({ id: ss.id, name: ss.name, url: ss.searchUrl, enabled: true, builtin: false });
+          }
+        }
+        if (serverSources.length > 0) saveSourceList();
       }
     } catch(e) {}
   }
 }
 function saveSourceList() {
-  localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+  // Only persist custom (non-builtin) sources
+  var customOnly = [];
+  for (var i = 0; i < sourceList.length; i++) {
+    if (!sourceList[i].builtin) {
+      customOnly.push({ id: sourceList[i].id, name: sourceList[i].name, url: sourceList[i].url, enabled: sourceList[i].enabled !== false });
+    } else {
+      // Persist built-in enabled state so it survives across refreshes
+      customOnly.push({ id: sourceList[i].id, builtin: true, enabled: sourceList[i].enabled !== false });
+    }
+  }
+  localStorage.setItem(SOURCES_KEY, JSON.stringify(customOnly));
   syncSourcesToCloud();
 }
 var _cloudSourceTimer = null;
 function syncSourcesToCloud() {
   if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
   clearTimeout(_cloudSourceTimer);
-  _cloudSourceTimer = setTimeout(function() {
-    window.AnimeCloud.saveAllSources(sourceList).catch(function(e) {
-      console.error('Cloud source sync error:', e);
-    });
-  }, 1500);
+  window.AnimeCloud.saveAllSources(sourceList).catch(function(e) {
+    console.error('Cloud source sync error:', e);
+  });
 }
 
 // ===== Backend =====
@@ -1574,38 +1700,57 @@ async function aiEnrich(title) {
 // ===== Sources =====
 function renderSourceList() {
   const container = document.getElementById('sidebarSources');
-  container.innerHTML = sourceList.map(s =>
-    `<div class="sidebar-source-item${s.enabled !== false ? ' enabled' : ''}" onclick="toggleSource(${s.id})" title="${escapeHtml(s.name)}${s.enabled !== false ? ' · 已启用' : ' · 已禁用'}">
+  container.innerHTML = sourceList.map(s => {
+    var delBtn = s.builtin ? '' : `<span class="src-del" onclick="event.stopPropagation();deleteSource(${s.id})" title="删除来源">✕</span>`;
+    return `<div class="sidebar-source-item${s.enabled !== false ? ' enabled' : ''}" onclick="toggleSource(${s.id})" title="${escapeHtml(s.name)}${s.builtin ? ' · 内置' : ''}${s.enabled !== false ? ' · 已启用' : ' · 已禁用'}">
       <span class="src-dot"></span>
       <span class="src-name">${escapeHtml(s.name)}</span>
-      <span class="src-del" onclick="event.stopPropagation();deleteSource(${s.id})" title="删除来源">✕</span>
-    </div>`
-  ).join('');
+      ${delBtn}
+    </div>`;
+  }).join('');
 }
 
 function renderSourceManagerList() {
   var container = document.getElementById('sourceManagerList');
+  var countEl = document.getElementById('sourceTotalCount');
+  if (countEl) countEl.textContent = '(' + sourceList.length + ')';
   if (!container) return;
   if (sourceList.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:24px;opacity:0.4;font-size:0.85rem">暂无搜索来源</div>';
     return;
   }
+  updateSourceSelectUI();
   var html = '';
   for (var i = 0; i < sourceList.length; i++) {
     var s = sourceList[i];
+    var isBuiltin = s.builtin === true;
     var enabled = s.enabled !== false;
     var dotColor = enabled ? 'var(--color-success)' : 'var(--color-base-content)';
     var dotOpacity = enabled ? '1' : '0.25';
     var toggleLabel = enabled ? '已启用' : '已禁用';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:color-mix(in srgb, var(--color-base-content) 3%, transparent);border:1px solid transparent;transition:border-color 0.15s ease" onmouseenter="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\'" onmouseleave="this.style.borderColor=\'transparent\'">';
+    var isSel = _sourceSelectMode && _selectedSourceIds.has(s.id) && !isBuiltin;
+    var canSelect = _sourceSelectMode && !isBuiltin;
+    var bg = isSel ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'color-mix(in srgb, var(--color-base-content) 3%, transparent)';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:' + bg + ';border:1px solid ' + (isSel ? 'var(--color-primary)' : 'transparent') + ';transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\'" onmouseleave="this.style.borderColor=\'' + (isSel ? 'var(--color-primary)' : 'transparent') + '\'"' + (canSelect ? ' onclick="sourceToggleSelect(' + s.id + ')" style="cursor:pointer"' : '') + '>';
+    if (_sourceSelectMode) {
+      if (isBuiltin) {
+        html += '<span style="width:16px;height:16px;flex-shrink:0;opacity:0.25" title="内置来源不可删除">🔒</span>';
+      } else {
+        html += '<input type="checkbox" ' + (isSel ? 'checked' : '') + ' onclick="event.stopPropagation();sourceToggleSelect(' + s.id + ')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--color-primary);flex-shrink:0">';
+      }
+    }
     html += '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + dotColor + ';opacity:' + dotOpacity + '"></span>';
     html += '<div style="flex:1;min-width:0">';
-    html += '<div style="font-size:0.85rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(s.name) + '</div>';
+    html += '<div style="font-size:0.85rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(s.name);
+    if (isBuiltin) html += ' <span style="font-size:0.6rem;font-weight:600;padding:1px 6px;border-radius:999px;background:color-mix(in srgb, var(--color-primary) 12%, transparent);color:var(--color-primary);vertical-align:middle">内置</span>';
+    html += '</div>';
     html += '<div style="font-size:0.72rem;opacity:0.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(s.url) + '</div>';
     html += '</div>';
-    html += '<button onclick="testSourceById(' + s.id + ',this)" style="padding:4px 8px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-info) 20%, transparent);background:transparent;color:var(--color-info);cursor:pointer;font-size:0.7rem;white-space:nowrap;font-family:inherit" title="测试连接">测试</button>';
-    html += '<button onclick="toggleSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-size:0.75rem;white-space:nowrap;font-family:inherit">' + toggleLabel + '</button>';
-    html += '<button onclick="deleteSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 8px;border-radius:6px;border:none;background:transparent;color:var(--color-error);cursor:pointer;font-size:0.75rem;opacity:0.6;font-family:inherit" title="删除">✕</button>';
+    html += '<button onclick="event.stopPropagation();testSourceById(' + s.id + ',this)" style="padding:4px 8px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-info) 20%, transparent);background:transparent;color:var(--color-info);cursor:pointer;font-size:0.7rem;white-space:nowrap;font-family:inherit" title="测试连接">测试</button>';
+    html += '<button onclick="event.stopPropagation();toggleSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-size:0.75rem;white-space:nowrap;font-family:inherit">' + toggleLabel + '</button>';
+    if (!_sourceSelectMode && !isBuiltin) {
+      html += '<button onclick="event.stopPropagation();deleteSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 8px;border-radius:6px;border:none;background:transparent;color:var(--color-error);cursor:pointer;font-size:0.75rem;opacity:0.6;font-family:inherit" title="删除">✕</button>';
+    }
     html += '</div>';
   }
   container.innerHTML = html;
@@ -1617,7 +1762,210 @@ function openSourceManager() {
 }
 
 function closeSourceManager() {
+  if (_sourceSelectMode) toggleSourceSelectMode(); // Exit select mode
   document.getElementById('sourceManagerOverlay').style.display = 'none';
+}
+
+// ===== Source Multi-Select =====
+var _sourceSelectMode = false;
+var _selectedSourceIds = new Set();
+
+function updateSourceSelectUI() {
+  var toolbar = document.getElementById('sourceSelectToolbar');
+  var btn = document.getElementById('btnSourceSelectMode');
+  if (_sourceSelectMode) {
+    toolbar.style.display = 'flex';
+    btn.textContent = '✕ 退出多选';
+    btn.style.borderColor = 'var(--color-error)';
+    btn.style.color = 'var(--color-error)';
+  } else {
+    toolbar.style.display = 'none';
+    btn.textContent = '☑ 多选删除';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  }
+  var countEl = document.getElementById('sourceSelectCount');
+  var delBtn = document.getElementById('btnSourceBatchDelete');
+  if (countEl) countEl.textContent = '已选 ' + _selectedSourceIds.size + ' 项';
+  if (delBtn) delBtn.disabled = _selectedSourceIds.size === 0;
+}
+
+function toggleSourceSelectMode() {
+  _sourceSelectMode = !_sourceSelectMode;
+  if (!_sourceSelectMode) _selectedSourceIds.clear();
+  renderSourceManagerList();
+}
+
+function sourceToggleSelect(id) {
+  if (_selectedSourceIds.has(id)) _selectedSourceIds.delete(id);
+  else _selectedSourceIds.add(id);
+  renderSourceManagerList();
+}
+
+function sourceSelectAll() {
+  for (var i = 0; i < sourceList.length; i++) _selectedSourceIds.add(sourceList[i].id);
+  renderSourceManagerList();
+}
+
+function sourceDeselectAll() {
+  _selectedSourceIds.clear();
+  renderSourceManagerList();
+}
+
+function batchDeleteSources() {
+  // Skip built-in sources
+  var customSelected = [];
+  _selectedSourceIds.forEach(function(id) {
+    if (!isBuiltinSource(id)) customSelected.push(id);
+  });
+  if (customSelected.length === 0) { showToast('未选中可删除的自定义来源（内置来源不可删除）'); return; }
+  var count = customSelected.length;
+  if (!confirm('确定删除选中的 ' + count + ' 个搜索源吗？')) return;
+  var deleteSet = {};
+  for (var di = 0; di < customSelected.length; di++) { deleteSet[customSelected[di]] = true; }
+  sourceList = sourceList.filter(function(s) { return !deleteSet[s.id]; });
+  _selectedSourceIds.clear();
+  saveSourceList();
+  renderSourceManagerList();
+  showToast('已删除 ' + count + ' 个搜索源 ✓');
+}
+
+async function exportSources() {
+  var data = sourceList;
+  var now = new Date();
+  var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+  var filename = 'sources-' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + '.json';
+  var jsonStr = JSON.stringify(data, null, 2);
+
+  if (window.showSaveFilePicker) {
+    try {
+      var handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JSON 文件', accept: { 'application/json': ['.json'] } }]
+      });
+      var writable = await handle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+      showToast('搜索源已导出 ✓ (' + sourceList.length + ' 个)');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+
+  var blob = new Blob([jsonStr], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('搜索源已导出 ✓ (' + sourceList.length + ' 个)');
+}
+
+async function importSources() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.onchange = async function(e) {
+    var file = e.target.files[0];
+    document.body.removeChild(input);
+    if (!file) return;
+    try {
+      var text = await file.text();
+      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+      var data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        showToast('文件不是有效的 JSON 格式 ✗');
+        return;
+      }
+      if (!Array.isArray(data)) {
+        showToast('无效的搜索源文件格式（应为数组） ✗');
+        return;
+      }
+      if (!confirm('导入将覆盖当前 ' + sourceList.length + ' 个搜索源（文件包含 ' + data.length + ' 个），确定继续？')) return;
+      sourceList = data;
+      localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+      syncSourcesToCloud();
+      renderSourceManagerList();
+      showToast('搜索源已导入 ✓ (' + sourceList.length + ' 个)');
+    } catch (err) {
+      showToast('导入失败：' + (err.message || '文件格式错误') + ' ✗');
+    }
+  };
+  input.click();
+}
+
+async function batchTestSources() {
+  if (sourceList.length === 0) { showToast('没有可测试的搜索源'); return; }
+  var btn = document.getElementById('btnBatchTest');
+  var origText = btn.textContent;
+  btn.disabled = true;
+
+  // 1. Deduplicate by URL (keep enabled over disabled, then first)
+  var dupRemoved = 0;
+  var seen = {};  // key -> index in deduped
+  var deduped = [];
+  for (var i = 0; i < sourceList.length; i++) {
+    var key = sourceList[i].url.trim().toLowerCase();
+    if (key in seen) {
+      var existing = deduped[seen[key]];
+      // Replace if existing is disabled and current is enabled
+      if (existing.enabled === false && sourceList[i].enabled !== false) {
+        deduped[seen[key]] = sourceList[i];
+      }
+      dupRemoved++;
+      continue;
+    }
+    seen[key] = deduped.length;
+    deduped.push(sourceList[i]);
+  }
+  sourceList = deduped;
+
+  // 2. Test each source concurrently (batches of 6)
+  var failedIds = [];
+  var passedCnt = 0, failedCnt = 0, tested = 0;
+  var CONCURRENCY = 6;
+  for (var start = 0; start < sourceList.length; start += CONCURRENCY) {
+    var chunk = sourceList.slice(start, start + CONCURRENCY);
+    var promises = chunk.map(function(s) {
+      return testOneSource({ url: s.url }).then(function(ok) {
+        tested++;
+        if (ok) passedCnt++; else { failedCnt++; failedIds.push(s.id); }
+        btn.textContent = '✓ ' + passedCnt + '  ✗ ' + failedCnt + '  (' + tested + '/' + sourceList.length + ')';
+      });
+    });
+    await Promise.all(promises);
+  }
+
+  // 3. Remove failed
+  if (failedIds.length > 0) {
+    var failedNames = sourceList.filter(function(s) { return failedIds.indexOf(s.id) !== -1; }).map(function(s) { return s.name; }).join('、');
+    sourceList = sourceList.filter(function(s) { return failedIds.indexOf(s.id) === -1; });
+  }
+
+  saveSourceList();
+  renderSourceManagerList();
+  btn.textContent = origText;
+  btn.disabled = false;
+
+  if (dupRemoved === 0 && failedIds.length === 0) {
+    showToast('全部 ' + sourceList.length + ' 个搜索源测试通过，无重复 ✓');
+  } else {
+    var msg = '';
+    if (dupRemoved > 0) msg += '删除 ' + dupRemoved + ' 个重复';
+    if (failedIds.length > 0) {
+      if (msg) msg += '，';
+      msg += '删除 ' + failedIds.length + ' 个失效：' + failedNames;
+    }
+    showToast(msg);
+  }
 }
 
 function toggleSource(id) {
@@ -1629,6 +1977,7 @@ function toggleSource(id) {
 }
 
 function deleteSource(id) {
+  if (isBuiltinSource(id)) { showToast('内置来源不可删除'); return; }
   if (!confirm('确定删除这个搜索来源吗？')) return;
   sourceList = sourceList.filter(function(s) { return s.id !== id; });
   saveSourceList();
@@ -1700,7 +2049,11 @@ async function testSourceById(id, btn) {
     });
     if (resp.ok) {
       var data = await resp.json();
-      showToast('✓ ' + s.name + ' 连接成功，返回 ' + (data.results ? data.results.length : 0) + ' 条结果');
+      if (data.results && data.results.length > 0) {
+        showToast('✓ ' + s.name + ' 连接成功，提取到 ' + data.results.length + ' 条结果');
+      } else {
+        showToast('⚠ ' + s.name + ' 连接成功但未提取到结果（页面结构可能不兼容）');
+      }
     } else {
       var err = await resp.json().catch(function() { return { error: 'HTTP ' + resp.status }; });
       showToast('✗ ' + s.name + ' 测试失败：' + (err.error || '未知错误'));
@@ -1719,10 +2072,11 @@ function saveSource() {
   if (!url.includes('{query}')) { showToast('搜索链接必须包含 {query} 占位符'); return; }
   const editId = document.getElementById('srcName')._editId;
   if (editId) {
+    if (isBuiltinSource(editId)) { showToast('内置来源不可修改'); return; }
     const s = sourceList.find(x => x.id === editId);
     if (s) { s.name = name; s.url = url; }
   } else {
-    sourceList.push({ id: Date.now(), name, url, enabled: true });
+    sourceList.push({ id: Date.now(), name, url, enabled: true, builtin: false });
   }
   saveSourceList();
   renderSourceManagerList();
@@ -1730,10 +2084,46 @@ function saveSource() {
   showToast(editId ? '来源已更新 ✓' : '来源已添加 ✓');
 }
 
+function parseBatchSourceInput() {
+  var raw = document.getElementById('batchSourceInput').value.trim();
+  if (!raw) return [];
+  var lines = raw.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+  var items = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var idx = line.indexOf(' ');
+    if (idx === -1) continue;
+    var name = line.substring(0, idx).trim();
+    var url = line.substring(idx + 1).trim();
+    if (!name || !url) continue;
+    if (!url.includes('{query}')) continue;
+    items.push({ name: name, url: url });
+  }
+  return items;
+}
+
+function onBatchSourceInput() {
+  // Preview parsed items count
+  var items = parseBatchSourceInput();
+  var resultDiv = document.getElementById('batchSourceResults');
+  if (items.length === 0) {
+    resultDiv.innerHTML = '';
+    return;
+  }
+  resultDiv.innerHTML = '<div style="font-size:0.78rem;opacity:0.4;padding:8px">已识别 ' + items.length + ' 个待检测来源（点击"检测并添加"开始）</div>';
+}
+
 function openBatchSourceModal() {
   document.getElementById('batchSourceInput').value = '';
+  document.getElementById('batchSourceResults').innerHTML = '';
+  document.getElementById('batchSourceProgress').style.display = 'none';
+  var btn = document.getElementById('btnBatchTestAndAdd');
+  btn.textContent = '🧪 检测并添加';
+  btn.style.background = 'var(--color-primary)';
+  btn.disabled = false;
+  document.getElementById('btnBatchSaveSource').disabled = false;
   document.getElementById('batchSourceModalOverlay').style.display = 'flex';
-  setTimeout(() => document.getElementById('batchSourceInput').focus(), 100);
+  setTimeout(function() { document.getElementById('batchSourceInput').focus(); }, 100);
 }
 
 function closeBatchSourceModal() {
@@ -1741,23 +2131,113 @@ function closeBatchSourceModal() {
 }
 
 function batchSaveSources() {
-  const raw = document.getElementById('batchSourceInput').value.trim();
-  if (!raw) { showToast('请输入来源数据'); return; }
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  let added = 0, skipped = 0;
-  for (const line of lines) {
-    const idx = line.indexOf(' ');
-    if (idx === -1) { skipped++; continue; }
-    const name = line.substring(0, idx).trim();
-    const url = line.substring(idx + 1).trim();
-    if (!name || !url) { skipped++; continue; }
-    if (!url.includes('{query}')) { skipped++; continue; }
-    sourceList.push({ id: Date.now() + Math.random(), name, url, enabled: true });
+  var items = parseBatchSourceInput();
+  if (items.length === 0) { showToast('未识别到有效来源（请检查格式：名称 链接）'); return; }
+  var added = 0;
+  for (var i = 0; i < items.length; i++) {
+    sourceList.push({ id: Date.now() + Math.random(), name: items[i].name, url: items[i].url, enabled: true });
     added++;
   }
-  if (added > 0) { saveSourceList(); renderSourceManagerList(); }
+  saveSourceList();
+  renderSourceManagerList();
   closeBatchSourceModal();
-  showToast(added > 0 ? `已添加 ${added} 个来源${skipped > 0 ? `，跳过 ${skipped} 行` : ''} ✓` : `未添加任何来源（请检查格式：名称 链接）`);
+  showToast('已添加 ' + added + ' 个来源 ✓');
+}
+
+async function testOneSource(item) {
+  try {
+    var resp = await fetch(BACKEND_URL + '/api/test-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ searchUrl: item.url, query: 'test' }),
+      signal: AbortSignal.timeout(10000)
+    });
+    if (resp.ok) {
+      var data = await resp.json();
+      if (data.results && data.results.length > 0) return true;
+    }
+  } catch(e) { /* failed */ }
+  return false;
+}
+
+async function batchTestAndAddSources() {
+  var items = parseBatchSourceInput();
+  if (items.length === 0) { showToast('未识别到有效来源（请检查格式：名称 链接）'); return; }
+
+  var btn = document.getElementById('btnBatchTestAndAdd');
+  var origText = btn.textContent;
+  btn.disabled = true;
+  document.getElementById('btnBatchSaveSource').disabled = true;
+
+  var progressDiv = document.getElementById('batchSourceProgress');
+  var resultDiv = document.getElementById('batchSourceResults');
+  var passedEl = document.getElementById('batchPassedCount');
+  var failedEl = document.getElementById('batchFailedCount');
+  var progressText = document.getElementById('batchProgressText');
+
+  progressDiv.style.display = 'flex';
+  var passed = 0, failed = 0, done = 0;
+
+  // Show all items initially as pending
+  resultDiv.innerHTML = items.map(function(item, idx) {
+    return '<div id="batchItem' + idx + '" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;margin-bottom:2px;font-size:0.8rem">' +
+      '<span style="width:18px;text-align:center;opacity:0.3">⏳</span>' +
+      '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(item.name) + '</span>' +
+      '<span style="font-size:0.7rem;opacity:0.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">' + escapeHtml(item.url) + '</span>' +
+      '</div>';
+  }).join('');
+
+  function updateItem(idx, ok, item) {
+    var itemEl = document.getElementById('batchItem' + idx);
+    if (!itemEl) return;
+    if (ok) {
+      passed++;
+      itemEl.innerHTML = '<span style="width:18px;text-align:center;color:var(--color-success)">✓</span>' +
+        '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(item.name) + '</span>' +
+        '<span style="font-size:0.7rem;opacity:0.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">' + escapeHtml(item.url) + '</span>';
+      itemEl.style.background = 'color-mix(in srgb, var(--color-success) 8%, transparent)';
+    } else {
+      failed++;
+      itemEl.innerHTML = '<span style="width:18px;text-align:center;color:var(--color-error)">✗</span>' +
+        '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(item.name) + '</span>' +
+        '<span style="font-size:0.7rem;opacity:0.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">' + escapeHtml(item.url) + '</span>';
+      itemEl.style.background = 'color-mix(in srgb, var(--color-error) 6%, transparent)';
+    }
+    done++;
+    passedEl.textContent = '✓ ' + passed;
+    failedEl.textContent = '✗ ' + failed;
+    progressText.textContent = done + '/' + items.length;
+  }
+
+  // Test concurrently in batches of 6
+  var CONCURRENCY = 6;
+  for (var start = 0; start < items.length; start += CONCURRENCY) {
+    var chunk = items.slice(start, start + CONCURRENCY);
+    var promises = chunk.map(function(item, ci) {
+      var idx = start + ci;
+      return testOneSource(item).then(function(ok) {
+        if (ok) sourceList.push({ id: Date.now() + Math.random(), name: item.name, url: item.url, enabled: true });
+        updateItem(idx, ok, item);
+      });
+    });
+    await Promise.all(promises);
+  }
+
+  if (passed > 0) { saveSourceList(); renderSourceManagerList(); }
+  progressText.textContent = '完成';
+  document.getElementById('btnBatchSaveSource').disabled = false;
+  if (passed > 0) {
+    btn.textContent = '✓ 已添加 ' + passed + ' 个';
+    btn.style.background = 'var(--color-success)';
+    showToast('已添加 ' + passed + ' 个来源' + (failed > 0 ? '，' + failed + ' 个未通过' : '') + ' ✓');
+    // Auto-close after 1.5s
+    setTimeout(function() { closeBatchSourceModal(); }, 1500);
+  } else {
+    btn.textContent = '✗ 全部未通过';
+    btn.style.background = 'var(--color-error)';
+    showToast('所有 ' + failed + ' 个来源均未通过检测 ✗');
+  }
+  btn.disabled = false;
 }
 
 // ===== Search History =====
@@ -1783,11 +2263,9 @@ var _cloudSearchTimer = null;
 function syncSearchHistoryToCloud() {
   if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
   clearTimeout(_cloudSearchTimer);
-  _cloudSearchTimer = setTimeout(function() {
-    window.AnimeCloud.saveSearchHistory(searchHistory).catch(function(e) {
-      console.error('Cloud search history sync error:', e);
-    });
-  }, 2000);
+  window.AnimeCloud.saveSearchHistory(searchHistory).catch(function(e) {
+    console.error('Cloud search history sync error:', e);
+  });
 }
 
 function showSearchHistory() {
@@ -1825,6 +2303,187 @@ function clearSearchHistory() {
 document.addEventListener('click', e => {
   if (!e.target.closest('#searchWrap')) hideSearchHistory();
 });
+
+// ===== Expanding Search Bars =====
+var _mainSearchOpen = false;
+function toggleMainSearch() {
+  var input = document.getElementById('searchInput');
+  var icon = document.getElementById('btnMainSearchIcon');
+  _mainSearchOpen = !_mainSearchOpen;
+  if (_mainSearchOpen) {
+    input.classList.add('expanded');
+    icon.classList.add('active');
+    setTimeout(function() { input.focus(); }, 250);
+  } else {
+    input.classList.remove('expanded');
+    icon.classList.remove('active');
+    input.value = '';
+    renderCards();
+  }
+}
+
+var _semanticBarOpen = false;
+function toggleSemanticSearch() {
+  var input = document.getElementById('semanticSearchInput');
+  var icon = document.getElementById('btnSemanticIcon');
+  _semanticBarOpen = !_semanticBarOpen;
+  if (_semanticBarOpen) {
+    // Collapse main search if open
+    if (_mainSearchOpen) toggleMainSearch();
+    input.classList.add('expanded');
+    icon.classList.add('active');
+    setTimeout(function() { input.focus(); }, 250);
+  } else {
+    input.classList.remove('expanded');
+    icon.classList.remove('active');
+    input.value = '';
+  }
+}
+
+function doSemanticSearchFromBar() {
+  var query = document.getElementById('semanticSearchInput').value.trim();
+  if (!query) return;
+  toggleSemanticSearch();
+  document.getElementById('semanticQueryInput').value = query;
+  document.getElementById('semanticSearchOverlay').style.display = 'flex';
+  doSemanticSearch();
+}
+
+// Close expanding bars when clicking outside
+document.addEventListener('click', function(e) {
+  if (_mainSearchOpen && !e.target.closest('#mainSearchBar') && !e.target.closest('#searchHistoryDropdown')) {
+    var input = document.getElementById('searchInput');
+    input.classList.remove('expanded');
+    document.getElementById('btnMainSearchIcon').classList.remove('active');
+    input.value = '';
+    renderCards();
+    _mainSearchOpen = false;
+  }
+  if (_semanticBarOpen && !e.target.closest('#semanticSearchBar')) {
+    var input = document.getElementById('semanticSearchInput');
+    input.classList.remove('expanded');
+    document.getElementById('btnSemanticIcon').classList.remove('active');
+    input.value = '';
+    _semanticBarOpen = false;
+  }
+});
+
+function openSemanticSearchModal() {
+  document.getElementById('semanticQueryInput').value = '';
+  document.getElementById('semanticSearchResults').innerHTML = '';
+  document.getElementById('semanticSearchOverlay').style.display = 'flex';
+  setTimeout(function() { document.getElementById('semanticQueryInput').focus(); }, 100);
+}
+
+function closeSemanticSearchModal() {
+  document.getElementById('semanticSearchOverlay').style.display = 'none';
+}
+
+async function doSemanticSearch() {
+  var query = document.getElementById('semanticQueryInput').value.trim();
+  if (!query) { showToast('请输入剧情描述或关键词'); return; }
+  var btn = document.getElementById('btnSemanticSearch');
+  var origText = btn.textContent;
+  btn.textContent = '搜索中...';
+  btn.disabled = true;
+  var resultDiv = document.getElementById('semanticSearchResults');
+  resultDiv.innerHTML = '<div style="text-align:center;padding:24px;opacity:0.5">正在搜索...</div>';
+
+  try {
+    var resp = await fetch(BACKEND_URL + '/api/semantic-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var results = data.results || [];
+
+    if (results.length === 0) {
+      resultDiv.innerHTML = '<div style="text-align:center;padding:24px;opacity:0.4">未找到相关番剧，试试换个描述方式</div>';
+    } else {
+      resultDiv.innerHTML = results.map(function(r, idx) {
+        return '<div class="search-result-row" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;margin-bottom:4px;background:color-mix(in srgb, var(--color-base-content) 3%, transparent);cursor:pointer"' +
+          ' onclick="addAnimeFromRecommend(' + JSON.stringify(r.title).replace(/"/g, '&quot;') + ')"' +
+          ' onmouseenter="this.style.background=\'color-mix(in srgb, var(--color-primary) 10%, transparent)\'"' +
+          ' onmouseleave="this.style.background=\'color-mix(in srgb, var(--color-base-content) 3%, transparent)\'">' +
+          (r.cover ? '<img src="' + escapeHtml(r.cover) + '" style="width:48px;height:68px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'">' : '<div style="width:48px;height:68px;border-radius:6px;background:var(--color-base-200);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem">🎬</div>') +
+          '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:600;font-size:0.9rem">' + escapeHtml(r.title) + (r.titleEn ? ' <span style="opacity:0.5;font-weight:400">(' + escapeHtml(r.titleEn) + ')</span>' : '') + '</div>' +
+          '<div style="font-size:0.75rem;opacity:0.5">' + escapeHtml(r.source) + (r.year ? ' · ' + r.year : '') + (r.episodes ? ' · ' + r.episodes + '集' : '') + (r.score ? ' · ⭐' + r.score : '') + '</div>' +
+          '<div style="font-size:0.75rem;opacity:0.5;margin-top:2px">' + (r.genres && r.genres.length > 0 ? r.genres.slice(0,4).join(' · ') : '') + '</div>' +
+          (r.synopsis ? '<div style="font-size:0.72rem;opacity:0.4;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + escapeHtml(r.synopsis) + '</div>' : '') +
+          '</div>' +
+          '</div>';
+      }).join('');
+    }
+  } catch(e) {
+    resultDiv.innerHTML = '<div style="text-align:center;padding:24px;color:var(--color-error)">搜索失败：' + e.message + '</div>';
+  }
+  btn.textContent = origText;
+  btn.disabled = false;
+}
+
+// ===== Recommend =====
+async function requestRecommendations() {
+  if (animeList.length === 0) { showToast('请先添加一些番剧，系统会根据你的口味推荐'); return; }
+  document.getElementById('recommendOverlay').style.display = 'flex';
+  var resultDiv = document.getElementById('recommendResults');
+  var profileDiv = document.getElementById('recommendProfile');
+  resultDiv.innerHTML = '<div style="text-align:center;padding:24px;opacity:0.5">正在分析你的番剧口味...</div>';
+  profileDiv.textContent = '';
+
+  try {
+    var resp = await fetch(BACKEND_URL + '/api/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ animeList: animeList, limit: 15 })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+
+    if (data.profile && data.profile.topGenres && data.profile.topGenres.length > 0) {
+      profileDiv.textContent = '你的口味标签：' + data.profile.topGenres.join(' · ');
+    }
+
+    var results = data.recommendations || [];
+    if (results.length === 0) {
+      resultDiv.innerHTML = '<div style="text-align:center;padding:24px;opacity:0.4">推荐系统需要更多数据，试试添加更多高分番剧</div>';
+    } else {
+      resultDiv.innerHTML = results.map(function(r) {
+        return '<div class="search-result-row" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;margin-bottom:4px;background:color-mix(in srgb, var(--color-base-content) 3%, transparent);cursor:pointer"' +
+          ' onclick="addAnimeFromRecommend(' + JSON.stringify(r.title).replace(/"/g, '&quot;') + ')"' +
+          ' onmouseenter="this.style.background=\'color-mix(in srgb, var(--color-primary) 10%, transparent)\'"' +
+          ' onmouseleave="this.style.background=\'color-mix(in srgb, var(--color-base-content) 3%, transparent)\'">' +
+          (r.cover ? '<img src="' + escapeHtml(r.cover) + '" style="width:48px;height:68px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'">' : '<div style="width:48px;height:68px;border-radius:6px;background:var(--color-base-200);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem">🎬</div>') +
+          '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:600;font-size:0.9rem">' + escapeHtml(r.title) + (r.titleEn ? ' <span style="opacity:0.5;font-weight:400">(' + escapeHtml(r.titleEn) + ')</span>' : '') + '</div>' +
+          '<div style="font-size:0.75rem;opacity:0.5">' + escapeHtml(r.source) + (r.episodes ? ' · ' + r.episodes + '集' : '') + (r.score ? ' · ⭐' + r.score : '') + '</div>' +
+          (r.genres && r.genres.length > 0 ? '<div style="font-size:0.73rem;opacity:0.4;margin-top:2px">' + r.genres.slice(0,5).join(' · ') + '</div>' : '') +
+          (r.synopsis ? '<div style="font-size:0.72rem;opacity:0.4;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + escapeHtml(r.synopsis) + '</div>' : '') +
+          '</div>' +
+          '<button class="btn-add" style="flex-shrink:0;font-size:0.72rem;padding:4px 10px" onclick="event.stopPropagation();addAnimeFromRecommend(\'' + escapeHtml(r.title).replace(/'/g, "\\'") + '\')">＋ 添加</button>' +
+          '</div>';
+      }).join('');
+    }
+  } catch(e) {
+    resultDiv.innerHTML = '<div style="text-align:center;padding:24px;color:var(--color-error)">推荐失败：' + e.message + '<br><small>请确保后端已连接</small></div>';
+  }
+}
+
+function closeRecommendModal() {
+  document.getElementById('recommendOverlay').style.display = 'none';
+}
+
+function addAnimeFromRecommend(title) {
+  closeRecommendModal();
+  closeSemanticSearchModal();
+  document.getElementById('searchInput').value = title;
+  // Trigger the add modal with pre-filled title via search
+  openAddModal();
+  var titleInput = document.getElementById('mTitle');
+  if (titleInput) titleInput.value = title;
+}
 
 // ===== Filtering =====
 function updateStatHighlight(status) {
@@ -1897,14 +2556,22 @@ function getFilteredList() {
   } else if (currentFilter === 'category' && activeCategories.size > 0) {
     list = list.filter(a => activeCategories.has(a.category));
   }
-  // Status filter (overlay or standalone)
+  // Status filter (overlay or standalone) — skip anime with open detail popup
+  var popupAnime = null;
+  if (detailPopupId !== null) {
+    popupAnime = animeList.find(function(a) { return a.id === detailPopupId; });
+  }
   if (currentStatusFilter) {
-    list = list.filter(a => a.status === currentStatusFilter);
+    list = list.filter(function(a) { return a.status === currentStatusFilter || (popupAnime && a.id === popupAnime.id); });
   } else if (currentFilter !== 'folder' && currentFilter !== 'category' && currentFilter !== 'all') {
-    list = list.filter(a => a.status === currentFilter);
+    list = list.filter(function(a) { return a.status === currentFilter || (popupAnime && a.id === popupAnime.id); });
+  }
+  // Ensure popup anime is always in the list while popup is open
+  if (popupAnime && !list.find(function(a) { return a.id === popupAnime.id; })) {
+    list.push(popupAnime);
   }
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  if (q) list = list.filter(a => a.title.toLowerCase().includes(q));
+  if (q) list = list.filter(function(a) { return a.title.toLowerCase().includes(q) || (popupAnime && a.id === popupAnime.id); });
   // Sort
   if (sortBy) {
     list = list.slice().sort(function(a, b) {
@@ -1947,6 +2614,39 @@ const DEFAULT_CATEGORY = 'japanese_anime';
 function normalizeCategory(c) {
   if (c && VALID_CATEGORIES.indexOf(c) >= 0) return c;
   return DEFAULT_CATEGORY;
+}
+
+// Built-in search sources — immutable, always available
+const BUILTIN_SOURCES = [
+  { id: 'builtin_bgm', name: 'Bangumi', url: 'https://bgm.tv/subject_search/{query}?cat=2', enabled: true, builtin: true },
+  { id: 'builtin_mal', name: 'MyAnimeList', url: 'https://myanimelist.net/anime.php?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_acfun', name: 'AcFun', url: 'https://www.acfun.cn/search?keyword={query}', enabled: true, builtin: true },
+  { id: 'builtin_bilibili', name: 'Bilibili', url: 'https://search.bilibili.com/bangumi?keyword={query}', enabled: true, builtin: true },
+  { id: 'builtin_livechart', name: 'LiveChart', url: 'https://www.livechart.me/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_notifymoe', name: 'Notify.moe', url: 'https://notify.moe/search/{query}', enabled: true, builtin: true },
+  { id: 'builtin_anisearch', name: 'AniSearch', url: 'https://www.anisearch.com/anime/index?char={query}', enabled: true, builtin: true },
+  { id: 'builtin_amazon', name: 'AmazonPrimeVideo', url: 'https://www.amazon.com/s?k={query}&i=instant-video', enabled: true, builtin: true },
+  { id: 'builtin_netflix', name: 'Netflix', url: 'https://www.netflix.com/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_hulu', name: 'Hulu', url: 'https://www.hulu.com/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_danime', name: 'DAnimeStore', url: 'https://animestore.docomo.ne.jp/animestore/sch_pc?searchKey={query}', enabled: true, builtin: true },
+  { id: 'builtin_unext', name: 'UNEXT', url: 'https://video.unext.jp/freeword?query={query}', enabled: true, builtin: true },
+  { id: 'builtin_anime1', name: 'Anime1', url: 'https://anime1.me/?s={query}', enabled: true, builtin: true },
+  { id: 'builtin_nyaa', name: 'Nyaa', url: 'https://nyaa.si/?f=0&c=1_2&q={query}', enabled: true, builtin: true },
+  { id: 'builtin_mikan', name: '蜜柑计划', url: 'https://mikanani.me/Home/Search?searchstr={query}', enabled: true, builtin: true },
+  { id: 'builtin_masteranime', name: 'MasterAnime', url: 'https://masteranime.tv/search?key={query}', enabled: true, builtin: true },
+  { id: 'builtin_jkanime', name: 'JKAnime', url: 'https://jkanime.net/buscar/{query}', enabled: true, builtin: true },
+  { id: 'builtin_subsplease', name: 'SubsPlease', url: 'https://subsplease.org/shows/?search={query}', enabled: true, builtin: true },
+  { id: 'builtin_erairaws', name: 'Erai-raws', url: 'https://www.erai-raws.info/?s={query}', enabled: true, builtin: true },
+  { id: 'builtin_nimegami', name: 'Nimegami', url: 'https://nimegami.id/?s={query}', enabled: true, builtin: true },
+  { id: 'builtin_animetosho', name: 'AnimeTosho', url: 'https://animetosho.org/search?q={query}', enabled: true, builtin: true },
+  { id: 'builtin_otakudesu', name: 'OtakuDesu', url: 'https://otakudesu.cloud/?s={query}', enabled: true, builtin: true },
+];
+
+function isBuiltinSource(id) {
+  for (var i = 0; i < BUILTIN_SOURCES.length; i++) {
+    if (BUILTIN_SOURCES[i].id === id) return true;
+  }
+  return false;
 }
 const CAT_ICONS = {
   chinese_anime:'🇨🇳', japanese_anime:'🇯🇵', theatrical_anime:'🎬',
@@ -2825,6 +3525,7 @@ function closeSidebar() { document.getElementById('sidebar').classList.remove('o
 // ===== Folders =====
 function renderFolderList() {
   const container = document.getElementById('sidebarFolders');
+  if (!container) return;
   container.innerHTML = folderList.map(f => {
     const count = animeList.filter(a => a.folderId === f.id).length;
     return `<div class="sidebar-source-item${currentFolderId === f.id ? ' enabled' : ''}" onclick="openFolder(${f.id})" title="${escapeHtml(f.name)} · ${count} 部">
@@ -2923,18 +3624,22 @@ function escapeHtml(str) { const d = document.createElement('div'); d.textConten
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (selectionMode) { toggleSelectionMode(); return; }
+    if (_semanticBarOpen) { toggleSemanticSearch(); return; }
+    if (_mainSearchOpen) { toggleMainSearch(); return; }
     var visible = function(id) { var el = document.getElementById(id); return el && el.style.display !== 'none'; };
     if (visible('settingsModalOverlay')) closeSettingsModal();
     else if (visible('sourceModalOverlay')) closeAddSourceModal();
     else if (visible('batchSourceModalOverlay')) closeBatchSourceModal();
     else if (visible('folderModalOverlay')) closeFolderModal();
     else if (visible('sourceManagerOverlay')) closeSourceManager();
+    else if (visible('semanticSearchOverlay')) closeSemanticSearchModal();
+    else if (visible('recommendOverlay')) closeRecommendModal();
     else if (visible('deleteConfirmOverlay')) closeDeleteConfirm();
     else if (visible('modalOverlay')) closeModal();
     else if (visible('batchAddOverlay')) closeBatchAddModal();
     else if (visible('detailOverlay')) closeDetailPopup();
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); if (!_mainSearchOpen) toggleMainSearch(); }
 });
 
 // ===== Theme System =====
@@ -3453,6 +4158,50 @@ function openAuthModal() {
   document.getElementById('authPassword').value = '';
   document.getElementById('authPasswordConfirm').value = '';
   document.getElementById('authMsg').style.display = 'none';
+  renderAuthRememberedAccounts();
+}
+
+function renderAuthRememberedAccounts() {
+  var remembered = loadRememberedAccounts();
+  var section = document.getElementById('authRememberedSection');
+  var listEl = document.getElementById('authRememberedList');
+  if (!section || !listEl) return;
+  if (remembered.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  var html = '';
+  for (var i = 0; i < remembered.length; i++) {
+    var acc = remembered[i];
+    var icon = acc.isCloud ? '☁️' : '🖥';
+    html += '<button onclick="fillRememberedAccount(\'' + jsStr(acc.username) + '\')" style="padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-family:inherit;font-size:0.78rem;white-space:nowrap;transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'var(--color-primary)\';this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\';this.style.background=\'transparent\'">' + icon + ' ' + escapeHtml(acc.username) + '</button>';
+  }
+  listEl.innerHTML = html;
+}
+
+function fillRememberedAccount(username) {
+  document.getElementById('authUsername').value = username;
+  document.getElementById('authPasswordConfirm').value = '';
+  document.getElementById('authMsg').style.display = 'none';
+  // Auto-fill password from remembered entry
+  var list = loadRememberedAccounts();
+  var pwd = '';
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].username.toLowerCase() === username.toLowerCase() && list[i].password) {
+      pwd = atob(list[i].password);
+      break;
+    }
+  }
+  document.getElementById('authPassword').value = pwd;
+  if (pwd) {
+    document.getElementById('authPassword').focus();
+    document.getElementById('authPassword').select();
+    return true;
+  } else {
+    setTimeout(function() { document.getElementById('authPassword').focus(); }, 100);
+    return false;
+  }
 }
 
 function closeAuthModal() {
@@ -3514,6 +4263,8 @@ async function handleAuthSubmit() {
       }
       // After successful login, load cloud data
       await loadCloudData();
+      await loadSourceList(); // merge built-in sources
+      rememberAccount(account, null, true, password);
       updateAuthUI();
       closeAuthModal();
       renderFolderList();
@@ -3548,6 +4299,7 @@ async function handleAuthSubmit() {
 
     localStorage.setItem('anime_auth_token', data.token);
     localStorage.setItem('anime_auth_username', data.username);
+    rememberAccount(data.username, data.token, false, password);
     updateAuthUI();
     closeAuthModal();
     showToast((authMode === 'register' ? '注册成功' : '登录成功') + '，欢迎 ' + data.username + ' ✓');
@@ -3557,13 +4309,172 @@ async function handleAuthSubmit() {
   }
 }
 
+function jsStr(s) {
+  return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+}
+
+// ===== Remembered Accounts =====
+function loadRememberedAccounts() {
+  try { return JSON.parse(localStorage.getItem(_RAK) || '[]'); } catch(e) { return []; }
+}
+function saveRememberedAccounts(list) {
+  localStorage.setItem(_RAK, JSON.stringify(list));
+}
+function rememberAccount(username, token, isCloud, password) {
+  var list = loadRememberedAccounts();
+  // Remove existing entry with same username
+  list = list.filter(function(a) { return a.username.toLowerCase() !== username.toLowerCase(); });
+  var entry = { username: username, isCloud: !!isCloud };
+  if (token) entry.token = token;
+  if (password) entry.password = btoa(password); // base64 obfuscation
+  list.unshift(entry); // most recent first
+  // Keep max 5 remembered accounts
+  if (list.length > 5) list = list.slice(0, 5);
+  saveRememberedAccounts(list);
+}
+function forgetAccount(username) {
+  var list = loadRememberedAccounts();
+  list = list.filter(function(a) { return a.username.toLowerCase() !== username.toLowerCase(); });
+  saveRememberedAccounts(list);
+}
+async function switchToRememberedAccount(username, isCloud) {
+  var menu = document.getElementById('authUserMenu');
+  if (menu) menu.remove();
+
+  // Quiet logout (skip server-side token invalidation to preserve other accounts' tokens)
+  await handleLogout(true);
+
+  var list = loadRememberedAccounts();
+  var entry = null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].username.toLowerCase() === username.toLowerCase()) {
+      entry = list[i]; break;
+    }
+  }
+
+  // ===== Cloud account =====
+  if (isCloud) {
+    if (entry && entry.password) {
+      try {
+        await window.AnimeCloud.login(username, atob(entry.password));
+        await loadCloudData();
+        await loadSourceList();
+        rememberAccount(username, null, true, atob(entry.password));
+        updateAuthUI();
+        renderFolderList();
+        renderCards();
+        showToast('已切换至 ' + window.AnimeCloud.displayName);
+        return;
+      } catch(e) {
+        forgetAccount(username);
+        showToast('云同步登录失败：' + (e.message || '密码可能已变更'));
+      }
+    }
+    // No stored password — open modal (user needs to enter password once)
+    authMode = 'login';
+    setAuthModeUI();
+    document.getElementById('authModalOverlay').style.display = 'flex';
+    fillRememberedAccount(username);
+    renderAuthRememberedAccounts();
+    return;
+  }
+
+  // ===== Local account =====
+  // Try token, then password re-login
+  var loginOk = await tryLocalAutoLogin(entry, username);
+  if (loginOk) return;
+
+  // Auto-login failed — try filling form and submitting (last resort)
+  authMode = 'login';
+  setAuthModeUI();
+  document.getElementById('authModalOverlay').style.display = 'flex';
+  var hasPwd = fillRememberedAccount(username);
+  renderAuthRememberedAccounts();
+  if (hasPwd) {
+    // Auto-submit with stored credentials
+    handleAuthSubmit();
+  }
+}
+
+// Try to log in a local account: token first, then stored password
+// Returns true if login succeeded
+async function tryLocalAutoLogin(entry, username) {
+  if (!entry) return false;
+
+  // 1) Try stored token
+  if (entry.token) {
+    try {
+      var resp = await fetch(BACKEND_URL + '/api/auth/me', {
+        headers: { 'Authorization': 'Bearer ' + entry.token }
+      });
+      if (resp.ok) {
+        var data = await resp.json();
+        localStorage.setItem('anime_auth_token', entry.token);
+        localStorage.setItem('anime_auth_username', data.username || username);
+        await loadSourceList();
+        updateAuthUI();
+        showToast('已切换至 ' + (data.username || username));
+        return true;
+      }
+    } catch(e) {}
+  }
+
+  // 2) Token invalid — re-login with stored password
+  if (entry.password) {
+    try {
+      var loginResp = await fetch(BACKEND_URL + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: atob(entry.password) })
+      });
+      if (loginResp.ok) {
+        var loginData = await loginResp.json();
+        localStorage.setItem('anime_auth_token', loginData.token);
+        localStorage.setItem('anime_auth_username', loginData.username);
+        rememberAccount(loginData.username, loginData.token, false, atob(entry.password));
+        await loadSourceList();
+        updateAuthUI();
+        showToast('已切换至 ' + loginData.username);
+        return true;
+      }
+    } catch(e) {}
+  }
+
+  return false;
+}
+
 function showAuthUserMenu() {
-  const name = getUserDisplayName();
-  const menu = document.createElement('div');
+  var name = getUserDisplayName();
+  var menu = document.createElement('div');
   menu.id = 'authUserMenu';
-  menu.style.cssText = 'position:fixed;top:56px;right:140px;z-index:300;background:var(--color-base-200);border:2px solid var(--color-primary);border-radius:10px;padding:16px;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5);text-align:center';
-  menu.innerHTML = '<div style="font-weight:700;margin-bottom:8px">👤 ' + name + '</div>'
-    + '<button onclick="handleLogout()" style="padding:6px 16px;border-radius:6px;border:1px solid var(--color-error);background:transparent;color:var(--color-error);cursor:pointer;font-family:inherit">退出登录</button>';
+  menu.style.cssText = 'position:fixed;top:56px;right:140px;z-index:300;background:var(--color-base-200);border:2px solid var(--color-primary);border-radius:10px;padding:12px;min-width:200px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
+  var html = '<div style="font-weight:700;margin-bottom:10px;text-align:center;font-size:0.9rem">👤 ' + name + '</div>';
+
+  // Show remembered accounts (excluding current)
+  var remembered = loadRememberedAccounts();
+  var otherAccounts = remembered.filter(function(a) {
+    return a.username.toLowerCase() !== name.toLowerCase();
+  });
+  if (otherAccounts.length > 0) {
+    html += '<div style="font-size:0.65rem;font-weight:600;opacity:0.4;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;text-align:left;padding-left:4px">已记住的账号</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">';
+    for (var i = 0; i < otherAccounts.length; i++) {
+      var acc = otherAccounts[i];
+      var icon = acc.isCloud ? '☁️' : '🖥';
+      html += '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s ease;font-size:0.85rem" onclick="switchToRememberedAccount(\'' + jsStr(acc.username) + '\', ' + (acc.isCloud ? 'true' : 'false') + ')" onmouseenter="this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.background=\'transparent\'">'
+        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + icon + ' ' + escapeHtml(acc.username) + '</span>'
+        + '<span onclick="event.stopPropagation();forgetAccount(\'' + jsStr(acc.username) + '\');showAuthUserMenu()" style="font-size:0.7rem;opacity:0.35;cursor:pointer;padding:2px 4px" title="移除记住">✕</span>'
+        + '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '<div style="display:flex;flex-direction:column;gap:6px">'
+    + '<button onclick="handleSwitchAccount()" style="padding:8px 0;border-radius:6px;border:1px solid var(--color-primary);background:transparent;color:var(--color-primary);cursor:pointer;font-family:inherit;font-size:0.85rem;width:100%">🔄 切换其他账号</button>'
+    + '<button onclick="handleLogout()" style="padding:8px 0;border-radius:6px;border:1px solid var(--color-error);background:transparent;color:var(--color-error);cursor:pointer;font-family:inherit;font-size:0.85rem;width:100%">退出登录</button>'
+    + '</div>';
+  menu.innerHTML = html;
+
   const existing = document.getElementById('authUserMenu');
   if (existing) existing.remove();
   document.body.appendChild(menu);
@@ -3577,7 +4488,53 @@ function showAuthUserMenu() {
   }, 0);
 }
 
-async function handleLogout() {
+async function handleSwitchAccount() {
+  var menu = document.getElementById('authUserMenu');
+  if (menu) menu.remove();
+  // Remember current account before switching away
+  var name = getUserDisplayName();
+  var isCloud = useCloudAuth();
+  var token = null;
+  if (!isCloud) token = localStorage.getItem('anime_auth_token');
+  // Get password from existing remembered entry if available
+  var existingList = loadRememberedAccounts();
+  var existingPwd = null;
+  for (var i = 0; i < existingList.length; i++) {
+    if (existingList[i].username.toLowerCase() === name.toLowerCase()) {
+      existingPwd = existingList[i].password ? atob(existingList[i].password) : null;
+      break;
+    }
+  }
+  if (name) rememberAccount(name, token, isCloud, existingPwd);
+  await handleLogout(true);
+  // Open login modal after logout
+  authMode = 'login';
+  setAuthModeUI();
+  document.getElementById('authModalOverlay').style.display = 'flex';
+  document.getElementById('authUsername').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authPasswordConfirm').value = '';
+  document.getElementById('authMsg').style.display = 'none';
+}
+
+async function handleLogout(quiet) {
+  var currentName = getUserDisplayName();
+  var isCloud = useCloudAuth();
+  var token = null;
+  if (!isCloud) token = localStorage.getItem('anime_auth_token');
+  // Remember account before normal logout (switch already saved via handleSwitchAccount)
+  if (currentName && !quiet) {
+    var existingPwd = null;
+    var existingList = loadRememberedAccounts();
+    for (var i = 0; i < existingList.length; i++) {
+      if (existingList[i].username.toLowerCase() === currentName.toLowerCase()) {
+        existingPwd = existingList[i].password ? atob(existingList[i].password) : null;
+        break;
+      }
+    }
+    rememberAccount(currentName, token, isCloud, existingPwd);
+  }
+
   if (useCloudAuth()) {
     // Clear data BEFORE logout — logout triggers onAuthStateChanged
     // which would otherwise reload localStorage before we get to clear it
@@ -3594,20 +4551,22 @@ async function handleLogout() {
     updateAuthUI();
     renderFolderList();
     renderCards();
-    showToast('已退出登录，数据已清除');
+    if (!quiet) showToast('已退出登录，数据已清除');
   } else {
-    try {
-      await fetch(BACKEND_URL + '/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('anime_auth_token') },
-      });
-    } catch(e) {}
+    if (!quiet) {
+      try {
+        await fetch(BACKEND_URL + '/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('anime_auth_token') },
+        });
+      } catch(e) {}
+    }
     localStorage.removeItem('anime_auth_token');
     localStorage.removeItem('anime_auth_username');
     updateAuthUI();
     const menu = document.getElementById('authUserMenu');
     if (menu) menu.remove();
-    showToast('已退出登录');
+    if (!quiet) showToast('已退出登录');
   }
 }
 
@@ -3714,6 +4673,7 @@ function initAuth() {
           if (!_cloudDataLoaded) {
             _cloudDataLoaded = true;
             await loadCloudData();
+            await loadSourceList(); // merge built-in sources
           }
         } else {
           _cloudDataLoaded = false;

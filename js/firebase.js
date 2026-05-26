@@ -161,12 +161,20 @@
 
   CLOUD.saveAllFolders = async function(list) {
     if (!CLOUD.loggedIn) return;
-    const batch = db.batch();
     const col = folderCol();
-    list.forEach(function(f) {
-      batch.set(col.doc(String(f.id)), folderDoc(f));
-    });
-    await batch.commit();
+    // Delete all existing folder docs first (so removed folders don't come back)
+    const existing = await col.get();
+    const deleteBatch = db.batch();
+    existing.docs.forEach(function(d) { deleteBatch.delete(d.ref); });
+    if (existing.docs.length > 0) await deleteBatch.commit();
+    // Write current list
+    if (list.length > 0) {
+      const batch = db.batch();
+      list.forEach(function(f) {
+        batch.set(col.doc(String(f.id)), folderDoc(f));
+      });
+      await batch.commit();
+    }
   };
 
   // ========== Data: Sources ==========
@@ -197,12 +205,20 @@
 
   CLOUD.saveAllSources = async function(list) {
     if (!CLOUD.loggedIn) return;
-    const batch = db.batch();
     const col = sourceCol();
-    list.forEach(function(s) {
-      batch.set(col.doc(String(s.id)), sourceDoc(s));
-    });
-    await batch.commit();
+    // Delete all existing source docs first (so removed sources don't come back)
+    const existing = await col.get();
+    const deleteBatch = db.batch();
+    existing.docs.forEach(function(d) { deleteBatch.delete(d.ref); });
+    if (existing.docs.length > 0) await deleteBatch.commit();
+    // Write current list
+    if (list.length > 0) {
+      const batch = db.batch();
+      list.forEach(function(s) {
+        batch.set(col.doc(String(s.id)), sourceDoc(s));
+      });
+      await batch.commit();
+    }
   };
 
   // ========== Data: Settings ==========

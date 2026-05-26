@@ -330,12 +330,31 @@ async function parseGeneric(url) {
 const SOURCE_NAMES = {
   'bgm.tv': 'Bangumi 番组计划',
   'myanimelist.net': 'MyAnimeList',
+  'anilist.co': 'AniList',
 };
 
 const SEARCH_FUNCTIONS = {
   'bgm.tv': searchBgm,
   'myanimelist.net': searchMal,
+  'anilist.co': searchAniList,
 };
+
+// Detect if a source key or URL matches a built-in source
+function matchBuiltInSource(key, url) {
+  // Direct key match (e.g. "bgm.tv", "anilist.co")
+  if (SEARCH_FUNCTIONS[key]) return key;
+  if (!url) return null;
+  // URL pattern match
+  const patterns = {
+    'bgm.tv': 'bgm.tv/subject_search',
+    'myanimelist.net': 'myanimelist.net/anime',
+    'anilist.co': 'anilist.co',
+  };
+  for (const [k, pat] of Object.entries(patterns)) {
+    if (url.includes(pat)) return k;
+  }
+  return null;
+}
 
 const PARSE_FUNCTIONS = {
   'bgm': parseBgmSubject,
@@ -366,6 +385,7 @@ app.get('/api/ping', (_req, res) => {
 const BUILTIN_DEFAULT_URLS = {
   'bgm.tv': 'https://bgm.tv/subject_search/{query}?cat=2',
   'myanimelist.net': 'https://myanimelist.net/anime.php?q={query}',
+  'anilist.co': 'https://anilist.co/search/anime/{query}',
 };
 
 app.get('/api/sources', (_req, res) => {
@@ -401,16 +421,18 @@ app.get('/api/search', async (req, res) => {
   // Built-in sources (use custom URL if provided, otherwise use built-in search)
   for (const key of sourceKeys) {
     const customUrl = req.query[`url_${key}`];
-    if (customUrl && customUrl.includes('{query}')) {
+    // Detect built-in source by URL pattern or key match
+    const builtInKey = matchBuiltInSource(key, customUrl);
+    if (builtInKey && SEARCH_FUNCTIONS[builtInKey]) {
+      promises.push(
+        SEARCH_FUNCTIONS[builtInKey](q).then(r => { allResults.push(...r); }).catch(e => console.error(`[${builtInKey}]`, e.message))
+      );
+    } else if (customUrl && customUrl.includes('{query}')) {
       // Custom URL override → use generic search
       promises.push(
         genericSearch(customUrl, q).then(r => {
           allResults.push(...r.map(item => ({ ...item, source: SOURCE_NAMES[key] || key })));
         }).catch(e => console.error(`[${key}:custom]`, e.message))
-      );
-    } else if (SEARCH_FUNCTIONS[key]) {
-      promises.push(
-        SEARCH_FUNCTIONS[key](q).then(r => { allResults.push(...r); }).catch(e => console.error(`[${key}]`, e.message))
       );
     }
   }
@@ -793,6 +815,205 @@ app.post('/api/test-search', async (req, res) => {
     const results = await genericSearch(searchUrl, query);
     res.json({ results });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== Recommend (Content-Based) ==========
+// POST /api/recommend — takes user's anime list, returns recommendations
+app.post('/api/recommend', async (req, res) => {
+  const { animeList, limit } = req.body;
+  if (!Array.isArray(animeList) || animeList.length === 0) {
+    return res.json({ recommendations: [] });
+  }
+  const n = Math.min(limit || 10, 20);
+
+  try {
+    // 1. Build genre profile from user's highly-rated anime
+    var genreWeights = {};
+    var totalWeight = 0;
+    for (var i = 0; i < animeList.length; i++) {
+      var a = animeList[i];
+      var score = a.score || 5;
+      var weight = score >= 7 ? 2 : score >= 5 ? 1 : 0;
+      if (weight === 0) continue;
+      var genres = a.genres || [];
+      for (var g = 0; g < genres.length; g++) {
+        var genre = genres[g].trim().toLowerCase();
+        genreWeights[genre] = (genreWeights[genre] || 0) + weight;
+        totalWeight += weight;
+      }
+    }
+
+    // Normalize
+    var topGenres = Object.entries(genreWeights)
+      .sort(function(a, b) { return b[1] - a[1]; })
+      .slice(0, 5)
+      .map(function(e) { return e[0]; });
+
+    if (topGenres.length === 0) {
+      return res.json({ recommendations: [], profile: { topGenres: [] } });
+    }
+
+    // 2. Search external sources for each top genre
+    var allCandidates = [];
+    var seenIds = new Set();
+    // Track what user already has (by title lowercase)
+    var ownedTitles = new Set();
+    for (var oi = 0; oi < animeList.length; oi++) {
+      ownedTitles.add(animeList[oi].title.toLowerCase().replace(/[^a-z0-9一-鿿]/g, ''));
+    }
+
+    for (var tg = 0; tg < Math.min(topGenres.length, 3); tg++) {
+      try {
+        // Use MAL API to search by genre (via Jikan genre search)
+        var genreQuery = topGenres[tg];
+        // Jikan doesn't have direct genre search, so use general search with genre keyword
+        var resp = await fetch(
+          'https://api.jikan.moe/v4/anime?q=' + encodeURIComponent(genreQuery) + '&limit=8&sfw=true&order_by=score&sort=desc',
+          { signal: AbortSignal.timeout(8000) }
+        );
+        if (resp.ok) {
+          var json = await resp.json();
+          var items = json.data || [];
+          for (var j = 0; j < items.length; j++) {
+            var item = items[j];
+            var key = 'mal_' + item.mal_id;
+            if (seenIds.has(key)) continue;
+            seenIds.add(key);
+            var titleKey = (item.title || '').toLowerCase().replace(/[^a-z0-9一-鿿]/g, '');
+            if (ownedTitles.has(titleKey)) continue;
+            var itemGenres = (item.genres || []).map(function(g) { return g.name ? g.name.trim().toLowerCase() : ''; });
+            var matchCount = 0;
+            for (var mg = 0; mg < itemGenres.length; mg++) {
+              if (topGenres.indexOf(itemGenres[mg]) !== -1) matchCount++;
+            }
+            allCandidates.push({
+              title: item.title || item.title_english || '',
+              titleEn: item.title_english || '',
+              cover: item.images?.jpg?.large_image_url || '',
+              url: item.url || 'https://myanimelist.net/anime/' + item.mal_id,
+              score: item.score || null,
+              episodes: item.episodes || 0,
+              genres: (item.genres || []).map(function(g) { return g.name || ''; }),
+              synopsis: (item.synopsis || '').substring(0, 300),
+              source: 'myanimelist.net',
+              matchScore: matchCount,
+            });
+          }
+        }
+      } catch(e) { /* skip failed source */ }
+    }
+
+    // 3. Sort by match score (genre overlap) then by rating
+    allCandidates.sort(function(a, b) {
+      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+      return (b.score || 0) - (a.score || 0);
+    });
+
+    res.json({
+      profile: { topGenres: topGenres },
+      recommendations: allCandidates.slice(0, n),
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== Semantic Search (Plot/Description Search) ==========
+// POST /api/semantic-search — search anime by plot description or story keywords
+app.post('/api/semantic-search', async (req, res) => {
+  var query = (req.body.query || '').trim();
+  if (!query) return res.json({ results: [] });
+
+  try {
+    // 1. Extract keywords from the query
+    var keywords = query
+      .replace(/[，。！？、；：""''【】《》（）\s]+/g, ' ')
+      .split(' ')
+      .filter(function(w) { return w.length >= 2; });
+
+    if (keywords.length === 0) keywords = [query];
+
+    var allResults = [];
+    var seenUrls = new Set();
+
+    // 2. Search MAL for each keyword and collect descriptions
+    for (var k = 0; k < Math.min(keywords.length, 2); k++) {
+      try {
+        var resp = await fetch(
+          'https://api.jikan.moe/v4/anime?q=' + encodeURIComponent(keywords[k]) + '&limit=8&sfw=true',
+          { signal: AbortSignal.timeout(8000) }
+        );
+        if (!resp.ok) continue;
+        var json = await resp.json();
+        var items = json.data || [];
+        for (var j = 0; j < items.length; j++) {
+          var item = items[j];
+          var key = item.url || ('mal_' + item.mal_id);
+          if (seenUrls.has(key)) continue;
+          seenUrls.add(key);
+
+          // Calculate relevance score: keyword match in title + synopsis
+          var title = (item.title || '').toLowerCase();
+          var synopsis = (item.synopsis || '').toLowerCase();
+          var relevance = 0;
+          for (var kw = 0; kw < keywords.length; kw++) {
+            var kwLower = keywords[kw].toLowerCase();
+            if (title.indexOf(kwLower) !== -1) relevance += 3;
+            if (synopsis.indexOf(kwLower) !== -1) relevance += 1;
+          }
+
+          if (relevance > 0 || k === 0) {
+            allResults.push({
+              title: item.title || item.title_english || '',
+              titleEn: item.title_english || '',
+              cover: item.images?.jpg?.large_image_url || '',
+              url: key,
+              score: item.score || null,
+              episodes: item.episodes || 0,
+              genres: (item.genres || []).map(function(g) { return g.name || ''; }),
+              synopsis: (item.synopsis || '').substring(0, 400),
+              source: 'myanimelist.net',
+              relevance: relevance,
+              year: item.year || null,
+            });
+          }
+        }
+      } catch(e) { /* skip */ }
+    }
+
+    // 3. Also try generic search on Bangumi for Chinese queries
+    if (/[一-鿿]/.test(query)) {
+      try {
+        var bgmResults = await searchBgm(query);
+        for (var bi = 0; bi < bgmResults.length; bi++) {
+          var br = bgmResults[bi];
+          if (!seenUrls.has(br.url)) {
+            seenUrls.add(br.url);
+            allResults.push({
+              title: br.title,
+              titleEn: '',
+              cover: br.cover || '',
+              url: br.url,
+              score: br.score || null,
+              episodes: br.episodes || 0,
+              genres: [],
+              synopsis: '',
+              source: 'bgm.tv',
+              relevance: 5,
+              year: null,
+            });
+          }
+        }
+      } catch(e) { /* skip */ }
+    }
+
+    // 4. Sort by relevance
+    allResults.sort(function(a, b) { return b.relevance - a.relevance; });
+
+    res.json({ results: allResults.slice(0, 15) });
+  } catch(e) {
     res.status(500).json({ error: e.message });
   }
 });
