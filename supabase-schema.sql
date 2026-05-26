@@ -1,5 +1,8 @@
 -- Run this SQL in your Supabase project's SQL Editor (https://app.supabase.com)
 
+-- === For existing installations: add covers column ===
+-- ALTER TABLE anime_items ADD COLUMN IF NOT EXISTS covers jsonb DEFAULT '[]'::jsonb;
+
 -- User settings (API keys, preferences)
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -33,6 +36,7 @@ CREATE TABLE IF NOT EXISTS anime_items (
   synopsis text DEFAULT '',
   score real,
   genres jsonb DEFAULT '[]'::jsonb,
+  covers jsonb DEFAULT '[]'::jsonb,
   year integer,
   source_url text DEFAULT '',
   folder_id text,

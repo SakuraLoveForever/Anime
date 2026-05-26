@@ -3026,6 +3026,7 @@ async function batchAiFillAll() {
         if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) { a.genres = data.genres; updated = true; }
         if (data.score && !a.score) { a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null; updated = true; }
         if (!a.cover && data.cover) { a.cover = data.cover; updated = true; }
+        if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; updated = true; }
       }
     } catch(e) {}
     done++;
@@ -3109,7 +3110,8 @@ async function aiFillCard(id) {
       if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) a.genres = data.genres;
       if (data.episodes > 0 && !a.totalEpisodes) a.totalEpisodes = data.episodes;
       if (data.category && data.category.trim() && !a.category) a.category = normalizeCategory(data.category);
-      if (!a.cover && data.cover) a.cover = data.cover;
+      if (!a.cover && data.cover) { a.cover = data.cover; }
+      if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; }
       if (data.score && !a.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
       saveData();
       renderCards();
@@ -3294,7 +3296,6 @@ function openEditModal(animeId) {
   const a = animeList.find(x => x.id === animeId);
   if (!a) { showToast('未找到番剧'); return; }
   editingId = animeId; pendingCoverDataUrl = null; sourceResults = []; chosenSourceIdx = -1;
-  document.getElementById('coverPicker').style.display = 'none';
   document.getElementById('modalTitle').textContent = '编辑番剧';
   document.getElementById('btnSave').textContent = '保存';
   document.getElementById('mTitle').value = a.title; document.getElementById('mTitle')._genres = a.genres || null;
@@ -3312,6 +3313,13 @@ function openEditModal(animeId) {
   const preview = document.getElementById('coverPreview');
   if (a.cover) preview.innerHTML = `<img src="${escapeHtml(a.cover)}" alt="封面预览" onerror="this.parentElement.innerHTML='<span class=\\'placeholder\\'>预览</span>'">`;
   else preview.innerHTML = '<span class="placeholder">预览</span>';
+  if (a.covers && a.covers.length > 1) {
+    renderCoverOptions(a.covers);
+    var selIdx = a.covers.findIndex(function(c) { return c.url === a.cover; });
+    if (selIdx >= 0) selectCover(selIdx);
+  } else {
+    document.getElementById('coverPicker').style.display = 'none';
+  }
   document.getElementById('modalOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('mTitle').focus(), 100);
 }
@@ -3341,13 +3349,20 @@ function saveAnime() {
   let score = scoreRaw ? parseFloat(scoreRaw) : null;
   if (score !== null && (isNaN(score) || score < 0 || score > 10)) score = null;
   const finalCover = pendingCoverDataUrl || coverUrl;
+  // Collect all cover options from picker if visible
+  const coverOptsContainer = document.getElementById('coverOptions');
+  var savedCovers = [];
+  if (coverOptsContainer._covers && coverOptsContainer._covers.length > 0) {
+    savedCovers = coverOptsContainer._covers;
+  }
 
   if (editingId) {
     const a = animeList.find(x => x.id === editingId); if (!a) return;
-    const before = { title: a.title, status: a.status, totalEpisodes: a.totalEpisodes, score: a.score, cover: a.cover, synopsis: a.synopsis, genres: a.genres ? a.genres.slice() : [], category: a.category, folderId: a.folderId, sourceUrl: a.sourceUrl, watchedEpisodes: a.watchedEpisodes ? a.watchedEpisodes.slice() : [] };
+    if (!savedCovers.length && a.covers) savedCovers = a.covers;
+    const before = { title: a.title, status: a.status, totalEpisodes: a.totalEpisodes, score: a.score, cover: a.cover, synopsis: a.synopsis, genres: a.genres ? a.genres.slice() : [], covers: a.covers ? a.covers.slice() : [], category: a.category, folderId: a.folderId, sourceUrl: a.sourceUrl, watchedEpisodes: a.watchedEpisodes ? a.watchedEpisodes.slice() : [] };
     const oldTotal = a.totalEpisodes || 12;
     a.title = title; a.status = status; a.totalEpisodes = totalEpisodes;
-    a.score = score; a.cover = finalCover; a.synopsis = synopsis; a.sourceUrl = sourceUrl; a.genres = genres;
+    a.score = score; a.cover = finalCover; a.synopsis = synopsis; a.sourceUrl = sourceUrl; a.genres = genres; a.covers = savedCovers;
     a.category = category; a.folderId = folderId;
     if (totalEpisodes < oldTotal && a.watchedEpisodes) a.watchedEpisodes = a.watchedEpisodes.filter(e => e <= totalEpisodes);
     if (status === 'watched') a.watchedEpisodes = Array.from({length: totalEpisodes}, (_,i)=>i+1);
@@ -3358,7 +3373,7 @@ function saveAnime() {
     let we = [];
     if (status === 'watched') we = Array.from({length: totalEpisodes}, (_,i)=>i+1);
     var newId = Date.now();
-    animeList.push({ id: newId, title, status, totalEpisodes, watchedEpisodes: we, score, cover: finalCover, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() });
+    animeList.push({ id: newId, title, status, totalEpisodes, watchedEpisodes: we, score, cover: finalCover, covers: savedCovers, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() });
     saveData(); closeModal(); renderCards();
     showToast('已添加 ✓', { type: 'add', ids: [newId] });
   }
