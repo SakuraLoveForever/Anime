@@ -3325,9 +3325,20 @@ function setCover(url) {
 async function batchFetchCovers() {
   if (!backendOnline) { showToast('后端未连接'); return; }
   if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
-  var all = animeList.filter(function(a) { return a && a.title; });
+  // Support selection mode: if cards are selected, only process those
+  var useSelection = selectionMode && selectedIds.size > 0;
+  var all;
+  if (useSelection) {
+    var selectedIdSet = selectedIds;
+    all = animeList.filter(function(a) { return a && a.title && selectedIdSet.has(a.id); });
+  } else {
+    all = animeList.filter(function(a) { return a && a.title; });
+  }
   if (all.length === 0) { showToast('还没有添加任何番剧'); return; }
-  if (!confirm('即将为全部 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将与现有封面合并保存，已有封面不会被覆盖。\n之后可随时在编辑界面切换封面。\n\n是否继续？')) return;
+  var confirmMsg = useSelection
+    ? '即将为选中的 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将与现有封面合并保存，已有封面不会被覆盖。\n之后可随时在编辑界面切换封面。\n\n是否继续？'
+    : '即将为全部 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将与现有封面合并保存，已有封面不会被覆盖。\n之后可随时在编辑界面切换封面。\n\n是否继续？';
+  if (!confirm(confirmMsg)) return;
 
   var btn = document.getElementById('btnCoverExplorer');
   var origText = btn.textContent;
@@ -3372,7 +3383,12 @@ async function batchFetchCovers() {
   renderCards();
   btn.textContent = origText;
   btn.disabled = false;
-  showToast('封面探索完成！共为 ' + enriched + '/' + done + ' 部番剧找到多张封面 ✓');
+  if (useSelection) {
+    showToast('封面探索完成！为选中的 ' + enriched + '/' + done + ' 部番剧找到多张封面 ✓');
+    deselectAllCards();
+  } else {
+    showToast('封面探索完成！共为 ' + enriched + '/' + done + ' 部番剧找到多张封面 ✓');
+  }
 }
 
 function renderCoverOptions(covers) {
