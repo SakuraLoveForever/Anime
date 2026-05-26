@@ -1110,6 +1110,7 @@
       <label>📁 上传封面图片</label>
       <input type="file" id="mCoverFile" accept="image/*" onchange="previewCoverFile()">
       <div class="modal-cover-preview" id="coverPreview"><span class="placeholder">预览</span></div>
+      <button class="btn-ai-fill" onclick="fetchCovers(event)" style="width:100%;margin-top:6px;font-size:0.82rem">🔍 搜索更多封面</button>
     </div>
 
     <div id="coverPicker" style="display:none">
@@ -3235,6 +3236,55 @@ function autoFill(r, src) {
 function setCover(url) {
   document.getElementById('mCover').value = url;
   document.getElementById('coverPreview').innerHTML = `<img src="${escapeHtml(url)}" alt="预览">`;
+}
+
+async function fetchCovers(ev) {
+  var title = document.getElementById('mTitle').value.trim();
+  if (!title || title.length < 2) { showToast('请先输入番剧名称'); return; }
+  if (!backendOnline) { showToast('后端未连接'); return; }
+  if (!apiKeyConfigured) { showToast('请先配置 API Key'); return; }
+  var btn = ev.target;
+  var orig = btn.textContent;
+  btn.textContent = '⏳ 搜索中...';
+  btn.disabled = true;
+  try {
+    var resp = await aiEnrich(title);
+    var data = (resp && resp.data) ? resp.data : resp;
+    var newCovers = (data && data.covers) ? data.covers : [];
+    if (newCovers.length === 0) {
+      showToast('未搜索到封面图片');
+      btn.textContent = orig;
+      btn.disabled = false;
+      return;
+    }
+    // Merge with existing covers, deduplicate
+    var container = document.getElementById('coverOptions');
+    var existing = [];
+    if (container._covers && container._covers.length > 0) {
+      existing = container._covers;
+    } else if (editingId) {
+      var a = animeList.find(function(x) { return x.id === editingId; });
+      if (a && a.covers && a.covers.length > 0) existing = a.covers;
+    }
+    var seen = new Set();
+    var merged = [];
+    var addAll = function(list) {
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].url && !seen.has(list[i].url)) {
+          seen.add(list[i].url);
+          merged.push(list[i]);
+        }
+      }
+    };
+    addAll(existing);
+    addAll(newCovers);
+    renderCoverOptions(merged);
+    showToast('找到 ' + newCovers.length + ' 张封面，共 ' + merged.length + ' 张可选 ✓');
+  } catch(e) {
+    showToast('搜索封面失败：' + e.message);
+  }
+  btn.textContent = orig;
+  btn.disabled = false;
 }
 
 function renderCoverOptions(covers) {
