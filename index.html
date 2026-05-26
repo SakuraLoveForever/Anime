@@ -3068,8 +3068,13 @@ function closeDetailPopup(e) {
 function renderDetailPopup(id) {
   const a = animeList.find(x => x.id === id);
   if (!a) { closeDetailPopup(); return; }
+  var total = a.totalEpisodes || 12;
+  // Ensure watched status always has all episodes checked
+  if (a.status === 'watched' && (!a.watchedEpisodes || a.watchedEpisodes.length < total)) {
+    a.watchedEpisodes = Array.from({length: total}, function(_, i) { return i + 1; });
+    saveData();
+  }
   const wc = a.watchedEpisodes ? a.watchedEpisodes.length : 0;
-  const total = a.totalEpisodes || 12;
   const st = { towatch: '待看', watching: '正在看', watched: '已看完' };
   let epsHTML = '';
   for (let i = 1; i <= total; i++) {
