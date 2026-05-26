@@ -3114,13 +3114,35 @@ function exportAllData() {
       apiKey: localStorage.getItem('anime_api_key') || ''
     }
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var now = new Date();
+  var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+  var filename = 'anime-backup-' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + '.json';
+  var jsonStr = JSON.stringify(data, null, 2);
+
+  // Try File System Access API first (Chromium browsers)
+  if (window.showSaveFilePicker) {
+    try {
+      var handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JSON 文件', accept: { 'application/json': ['.json'] } }]
+      });
+      var writable = await handle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+      showToast('数据已导出 ✓');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // User cancelled
+      // Fall through to legacy download
+    }
+  }
+
+  // Legacy fallback
+  const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  var now = new Date();
-  var pad = function(n) { return (n < 10 ? '0' : '') + n; };
-  a.download = 'anime-backup-' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + '.json';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
