@@ -758,9 +758,9 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
       if (score > bestScore) { bestScore = score; bestReal = r; }
     }
 
-    // Step 4: If good real match found, fetch full details for synopsis & genres
+    // Step 4: If good real match found (score >= 30), fetch full details
     let realDetail = null;
-    if (bestReal && bestReal.id) {
+    if (bestReal && bestReal.id && bestScore >= 30) {
       try {
         if (bestReal._src === 'bgm') {
           realDetail = await parseBgmSubject(bestReal.id);
@@ -790,7 +790,17 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
       source: bestReal ? (bestReal.source || bestReal._src) : 'DeepSeek AI',
     };
 
-    // Step 6: Collect all covers from real sources
+    // Helper to check if a result is a reasonable match for the query
+    const isRelevantMatch = (r, minScore) => {
+      let score = 0;
+      for (const t of searchTitles.slice(0, 3)) {
+        score = Math.max(score, fuzzyMatchScore(r.title, t));
+      }
+      score = Math.max(score, fuzzyMatchScore(r.title, q));
+      return score >= minScore;
+    };
+
+    // Step 6: Collect covers from matching real sources only
     const covers = [];
     const coverSeen = new Set();
     const addCover = (url, src, title) => {
@@ -801,7 +811,7 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
     };
     if (realDetail?.cover) addCover(realDetail.cover, realDetail._src === 'bgm' ? 'Bangumi' : 'MyAnimeList', realDetail.title);
     for (const r of allSearchResults) {
-      if (r.cover) addCover(r.cover, r.source || r._src, r.title);
+      if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, r.source || r._src, r.title);
     }
 
     // Step 7: Also search AniList for additional covers
@@ -809,7 +819,7 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
       try {
         const anilistResults = await searchAniList(title);
         for (const r of anilistResults) {
-          if (r.cover) addCover(r.cover, 'AniList', r.title);
+          if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, 'AniList', r.title);
         }
       } catch(e) {}
     }

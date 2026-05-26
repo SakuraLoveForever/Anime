@@ -1539,6 +1539,12 @@ function loadData() {
       a.category = DEFAULT_CATEGORY;
       fixed = true;
     }
+    // Fix: if status is watched, ensure all episodes are checked
+    var total = a.totalEpisodes || 12;
+    if (a.status === 'watched' && (!a.watchedEpisodes || a.watchedEpisodes.length < total)) {
+      a.watchedEpisodes = Array.from({length: total}, function(_, i) { return i + 1; });
+      fixed = true;
+    }
   }
   if (fixed) saveData();
   // Migrate from old key
@@ -3143,32 +3149,27 @@ async function fetchCoversForAnime(id) {
       showToast('未搜索到封面图片');
       return;
     }
-    var existing = a.covers || [];
+    // Keep current cover, replace the rest with new results
     var seen = new Set();
-    var merged = [];
-    for (var i = 0; i < existing.length; i++) {
-      if (existing[i].url && !seen.has(existing[i].url)) {
-        seen.add(existing[i].url);
-        merged.push(existing[i]);
-      }
-    }
+    var covers = [];
+    if (a.cover) { covers.push({ url: a.cover, source: '当前封面', title: '' }); seen.add(a.cover); }
     for (var i = 0; i < newCovers.length; i++) {
       if (newCovers[i].url && !seen.has(newCovers[i].url)) {
         seen.add(newCovers[i].url);
-        merged.push(newCovers[i]);
+        covers.push(newCovers[i]);
       }
     }
-    a.covers = merged;
+    a.covers = covers;
     saveData();
     detailPopupId = id;
     renderDetailPopup(id);
     renderCards();
     if (editingId === id) {
-      renderCoverOptions(merged);
-      var selIdx = merged.findIndex(function(c) { return c.url === a.cover; });
+      renderCoverOptions(covers);
+      var selIdx = covers.findIndex(function(c) { return c.url === a.cover; });
       if (selIdx >= 0) selectCover(selIdx);
     }
-    showToast('找到 ' + newCovers.length + ' 张封面，共 ' + merged.length + ' 张可选 ✓');
+    showToast('找到 ' + newCovers.length + ' 张封面，共 ' + covers.length + ' 张可选 ✓');
   } catch(e) {
     showToast('搜索封面失败：' + e.message);
   }
@@ -3435,8 +3436,8 @@ async function batchFetchCovers() {
   }
   if (all.length === 0) { showToast('还没有添加任何番剧'); return; }
   var confirmMsg = useSelection
-    ? '即将为选中的 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将与现有封面合并保存，已有封面不会被覆盖。\n之后可随时在编辑界面切换封面。\n\n是否继续？'
-    : '即将为全部 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将与现有封面合并保存，已有封面不会被覆盖。\n之后可随时在编辑界面切换封面。\n\n是否继续？';
+    ? '即将为选中的 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将替换之前的可选封面（当前主封面保留）。\n之后可随时在编辑界面切换封面。\n\n是否继续？'
+    : '即将为全部 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将替换之前的可选封面（当前主封面保留）。\n之后可随时在编辑界面切换封面。\n\n是否继续？';
   if (!confirm(confirmMsg)) return;
 
   var btn = document.getElementById('btnCoverExplorer');
@@ -3453,22 +3454,17 @@ async function batchFetchCovers() {
       var data = (resp && resp.data) ? resp.data : resp;
       var newCovers = (data && data.covers) ? data.covers : [];
       if (newCovers.length > 1) {
-        var existing = a.covers || [];
+        // Keep current cover, replace the rest with new results
         var seen = new Set();
-        var merged = [];
-        for (var j = 0; j < existing.length; j++) {
-          if (existing[j].url && !seen.has(existing[j].url)) {
-            seen.add(existing[j].url);
-            merged.push(existing[j]);
-          }
-        }
+        var covers = [];
+        if (a.cover) { covers.push({ url: a.cover, source: '当前封面', title: '' }); seen.add(a.cover); }
         for (var k = 0; k < newCovers.length; k++) {
           if (newCovers[k].url && !seen.has(newCovers[k].url)) {
             seen.add(newCovers[k].url);
-            merged.push(newCovers[k]);
+            covers.push(newCovers[k]);
           }
         }
-        a.covers = merged;
+        a.covers = covers;
         enriched++;
         saveData();
         renderCards();
