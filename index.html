@@ -405,6 +405,88 @@
   .card-grid.selection-mode .anime-card { cursor: pointer; }
   .card-grid.selection-mode .anime-card:hover { transform: none; }
 
+  /* ===== Compact Card Mode ===== */
+  .card-grid.compact {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .card-grid.compact .anime-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    min-height: 44px;
+    border-radius: 6px;
+    animation: none;
+    cursor: pointer;
+  }
+  .card-grid.compact .anime-card:hover {
+    transform: none;
+  }
+  .card-grid.compact .card-cover {
+    display: none;
+  }
+  .card-grid.compact .card-body {
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    min-width: 0;
+  }
+  .card-grid.compact .card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .card-grid.compact .card-genres {
+    display: none;
+  }
+  .card-grid.compact .card-meta {
+    margin-top: 0;
+    padding-top: 0;
+    flex-shrink: 0;
+    margin-left: auto;
+    gap: 12px;
+  }
+  .card-grid.compact .card-progress {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+  .card-grid.compact .card-progress-bar {
+    display: none;
+  }
+  .card-grid.compact .card-rating {
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+  .card-grid.compact .card-cat-badge {
+    display: none;
+  }
+  .card-grid.compact .card-status-badge {
+    position: static;
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+  }
+  .card-grid.compact .card-ai-hint {
+    position: static;
+    flex-shrink: 0;
+  }
+  @media (max-width: 768px) {
+    .card-grid.compact .card-meta {
+      gap: 6px;
+    }
+    .card-grid.compact .card-title {
+      font-size: 0.8rem;
+    }
+  }
+
   .anime-card {
     position: relative; display: flex; flex-direction: column;
     background: var(--color-base-200);
@@ -995,6 +1077,7 @@
         </select>
         <button class="sort-order-btn" id="sortOrderBtn" onclick="toggleSortOrder()" title="切换排序方向">↓</button>
         <button class="sort-order-btn" id="btnSelectMode" onclick="toggleSelectionMode()" title="批量选择">☑</button>
+        <button class="sort-order-btn" id="btnCompactMode" onclick="toggleCompactMode()" title="切换精简模式">📋</button>
       </div>
       <div class="batch-bar" id="batchBar" style="display:none">
         <span class="count" id="batchCount">已选 0 项</span>
@@ -2761,6 +2844,19 @@ function toggleSelectionMode() {
   }
   document.getElementById('cardGrid').classList.toggle('selection-mode', selectionMode);
   document.getElementById('btnSelectMode').classList.toggle('active', selectionMode);
+}
+
+let compactMode = localStorage.getItem('anime_compact_mode') === '1';
+function applyCompactMode() {
+  document.getElementById('cardGrid').classList.toggle('compact', compactMode);
+  document.getElementById('btnCompactMode').classList.toggle('active', compactMode);
+  document.getElementById('btnCompactMode').textContent = compactMode ? '📄' : '📋';
+  document.getElementById('btnCompactMode').title = compactMode ? '切换展开模式' : '切换精简模式';
+}
+function toggleCompactMode() {
+  compactMode = !compactMode;
+  localStorage.setItem('anime_compact_mode', compactMode ? '1' : '0');
+  applyCompactMode();
 }
 
 function updateBatchBar() {
@@ -4832,6 +4928,7 @@ function initAuth() {
   if (!backendOnline) await loadSourceList();
   renderFolderList();
   renderCards();
+  applyCompactMode();
 })();
 </script>
 </body>
