@@ -1122,6 +1122,7 @@
       <label>📁 上传封面图片</label>
       <input type="file" id="mCoverFile" accept="image/*" onchange="previewCoverFile()">
       <div class="modal-cover-preview" id="coverPreview"><span class="placeholder">预览</span></div>
+      <button class="btn-ai-fill" onclick="fetchCoversForAnime(editingId)" style="width:100%;margin-top:6px;font-size:0.82rem">🔍 获取多张封面</button>
     </div>
 
     <div id="coverPicker" style="display:none">
@@ -2981,6 +2982,19 @@ function renderDetailPopup(id) {
       ${a.score ? `<span>★ ${a.score.toFixed(1)}</span>` : ''}
     </div>
     <div class="detail-popup-section">
+      <div class="detail-popup-section-title">🖼 封面 · 点击切换</div>
+      ${a.covers && a.covers.length > 0 ? `
+        <div class="cover-options" style="margin-bottom:6px">
+          ${a.covers.map((c, i) => `
+            <div class="cover-option${c.url === a.cover ? ' selected' : ''}" onclick="selectCoverForAnime(${a.id},${i})" title="${escapeHtml(c.source || '')}">
+              <img src="${escapeHtml(c.url)}" loading="lazy" onerror="this.style.opacity='0.3'">
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div style="font-size:0.78rem;opacity:0.4;margin-bottom:6px">暂无可选封面</div>'}
+      <button class="ai-fill-mini-btn" onclick="fetchCoversForAnime(${a.id})" style="width:100%">🔍 获取多张封面</button>
+    </div>
+    <div class="detail-popup-section">
       <div class="detail-popup-section-title">剧集进度 · 点击切换</div>
       <div class="episode-grid">${epsHTML}</div>
       <div class="episode-actions">
@@ -3012,6 +3026,64 @@ function resetEpisodes(id) {
   const a = animeList.find(x => x.id === id); if (!a) return;
   a.watchedEpisodes = []; a.status = 'towatch';
   saveData(); detailPopupId = id; renderCards();
+}
+
+// ===== Single Anime Cover Fetch =====
+async function fetchCoversForAnime(id) {
+  var a = animeList.find(function(x) { return x.id === id; });
+  if (!a) return;
+  if (!backendOnline) { showToast('后端未连接'); return; }
+  if (!apiKeyConfigured) { showToast('请先配置 API Key'); return; }
+
+  showToast('正在搜索封面...');
+  try {
+    var resp = await aiEnrich(a.title);
+    var data = (resp && resp.data) ? resp.data : resp;
+    var newCovers = (data && data.covers) ? data.covers : [];
+    if (newCovers.length === 0) {
+      showToast('未搜索到封面图片');
+      return;
+    }
+    var existing = a.covers || [];
+    var seen = new Set();
+    var merged = [];
+    for (var i = 0; i < existing.length; i++) {
+      if (existing[i].url && !seen.has(existing[i].url)) {
+        seen.add(existing[i].url);
+        merged.push(existing[i]);
+      }
+    }
+    for (var i = 0; i < newCovers.length; i++) {
+      if (newCovers[i].url && !seen.has(newCovers[i].url)) {
+        seen.add(newCovers[i].url);
+        merged.push(newCovers[i]);
+      }
+    }
+    a.covers = merged;
+    saveData();
+    detailPopupId = id;
+    renderDetailPopup(id);
+    renderCards();
+    if (editingId === id) {
+      renderCoverOptions(merged);
+      var selIdx = merged.findIndex(function(c) { return c.url === a.cover; });
+      if (selIdx >= 0) selectCover(selIdx);
+    }
+    showToast('找到 ' + newCovers.length + ' 张封面，共 ' + merged.length + ' 张可选 ✓');
+  } catch(e) {
+    showToast('搜索封面失败：' + e.message);
+  }
+}
+
+function selectCoverForAnime(id, idx) {
+  var a = animeList.find(function(x) { return x.id === id; });
+  if (!a || !a.covers || !a.covers[idx]) return;
+  a.cover = a.covers[idx].url;
+  saveData();
+  detailPopupId = id;
+  renderDetailPopup(id);
+  renderCards();
+  showToast('封面已切换 ✓');
 }
 
 // ===== AI Batch Fill =====
@@ -3306,7 +3378,7 @@ async function batchFetchCovers() {
 function renderCoverOptions(covers) {
   const picker = document.getElementById('coverPicker');
   const container = document.getElementById('coverOptions');
-  if (covers.length <= 1) { picker.style.display = 'none'; return; }
+  if (covers.length < 1) { picker.style.display = 'none'; return; }
   picker.style.display = 'block';
   container.innerHTML = covers.map((c, i) => `
     <div style="flex-shrink:0">
@@ -3379,7 +3451,7 @@ function openEditModal(animeId) {
   const preview = document.getElementById('coverPreview');
   if (a.cover) preview.innerHTML = `<img src="${escapeHtml(a.cover)}" alt="封面预览" onerror="this.parentElement.innerHTML='<span class=\\'placeholder\\'>预览</span>'">`;
   else preview.innerHTML = '<span class="placeholder">预览</span>';
-  if (a.covers && a.covers.length > 1) {
+  if (a.covers && a.covers.length >= 1) {
     renderCoverOptions(a.covers);
     var selIdx = a.covers.findIndex(function(c) { return c.url === a.cover; });
     if (selIdx >= 0) selectCover(selIdx);
