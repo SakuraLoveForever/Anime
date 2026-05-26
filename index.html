@@ -3097,7 +3097,7 @@ async function saveSettings() {
 }
 
 // ===== Export / Import =====
-function exportAllData() {
+async function exportAllData() {
   const data = {
     version: 2,
     exportedAt: new Date().toISOString(),
