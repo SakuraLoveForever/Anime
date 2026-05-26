@@ -3374,11 +3374,12 @@ function getUserDisplayName() {
 function updateAuthUI() {
   const btn = document.getElementById('btnAuth');
   if (!cloudMode) {
-    btn.style.visibility = 'hidden';
+    btn.style.opacity = '0.4';
     btn.style.pointerEvents = 'none';
+    btn.title = '离线模式下不可登录，请切换到在线模式';
     return;
   }
-  btn.style.visibility = 'visible';
+  btn.style.opacity = '1';
   btn.style.pointerEvents = 'auto';
   const label = document.getElementById('btnAuthLabel');
   const name = getUserDisplayName();
