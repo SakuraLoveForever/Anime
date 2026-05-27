@@ -1796,8 +1796,9 @@ async function aiEnrich(title) {
 function renderSourceList() {
   const container = document.getElementById('sidebarSources');
   container.innerHTML = sourceList.map(s => {
-    var delBtn = s.builtin ? '' : `<span class="src-del" onclick="event.stopPropagation();deleteSource(${s.id})" title="删除来源">✕</span>`;
-    return `<div class="sidebar-source-item${s.enabled !== false ? ' enabled' : ''}" onclick="toggleSource(${s.id})" title="${escapeHtml(s.name)}${s.builtin ? ' · 内置' : ''}${s.enabled !== false ? ' · 已启用' : ' · 已禁用'}">
+    var sourceId = JSON.stringify(s.id);
+    var delBtn = s.builtin ? '' : `<span class="src-del" onclick="event.stopPropagation();deleteSource(${sourceId})" title="删除来源">✕</span>`;
+    return `<div class="sidebar-source-item${s.enabled !== false ? ' enabled' : ''}" onclick="toggleSource(${sourceId})" title="${escapeHtml(s.name)}${s.builtin ? ' · 内置' : ''}${s.enabled !== false ? ' · 已启用' : ' · 已禁用'}">
       <span class="src-dot"></span>
       <span class="src-name">${escapeHtml(s.name)}</span>
       ${delBtn}
@@ -1818,6 +1819,7 @@ function renderSourceManagerList() {
   var html = '';
   for (var i = 0; i < sourceList.length; i++) {
     var s = sourceList[i];
+    var sourceId = JSON.stringify(s.id);
     var isBuiltin = s.builtin === true;
     var enabled = s.enabled !== false;
     var dotColor = enabled ? 'var(--color-success)' : 'var(--color-base-content)';
@@ -1826,12 +1828,12 @@ function renderSourceManagerList() {
     var isSel = _sourceSelectMode && _selectedSourceIds.has(s.id) && !isBuiltin;
     var canSelect = _sourceSelectMode && !isBuiltin;
     var bg = isSel ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'color-mix(in srgb, var(--color-base-content) 3%, transparent)';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:' + bg + ';border:1px solid ' + (isSel ? 'var(--color-primary)' : 'transparent') + ';transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\'" onmouseleave="this.style.borderColor=\'' + (isSel ? 'var(--color-primary)' : 'transparent') + '\'"' + (canSelect ? ' onclick="sourceToggleSelect(' + s.id + ')" style="cursor:pointer"' : '') + '>';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:' + bg + ';border:1px solid ' + (isSel ? 'var(--color-primary)' : 'transparent') + ';transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\'" onmouseleave="this.style.borderColor=\'' + (isSel ? 'var(--color-primary)' : 'transparent') + '\'"' + (canSelect ? ' onclick="sourceToggleSelect(' + sourceId + ')" style="cursor:pointer"' : '') + '>';
     if (_sourceSelectMode) {
       if (isBuiltin) {
         html += '<span style="width:16px;height:16px;flex-shrink:0;opacity:0.25" title="内置来源不可删除">🔒</span>';
       } else {
-        html += '<input type="checkbox" ' + (isSel ? 'checked' : '') + ' onclick="event.stopPropagation();sourceToggleSelect(' + s.id + ')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--color-primary);flex-shrink:0">';
+        html += '<input type="checkbox" ' + (isSel ? 'checked' : '') + ' onclick="event.stopPropagation();sourceToggleSelect(' + sourceId + ')" style="width:16px;height:16px;cursor:pointer;accent-color:var(--color-primary);flex-shrink:0">';
       }
     }
     html += '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + dotColor + ';opacity:' + dotOpacity + '"></span>';
@@ -1841,10 +1843,10 @@ function renderSourceManagerList() {
     html += '</div>';
     html += '<div style="font-size:0.72rem;opacity:0.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(s.url) + '</div>';
     html += '</div>';
-    html += '<button onclick="event.stopPropagation();testSourceById(' + s.id + ',this)" style="padding:4px 8px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-info) 20%, transparent);background:transparent;color:var(--color-info);cursor:pointer;font-size:0.7rem;white-space:nowrap;font-family:inherit" title="测试连接">测试</button>';
-    html += '<button onclick="event.stopPropagation();toggleSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-size:0.75rem;white-space:nowrap;font-family:inherit">' + toggleLabel + '</button>';
+    html += '<button onclick="event.stopPropagation();testSourceById(' + sourceId + ',this)" style="padding:4px 8px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-info) 20%, transparent);background:transparent;color:var(--color-info);cursor:pointer;font-size:0.7rem;white-space:nowrap;font-family:inherit" title="测试连接">测试</button>';
+    html += '<button onclick="event.stopPropagation();toggleSource(' + sourceId + ');renderSourceManagerList()" style="padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-size:0.75rem;white-space:nowrap;font-family:inherit">' + toggleLabel + '</button>';
     if (!_sourceSelectMode && !isBuiltin) {
-      html += '<button onclick="event.stopPropagation();deleteSource(' + s.id + ');renderSourceManagerList()" style="padding:4px 8px;border-radius:6px;border:none;background:transparent;color:var(--color-error);cursor:pointer;font-size:0.75rem;opacity:0.6;font-family:inherit" title="删除">✕</button>';
+      html += '<button onclick="event.stopPropagation();deleteSource(' + sourceId + ');renderSourceManagerList()" style="padding:4px 8px;border-radius:6px;border:none;background:transparent;color:var(--color-error);cursor:pointer;font-size:0.75rem;opacity:0.6;font-family:inherit" title="删除">✕</button>';
     }
     html += '</div>';
   }
@@ -2820,6 +2822,54 @@ function renderCards() {
   if (detailPopupId !== null) renderDetailPopup(detailPopupId);
 }
 
+function refreshStatusCounters() {
+  let statsBase = animeList;
+  if (currentFilter === 'category' && activeCategories.size > 0) {
+    statsBase = animeList.filter(a => activeCategories.has(a.category));
+  } else if (currentFilter === 'folder' && currentFolderId) {
+    statsBase = animeList.filter(a => a.folderId === currentFolderId);
+  }
+  const counts = { all: animeList.length, towatch: 0, watching: 0, watched: 0 };
+  statsBase.forEach(a => { counts[a.status] = (counts[a.status] || 0) + 1; });
+  ['All','Towatch','Watching','Watched'].forEach(k => {
+    const el = document.getElementById('badge' + k);
+    if (el) el.textContent = counts[k.toLowerCase()];
+  });
+  const statTowatch = document.getElementById('statTowatch');
+  const statWatching = document.getElementById('statWatching');
+  const statWatched = document.getElementById('statWatched');
+  if (statTowatch) statTowatch.textContent = counts.towatch;
+  if (statWatching) statWatching.textContent = counts.watching;
+  if (statWatched) statWatched.textContent = counts.watched;
+}
+
+function refreshAnimeProgressViews(id) {
+  const a = animeList.find(x => x.id === id);
+  if (!a) return;
+  detailPopupId = id;
+  renderDetailPopup(id);
+  refreshStatusCounters();
+
+  const card = document.getElementById('card-' + id);
+  if (!card) return;
+  const total = a.totalEpisodes || 12;
+  const wc = a.watchedEpisodes ? a.watchedEpisodes.length : 0;
+  const progress = total > 0 ? (wc / total) : 0;
+  const statusText = { towatch: '待看', watching: '正在看', watched: '已看完' };
+  const statusBadge = card.querySelector('.card-status-badge');
+  if (statusBadge) {
+    statusBadge.className = 'card-status-badge ' + a.status;
+    statusBadge.textContent = statusText[a.status] || '';
+  }
+  const progressText = card.querySelector('.card-progress span');
+  if (progressText) progressText.textContent = wc + '/' + total + ' 集';
+  const progressFill = card.querySelector('.card-progress-bar-fill');
+  if (progressFill) {
+    progressFill.className = 'card-progress-bar-fill ' + a.status;
+    progressFill.style.transform = 'scaleX(' + progress.toFixed(3) + ')';
+  }
+}
+
 function handleCardClick(aid) {
   if (selectionMode) {
     toggleCardSelect(aid);
@@ -3079,7 +3129,7 @@ function renderDetailPopup(id) {
   let epsHTML = '';
   for (let i = 1; i <= total; i++) {
     const w = a.watchedEpisodes && a.watchedEpisodes.includes(i);
-    epsHTML += `<div class="episode-block${w ? ' watched' : ''}" onclick="toggleEpisode(${a.id},${i})" title="第${i}集">${i}</div>`;
+    epsHTML += `<div class="episode-block${w ? ' watched' : ''}" onclick="event.stopPropagation();toggleEpisode(${a.id},${i})" title="第${i}集">${i}</div>`;
   }
   document.getElementById('detailPopup').innerHTML = `
     <div class="detail-popup-header">
@@ -3096,20 +3146,20 @@ function renderDetailPopup(id) {
       ${a.covers && a.covers.length > 0 ? `
         <div class="cover-options" style="margin-bottom:6px">
           ${a.covers.map((c, i) => `
-            <div class="cover-option${c.url === a.cover ? ' selected' : ''}" onclick="selectCoverForAnime(${a.id},${i})" title="${escapeHtml(c.source || '')}">
+            <div class="cover-option${c.url === a.cover ? ' selected' : ''}" onclick="event.stopPropagation();selectCoverForAnime(${a.id},${i})" title="${escapeHtml(c.source || '')}">
               <img src="${escapeHtml(c.url)}" loading="lazy" onerror="this.style.opacity='0.3'">
             </div>
           `).join('')}
         </div>
       ` : '<div style="font-size:0.78rem;opacity:0.4;margin-bottom:6px">暂无可选封面</div>'}
-      <button class="ai-fill-mini-btn" onclick="fetchCoversForAnime(${a.id})" style="width:100%">🔍 获取多张封面</button>
+      <button class="ai-fill-mini-btn" onclick="event.stopPropagation();fetchCoversForAnime(${a.id})" style="width:100%">🔍 获取多张封面</button>
     </div>
     <div class="detail-popup-section">
       <div class="detail-popup-section-title">剧集进度 · 点击切换</div>
       <div class="episode-grid">${epsHTML}</div>
       <div class="episode-actions">
-        <button class="episode-action-btn" onclick="markAllEpisodes(${a.id})">✓ 全部已看</button>
-        <button class="episode-action-btn" onclick="resetEpisodes(${a.id})">↺ 重置进度</button>
+        <button class="episode-action-btn" onclick="event.stopPropagation();markAllEpisodes(${a.id})">✓ 全部已看</button>
+        <button class="episode-action-btn" onclick="event.stopPropagation();resetEpisodes(${a.id})">↺ 重置进度</button>
       </div>
     </div>
   `;
@@ -3124,18 +3174,18 @@ function toggleEpisode(animeId, epNum) {
   else { a.watchedEpisodes.push(epNum); a.watchedEpisodes.sort((x,y)=>x-y); }
   const total = a.totalEpisodes || 12, wc = a.watchedEpisodes.length;
   if (wc === 0) a.status = 'towatch'; else if (wc >= total) a.status = 'watched'; else a.status = 'watching';
-  saveData(); detailPopupId = animeId; renderCards();
+  saveData(); refreshAnimeProgressViews(animeId);
 }
 function markAllEpisodes(id) {
   const a = animeList.find(x => x.id === id); if (!a) return;
   a.watchedEpisodes = Array.from({length: a.totalEpisodes||12}, (_,i)=>i+1); a.status = 'watched';
-  saveData(); detailPopupId = id; renderCards();
+  saveData(); refreshAnimeProgressViews(id);
 }
 function resetEpisodes(id) {
   if (!confirm('确定要重置这部番剧的观看进度吗？所有已看集数将被清空，状态将变为"待看"。')) return;
   const a = animeList.find(x => x.id === id); if (!a) return;
   a.watchedEpisodes = []; a.status = 'towatch';
-  saveData(); detailPopupId = id; renderCards();
+  saveData(); refreshAnimeProgressViews(id);
 }
 
 // ===== Single Anime Cover Fetch =====

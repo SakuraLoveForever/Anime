@@ -7089,44 +7089,50 @@ CREATE POLICY "Users manage own sources" ON sources
 <file path="README.md">
 # 追番管理器
 
-自定义看番追剧管理工具，支持多源搜索、DeepSeek AI 智能填充番剧信息。
+自定义看番追剧管理工具，支持多源搜索、DeepSeek AI 智能填充、多封面管理。
 
-# 画面预览
+## 画面预览
 
 <img width="1864" height="995" alt="Clip_20260518_004804" src="https://github.com/user-attachments/assets/ee20b1fb-3088-4193-ad52-da9d974d7311" />
 
-# 在线网页模式
+## 在线网页模式
 
 [番剧管理](https://anime-tracker-0ptb.onrender.com/)
 
-在线版完整支持搜索番剧、AI 智能填充、链接解析等全部功能，基于 **Firebase** 提供多用户云端同步。
+在线版完整支持搜索番剧、AI 智能填充、链接解析等全部功能，基于 **Supabase** 提供多用户云端同步。
 
-> 首次访问 Render 可能需要等待 ~30 秒唤醒（免费实例休眠）。纯前端镜像站：[GitHub Pages](https://sakuraloveforever.github.io/Anime/)（无 AI 功能）
+> 首次访问 Render 可能需要等待 ~30 秒唤醒（免费实例休眠）。
 
 ### 注册 / 登录
 
-打开网页后，点击右上角 **🔑 登录** 按钮：
+打开网页后，点击右上角 **🔐 登录** 按钮：
 
-- 输入邮箱和密码，点击注册即可创建账号
+- 输入用户名和密码，点击注册即可创建账号
 - 注册后自动登录，所有数据保存在云端
 - 后续登录同一账号即可跨设备同步番剧数据
 
 ### AI 功能
 
-点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys) → 点击「🧪 测试」→ 保存。
+点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)（或自定义 API 地址）→ 点击「🧪 测试」→ 保存。
 
 - 每个人的 API Key 只保存在自己浏览器中，不会上传到服务器
-- 添加番剧时点击「🤖 AI 填充」即可自动补全信息
-- 支持一键「🔄 重新分类」批量修正番剧分类
+- 添加番剧时点击「🤖 AI 填充」自动补全信息
+- 番剧卡片上的「AI」按钮可强制重新搜索并覆盖全部字段
+- 顶栏「🤖 一键AI补全」批量为缺失信息的番剧补充数据
+- 顶栏「🔄 重新分类」批量 AI 重新识别番剧分类
+- 顶栏「🎯 智能推荐」根据番剧口味推荐相似作品
 
-### 云端功能
+### 封面管理
 
-| 功能 | 说明 |
-|------|------|
-| 多用户隔离 | 每个账号拥有独立的番剧库、文件夹、自定义搜索源 |
-| 自动同步 | 添加/删除/编辑番剧实时同步到 Firestore |
-| 离线降级 | 网络异常时自动切换本地存储，恢复后重新同步 |
-| 跨设备 | 登录同一账号即可在不同设备间使用 |
+- **多封面支持**：每部番剧可存储多张封面图片，随时切换
+- 顶栏「🎨 探索更多封面」一键为全部或选中番剧搜索封面（新封面替换旧的可选项，当前主封面保留）
+- 编辑弹窗（左键卡片）和详情弹窗（右键卡片）均可获取封面并点击切换
+- 支持上传自定义封面图片
+
+### 卡片视图模式
+
+- **展开模式**：完整卡片（封面、标签、进度条、评分）
+- **精简模式**：紧凑列表（仅番名、进度、评分），点击排序栏 📋 按钮切换
 
 ### 数据备份
 
@@ -7141,12 +7147,11 @@ CREATE POLICY "Users manage own sources" ON sources
 
 ### 数据存储
 
-- **Firebase Authentication** — 邮箱/密码登录认证
-- **Cloud Firestore** — 番剧列表、文件夹、搜索源、偏好设置（按用户 UID 隔离）
+- **Supabase Auth** — 用户名/密码登录认证
+- **Supabase Database** — 番剧列表、文件夹、搜索源（按用户隔离）
 - 首次登录后，本地存储的番剧数据会自动合并上传到云端
 
-# 本地搭建
-## 食用手册
+## 本地搭建
 
 ### 准备工作
 
@@ -7172,16 +7177,17 @@ npm install
 1. 打开浏览器访问 `http://localhost:3456`
 2. 点击顶栏右侧 ⚙ 齿轮按钮
 3. 粘贴你的 DeepSeek API Key（以 `sk-` 开头）
-4. 点击「🔍 测试」验证连通性
+4. 点击「🧪 测试」验证连通性
 5. 测试成功后点击「保存」
 
 ### 添加番剧
 
-点击右上角「＋ 添加番剧」按钮：
+点击顶栏「＋ 添加番剧」按钮：
 
 - **手动输入** — 输入番剧名称，后端自动从 Bangumi / MyAnimeList / AniList 搜索并填充信息
 - **AI 填充** — 先输入名称，再点击「🤖 AI 填充」让 DeepSeek 智能补全
 - **粘贴链接** — 支持 Bangumi、MyAnimeList、AniList 等链接，自动抓取解析
+- **批量添加** — 点击「📋 批量添加」，一行一个名字快速录入
 - **自定义来源** — 左侧边栏可添加自己的番剧搜索网站
 </file>
 
@@ -7946,9 +7952,9 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
       if (score > bestScore) { bestScore = score; bestReal = r; }
     }
 
-    // Step 4: If good real match found, fetch full details for synopsis & genres
+    // Step 4: If good real match found (score >= 30), fetch full details
     let realDetail = null;
-    if (bestReal && bestReal.id) {
+    if (bestReal && bestReal.id && bestScore >= 30) {
       try {
         if (bestReal._src === 'bgm') {
           realDetail = await parseBgmSubject(bestReal.id);
@@ -7978,7 +7984,17 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
       source: bestReal ? (bestReal.source || bestReal._src) : 'DeepSeek AI',
     };
 
-    // Step 6: Collect all covers from real sources
+    // Helper to check if a result is a reasonable match for the query
+    const isRelevantMatch = (r, minScore) => {
+      let score = 0;
+      for (const t of searchTitles.slice(0, 3)) {
+        score = Math.max(score, fuzzyMatchScore(r.title, t));
+      }
+      score = Math.max(score, fuzzyMatchScore(r.title, q));
+      return score >= minScore;
+    };
+
+    // Step 6: Collect covers from matching real sources only
     const covers = [];
     const coverSeen = new Set();
     const addCover = (url, src, title) => {
@@ -7989,7 +8005,7 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
     };
     if (realDetail?.cover) addCover(realDetail.cover, realDetail._src === 'bgm' ? 'Bangumi' : 'MyAnimeList', realDetail.title);
     for (const r of allSearchResults) {
-      if (r.cover) addCover(r.cover, r.source || r._src, r.title);
+      if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, r.source || r._src, r.title);
     }
 
     // Step 7: Also search AniList for additional covers
@@ -7997,7 +8013,7 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
       try {
         const anilistResults = await searchAniList(title);
         for (const r of anilistResults) {
-          if (r.cover) addCover(r.cover, 'AniList', r.title);
+          if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, 'AniList', r.title);
         }
       } catch(e) {}
     }
@@ -8721,11 +8737,17 @@ app.listen(PORT, () => {
   /* ===== Topbar ===== */
   .topbar {
     position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; gap: 8px;
-    height: var(--topbar-h); padding: 0 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 8px 20px 10px;
     background: color-mix(in srgb, var(--color-base-100) 85%, transparent);
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 5%, transparent);
+  }
+  .topbar-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar-actions {
+    flex-wrap: wrap; padding-top: 2px;
   }
   .hamburger { display: none; }
   .search-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; position: relative; }
@@ -8873,6 +8895,91 @@ app.listen(PORT, () => {
   .card-grid.selection-mode .anime-card { cursor: pointer; }
   .card-grid.selection-mode .anime-card:hover { transform: none; }
 
+  /* ===== Compact Card Mode ===== */
+  .card-grid.compact {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .card-grid.compact .anime-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    min-height: 44px;
+    border-radius: 6px;
+    animation: none;
+    cursor: pointer;
+  }
+  .card-grid.compact .anime-card:hover {
+    transform: none;
+  }
+  .card-grid.compact .card-cover {
+    display: none;
+  }
+  .card-grid.compact .card-body {
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    min-width: 0;
+  }
+  .card-grid.compact .card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .card-grid.compact .card-genres {
+    display: none;
+  }
+  .card-grid.compact .card-meta {
+    margin-top: 0;
+    padding-top: 0;
+    flex-shrink: 0;
+    margin-left: auto;
+    gap: 12px;
+  }
+  .card-grid.compact .card-progress {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+  .card-grid.compact .card-progress-bar {
+    display: none;
+  }
+  .card-grid.compact .card-rating {
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+  .card-grid.compact .card-cat-badge {
+    display: none;
+  }
+  .card-grid.compact .card-status-badge {
+    position: static;
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+  }
+  .card-grid.compact .card-ai-hint {
+    position: static;
+    flex-shrink: 0;
+  }
+  .card-grid.compact .card-select-check {
+    display: none !important;
+  }
+  @media (max-width: 768px) {
+    .card-grid.compact .card-meta {
+      gap: 6px;
+    }
+    .card-grid.compact .card-title {
+      font-size: 0.8rem;
+    }
+  }
+
   .anime-card {
     position: relative; display: flex; flex-direction: column;
     background: var(--color-base-200);
@@ -8980,7 +9087,7 @@ app.listen(PORT, () => {
 
   /* ===== Batch Bar ===== */
   .batch-bar {
-    position: sticky; top: var(--topbar-h); z-index: 40;
+    position: sticky; top: 88px; z-index: 40;
     display: flex; align-items: center; gap: 12px;
     padding: 10px 20px; margin-bottom: 16px;
     background: color-mix(in srgb, var(--color-base-100) 90%, transparent);
@@ -9307,7 +9414,8 @@ app.listen(PORT, () => {
     .sidebar-overlay.show { display: block; }
     .main { margin-left: 0 !important; }
     .hamburger { display: block; }
-    .topbar { padding: 0 12px; gap: 8px; }
+    .topbar { padding: 6px 12px 8px; gap: 6px; }
+    .batch-bar { top: 78px; }
     .content { padding: 20px 16px 32px; }
     .card-grid { grid-template-columns: repeat(auto-fill, 160px); justify-content: center; gap: 14px; }
     .stats-row { gap: 10px; }
@@ -9415,31 +9523,36 @@ app.listen(PORT, () => {
 
   <main class="main">
     <div class="topbar">
-      <button class="hamburger btn btn-ghost btn-sm text-base-content" onclick="openSidebar()" aria-label="菜单">☰</button>
-      <div class="search-wrap" id="searchWrap">
-        <div class="expanding-search-bar" id="mainSearchBar">
-          <button class="expanding-search-icon" id="btnMainSearchIcon" onclick="toggleMainSearch()" title="搜索番剧">🔍</button>
-          <input type="text" class="expanding-search-input" id="searchInput" placeholder="搜索番剧名称..." oninput="renderCards()" onfocus="showSearchHistory()" onkeydown="if(event.key==='Enter')saveSearchTerm()" autocomplete="off">
+      <div class="topbar-row">
+        <button class="hamburger btn btn-ghost btn-sm text-base-content" onclick="openSidebar()" aria-label="菜单">☰</button>
+        <div class="search-wrap" id="searchWrap">
+          <div class="expanding-search-bar" id="mainSearchBar">
+            <button class="expanding-search-icon" id="btnMainSearchIcon" onclick="toggleMainSearch()" title="搜索番剧">🔍</button>
+            <input type="text" class="expanding-search-input" id="searchInput" placeholder="搜索番剧名称..." oninput="renderCards()" onfocus="showSearchHistory()" onkeydown="if(event.key==='Enter')saveSearchTerm()" autocomplete="off">
+          </div>
+          <div class="expanding-search-bar" id="semanticSearchBar">
+            <button class="expanding-search-icon" id="btnSemanticIcon" onclick="toggleSemanticSearch()" title="剧情语义搜索">📖</button>
+            <input type="text" class="expanding-search-input" id="semanticSearchInput" placeholder="输入剧情描述搜索番剧..." onkeydown="if(event.key==='Enter')doSemanticSearchFromBar()">
+          </div>
+          <div class="search-history-dropdown" id="searchHistoryDropdown"></div>
         </div>
-        <div class="expanding-search-bar" id="semanticSearchBar">
-          <button class="expanding-search-icon" id="btnSemanticIcon" onclick="toggleSemanticSearch()" title="剧情语义搜索">📖</button>
-          <input type="text" class="expanding-search-input" id="semanticSearchInput" placeholder="输入剧情描述搜索番剧..." onkeydown="if(event.key==='Enter')doSemanticSearchFromBar()">
+        <div class="backend-status offline" id="backendStatus" onclick="checkBackend()" title="点击重新检测后端">
+          <span class="bdot"></span>
+          <span id="backendLabel">后端未连接</span>
         </div>
-        <div class="search-history-dropdown" id="searchHistoryDropdown"></div>
+        <button class="backend-status" id="btnCloudMode" onclick="toggleCloudModePopover()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px;min-width:70px;justify-content:center">☁️ <span id="btnCloudModeLabel">在线</span></button>
+        <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
+        <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
+        <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
       </div>
-      <div class="backend-status offline" id="backendStatus" onclick="checkBackend()" title="点击重新检测后端">
-        <span class="bdot"></span>
-        <span id="backendLabel">后端未连接</span>
+      <div class="topbar-row topbar-actions">
+        <button class="btn-add" onclick="openAddModal()">＋ 添加番剧</button>
+        <button class="btn-add" onclick="openBatchAddModal()" title="批量添加，一行一个名字">📋 批量添加</button>
+        <button class="btn-add" id="btnBatchAi" onclick="batchAiFillAll()" title="一键AI补全：自动为缺失简介的番剧填充信息" style="background:color-mix(in srgb, var(--color-secondary) 15%, transparent);border-color:var(--color-secondary)">🤖 一键AI补全</button>
+        <button class="btn-add" id="btnReclassify" onclick="reclassifyAll()" title="重新分类：根据分类标准重新识别所有番剧的分类" style="background:color-mix(in srgb, var(--color-accent) 12%, transparent);border-color:var(--color-accent)">🔄 重新分类</button>
+        <button class="btn-add" id="btnRecommend" onclick="requestRecommendations()" title="智能推荐：根据你的番剧口味推荐相似作品" style="background:color-mix(in srgb, var(--color-warning) 12%, transparent);border-color:var(--color-warning)">🎯 智能推荐</button>
+        <button class="btn-add" id="btnCoverExplorer" onclick="batchFetchCovers()" title="探索更多封面：一键为所有番剧搜索多张封面并保存" style="background:color-mix(in srgb, var(--color-info) 12%, transparent);border-color:var(--color-info)">🎨 探索更多封面</button>
       </div>
-      <button class="backend-status" id="btnCloudMode" onclick="toggleCloudModePopover()" title="切换在线/离线模式" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px;min-width:70px;justify-content:center">☁️ <span id="btnCloudModeLabel">在线</span></button>
-      <button class="backend-status" id="btnTheme" onclick="toggleThemePopover()" title="切换主题风格" style="margin-right:0;font-size:1.1rem;padding:6px 10px">🎨</button>
-      <button class="backend-status" id="btnAuth" onclick="openAuthModal()" title="登录" style="margin-right:0;font-size:0.85rem;padding:6px 12px;display:inline-flex;align-items:center;gap:4px">🔐 <span id="btnAuthLabel">登录</span></button>
-      <button class="backend-status" id="btnSettings" onclick="openSettingsModal()" title="设置" style="margin-right:0;font-size:1.1rem;padding:6px 10px">⚙</button>
-      <button class="btn-add" onclick="openAddModal()">＋ 添加番剧</button>
-      <button class="btn-add" onclick="openBatchAddModal()" title="批量添加，一行一个名字">📋 批量添加</button>
-      <button class="btn-add" id="btnBatchAi" onclick="batchAiFillAll()" title="一键AI补全：自动为缺失简介的番剧填充信息" style="background:color-mix(in srgb, var(--color-secondary) 15%, transparent);border-color:var(--color-secondary)">🤖 一键AI补全</button>
-      <button class="btn-add" id="btnReclassify" onclick="reclassifyAll()" title="重新分类：根据分类标准重新识别所有番剧的分类" style="background:color-mix(in srgb, var(--color-accent) 12%, transparent);border-color:var(--color-accent)">🔄 重新分类</button>
-      <button class="btn-add" id="btnRecommend" onclick="requestRecommendations()" title="智能推荐：根据你的番剧口味推荐相似作品" style="background:color-mix(in srgb, var(--color-warning) 12%, transparent);border-color:var(--color-warning)">🎯 智能推荐</button>
     </div>
 
     <div class="content">
@@ -9457,6 +9570,7 @@ app.listen(PORT, () => {
         </select>
         <button class="sort-order-btn" id="sortOrderBtn" onclick="toggleSortOrder()" title="切换排序方向">↓</button>
         <button class="sort-order-btn" id="btnSelectMode" onclick="toggleSelectionMode()" title="批量选择">☑</button>
+        <button class="sort-order-btn" id="btnCompactMode" onclick="toggleCompactMode()" title="切换精简模式">📋</button>
       </div>
       <div class="batch-bar" id="batchBar" style="display:none">
         <span class="count" id="batchCount">已选 0 项</span>
@@ -9584,7 +9698,7 @@ app.listen(PORT, () => {
       <label>📁 上传封面图片</label>
       <input type="file" id="mCoverFile" accept="image/*" onchange="previewCoverFile()">
       <div class="modal-cover-preview" id="coverPreview"><span class="placeholder">预览</span></div>
-      <button class="btn-ai-fill" onclick="fetchCovers(event)" style="width:100%;margin-top:6px;font-size:0.82rem">🔍 搜索更多封面</button>
+      <button class="btn-ai-fill" onclick="fetchCoversForAnime(editingId)" style="width:100%;margin-top:6px;font-size:0.82rem">🔍 获取多张封面</button>
     </div>
 
     <div id="coverPicker" style="display:none">
@@ -9913,6 +10027,12 @@ function loadData() {
     if (!isNaN(nid) && typeof a.id === 'string') { a.id = nid; fixed = true; }
     if (!a.category || VALID_CATEGORIES.indexOf(a.category) < 0) {
       a.category = DEFAULT_CATEGORY;
+      fixed = true;
+    }
+    // Fix: if status is watched, ensure all episodes are checked
+    var total = a.totalEpisodes || 12;
+    if (a.status === 'watched' && (!a.watchedEpisodes || a.watchedEpisodes.length < total)) {
+      a.watchedEpisodes = Array.from({length: total}, function(_, i) { return i + 1; });
       fixed = true;
     }
   }
@@ -11225,6 +11345,19 @@ function toggleSelectionMode() {
   document.getElementById('btnSelectMode').classList.toggle('active', selectionMode);
 }
 
+let compactMode = localStorage.getItem('anime_compact_mode') === '1';
+function applyCompactMode() {
+  document.getElementById('cardGrid').classList.toggle('compact', compactMode);
+  document.getElementById('btnCompactMode').classList.toggle('active', compactMode);
+  document.getElementById('btnCompactMode').textContent = compactMode ? '📄' : '📋';
+  document.getElementById('btnCompactMode').title = compactMode ? '切换展开模式' : '切换精简模式';
+}
+function toggleCompactMode() {
+  compactMode = !compactMode;
+  localStorage.setItem('anime_compact_mode', compactMode ? '1' : '0');
+  applyCompactMode();
+}
+
 function updateBatchBar() {
   const bar = document.getElementById('batchBar');
   const show = selectionMode && selectedIds.size > 0;
@@ -11425,8 +11558,13 @@ function closeDetailPopup(e) {
 function renderDetailPopup(id) {
   const a = animeList.find(x => x.id === id);
   if (!a) { closeDetailPopup(); return; }
+  var total = a.totalEpisodes || 12;
+  // Ensure watched status always has all episodes checked
+  if (a.status === 'watched' && (!a.watchedEpisodes || a.watchedEpisodes.length < total)) {
+    a.watchedEpisodes = Array.from({length: total}, function(_, i) { return i + 1; });
+    saveData();
+  }
   const wc = a.watchedEpisodes ? a.watchedEpisodes.length : 0;
-  const total = a.totalEpisodes || 12;
   const st = { towatch: '待看', watching: '正在看', watched: '已看完' };
   let epsHTML = '';
   for (let i = 1; i <= total; i++) {
@@ -11442,6 +11580,19 @@ function renderDetailPopup(id) {
       <span class="card-status-badge ${a.status}" style="position:static;display:inline-block">${st[a.status]}</span>
       <span>${wc}/${total} 集</span>
       ${a.score ? `<span>★ ${a.score.toFixed(1)}</span>` : ''}
+    </div>
+    <div class="detail-popup-section">
+      <div class="detail-popup-section-title">🖼 封面 · 点击切换</div>
+      ${a.covers && a.covers.length > 0 ? `
+        <div class="cover-options" style="margin-bottom:6px">
+          ${a.covers.map((c, i) => `
+            <div class="cover-option${c.url === a.cover ? ' selected' : ''}" onclick="selectCoverForAnime(${a.id},${i})" title="${escapeHtml(c.source || '')}">
+              <img src="${escapeHtml(c.url)}" loading="lazy" onerror="this.style.opacity='0.3'">
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div style="font-size:0.78rem;opacity:0.4;margin-bottom:6px">暂无可选封面</div>'}
+      <button class="ai-fill-mini-btn" onclick="fetchCoversForAnime(${a.id})" style="width:100%">🔍 获取多张封面</button>
     </div>
     <div class="detail-popup-section">
       <div class="detail-popup-section-title">剧集进度 · 点击切换</div>
@@ -11475,6 +11626,59 @@ function resetEpisodes(id) {
   const a = animeList.find(x => x.id === id); if (!a) return;
   a.watchedEpisodes = []; a.status = 'towatch';
   saveData(); detailPopupId = id; renderCards();
+}
+
+// ===== Single Anime Cover Fetch =====
+async function fetchCoversForAnime(id) {
+  var a = animeList.find(function(x) { return x.id === id; });
+  if (!a) return;
+  if (!backendOnline) { showToast('后端未连接'); return; }
+  if (!apiKeyConfigured) { showToast('请先配置 API Key'); return; }
+
+  showToast('正在搜索封面...');
+  try {
+    var resp = await aiEnrich(a.title);
+    var data = (resp && resp.data) ? resp.data : resp;
+    var newCovers = (data && data.covers) ? data.covers : [];
+    if (newCovers.length === 0) {
+      showToast('未搜索到封面图片');
+      return;
+    }
+    // Keep current cover, replace the rest with new results
+    var seen = new Set();
+    var covers = [];
+    if (a.cover) { covers.push({ url: a.cover, source: '当前封面', title: '' }); seen.add(a.cover); }
+    for (var i = 0; i < newCovers.length; i++) {
+      if (newCovers[i].url && !seen.has(newCovers[i].url)) {
+        seen.add(newCovers[i].url);
+        covers.push(newCovers[i]);
+      }
+    }
+    a.covers = covers;
+    saveData();
+    detailPopupId = id;
+    renderDetailPopup(id);
+    renderCards();
+    if (editingId === id) {
+      renderCoverOptions(covers);
+      var selIdx = covers.findIndex(function(c) { return c.url === a.cover; });
+      if (selIdx >= 0) selectCover(selIdx);
+    }
+    showToast('找到 ' + newCovers.length + ' 张封面，共 ' + covers.length + ' 张可选 ✓');
+  } catch(e) {
+    showToast('搜索封面失败：' + e.message);
+  }
+}
+
+function selectCoverForAnime(id, idx) {
+  var a = animeList.find(function(x) { return x.id === id; });
+  if (!a || !a.covers || !a.covers[idx]) return;
+  a.cover = a.covers[idx].url;
+  saveData();
+  detailPopupId = id;
+  renderDetailPopup(id);
+  renderCards();
+  showToast('封面已切换 ✓');
 }
 
 // ===== AI Batch Fill =====
@@ -11582,12 +11786,23 @@ async function aiFillCard(id) {
     const data = (resp && resp.data) ? resp.data : resp;
     if (data && data.title) {
       if (data.synopsis && data.synopsis.trim()) a.synopsis = data.synopsis;
-      if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) a.genres = data.genres;
-      if (data.episodes > 0 && !a.totalEpisodes) a.totalEpisodes = data.episodes;
-      if (data.category && data.category.trim() && !a.category) a.category = normalizeCategory(data.category);
-      if (!a.cover && data.cover) { a.cover = data.cover; }
-      if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; }
-      if (data.score && !a.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
+      if (data.genres && data.genres.length > 0) a.genres = data.genres;
+      if (data.episodes > 0) a.totalEpisodes = data.episodes;
+      if (data.category && data.category.trim()) a.category = normalizeCategory(data.category);
+      if (data.cover) a.cover = data.cover;
+      if (data.covers && data.covers.length > 1) {
+        var seen = new Set();
+        var covers = [];
+        if (data.cover) { covers.push({ url: data.cover, source: '主封面', title: '' }); seen.add(data.cover); }
+        for (var i = 0; i < data.covers.length; i++) {
+          if (data.covers[i].url && !seen.has(data.covers[i].url)) {
+            seen.add(data.covers[i].url);
+            covers.push(data.covers[i]);
+          }
+        }
+        a.covers = covers;
+      }
+      if (data.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
       saveData();
       renderCards();
       if (detailPopupId === id) renderDetailPopup(id);
@@ -11712,59 +11927,75 @@ function setCover(url) {
   document.getElementById('coverPreview').innerHTML = `<img src="${escapeHtml(url)}" alt="预览">`;
 }
 
-async function fetchCovers(ev) {
-  var title = document.getElementById('mTitle').value.trim();
-  if (!title || title.length < 2) { showToast('请先输入番剧名称'); return; }
+// ===== Batch Fetch Covers =====
+async function batchFetchCovers() {
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先配置 API Key'); return; }
-  var btn = ev.target;
-  var orig = btn.textContent;
-  btn.textContent = '⏳ 搜索中...';
-  btn.disabled = true;
-  try {
-    var resp = await aiEnrich(title);
-    var data = (resp && resp.data) ? resp.data : resp;
-    var newCovers = (data && data.covers) ? data.covers : [];
-    if (newCovers.length === 0) {
-      showToast('未搜索到封面图片');
-      btn.textContent = orig;
-      btn.disabled = false;
-      return;
-    }
-    // Merge with existing covers, deduplicate
-    var container = document.getElementById('coverOptions');
-    var existing = [];
-    if (container._covers && container._covers.length > 0) {
-      existing = container._covers;
-    } else if (editingId) {
-      var a = animeList.find(function(x) { return x.id === editingId; });
-      if (a && a.covers && a.covers.length > 0) existing = a.covers;
-    }
-    var seen = new Set();
-    var merged = [];
-    var addAll = function(list) {
-      for (var i = 0; i < list.length; i++) {
-        if (list[i].url && !seen.has(list[i].url)) {
-          seen.add(list[i].url);
-          merged.push(list[i]);
-        }
-      }
-    };
-    addAll(existing);
-    addAll(newCovers);
-    renderCoverOptions(merged);
-    showToast('找到 ' + newCovers.length + ' 张封面，共 ' + merged.length + ' 张可选 ✓');
-  } catch(e) {
-    showToast('搜索封面失败：' + e.message);
+  if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  // Support selection mode: if cards are selected, only process those
+  var useSelection = selectionMode && selectedIds.size > 0;
+  var all;
+  if (useSelection) {
+    var selectedIdSet = selectedIds;
+    all = animeList.filter(function(a) { return a && a.title && selectedIdSet.has(a.id); });
+  } else {
+    all = animeList.filter(function(a) { return a && a.title; });
   }
-  btn.textContent = orig;
+  if (all.length === 0) { showToast('还没有添加任何番剧'); return; }
+  var confirmMsg = useSelection
+    ? '即将为选中的 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将替换之前的可选封面（当前主封面保留）。\n之后可随时在编辑界面切换封面。\n\n是否继续？'
+    : '即将为全部 ' + all.length + ' 部番剧搜索多张封面图片。\n\n新封面将替换之前的可选封面（当前主封面保留）。\n之后可随时在编辑界面切换封面。\n\n是否继续？';
+  if (!confirm(confirmMsg)) return;
+
+  var btn = document.getElementById('btnCoverExplorer');
+  var origText = btn.textContent;
+  btn.disabled = true;
+  var done = 0;
+  var enriched = 0;
+
+  for (var i = 0; i < all.length; i++) {
+    var a = all[i];
+    btn.textContent = '⏳ 搜索封面 ' + (done + 1) + '/' + all.length + '...';
+    try {
+      var resp = await aiEnrich(a.title);
+      var data = (resp && resp.data) ? resp.data : resp;
+      var newCovers = (data && data.covers) ? data.covers : [];
+      if (newCovers.length > 1) {
+        // Keep current cover, replace the rest with new results
+        var seen = new Set();
+        var covers = [];
+        if (a.cover) { covers.push({ url: a.cover, source: '当前封面', title: '' }); seen.add(a.cover); }
+        for (var k = 0; k < newCovers.length; k++) {
+          if (newCovers[k].url && !seen.has(newCovers[k].url)) {
+            seen.add(newCovers[k].url);
+            covers.push(newCovers[k]);
+          }
+        }
+        a.covers = covers;
+        enriched++;
+        saveData();
+        renderCards();
+        await new Promise(function(r) { return setTimeout(r, 100); });
+      }
+    } catch(e) {}
+    done++;
+    if (done < all.length) await new Promise(function(r) { return setTimeout(r, 800); });
+  }
+  saveData();
+  renderCards();
+  btn.textContent = origText;
   btn.disabled = false;
+  if (useSelection) {
+    showToast('封面探索完成！为选中的 ' + enriched + '/' + done + ' 部番剧找到多张封面 ✓');
+    deselectAllCards();
+  } else {
+    showToast('封面探索完成！共为 ' + enriched + '/' + done + ' 部番剧找到多张封面 ✓');
+  }
 }
 
 function renderCoverOptions(covers) {
   const picker = document.getElementById('coverPicker');
   const container = document.getElementById('coverOptions');
-  if (covers.length <= 1) { picker.style.display = 'none'; return; }
+  if (covers.length < 1) { picker.style.display = 'none'; return; }
   picker.style.display = 'block';
   container.innerHTML = covers.map((c, i) => `
     <div style="flex-shrink:0">
@@ -11837,7 +12068,7 @@ function openEditModal(animeId) {
   const preview = document.getElementById('coverPreview');
   if (a.cover) preview.innerHTML = `<img src="${escapeHtml(a.cover)}" alt="封面预览" onerror="this.parentElement.innerHTML='<span class=\\'placeholder\\'>预览</span>'">`;
   else preview.innerHTML = '<span class="placeholder">预览</span>';
-  if (a.covers && a.covers.length > 1) {
+  if (a.covers && a.covers.length >= 1) {
     renderCoverOptions(a.covers);
     var selIdx = a.covers.findIndex(function(c) { return c.url === a.cover; });
     if (selIdx >= 0) selectCover(selIdx);
@@ -13202,6 +13433,7 @@ function initAuth() {
   if (!backendOnline) await loadSourceList();
   renderFolderList();
   renderCards();
+  applyCompactMode();
 })();
 </script>
 </body>
