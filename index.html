@@ -1539,12 +1539,10 @@ function loadData() {
       a.category = DEFAULT_CATEGORY;
       fixed = true;
     }
-    // Fix: if status is watched, ensure all episodes are checked
-    var total = a.totalEpisodes || 12;
-    if (a.status === 'watched' && (!a.watchedEpisodes || a.watchedEpisodes.length < total)) {
-      a.watchedEpisodes = Array.from({length: total}, function(_, i) { return i + 1; });
-      fixed = true;
-    }
+    var beforeStatus = a.status;
+    var beforeEpisodes = JSON.stringify(a.watchedEpisodes || []);
+    normalizeAnimeProgressStatus(a);
+    if (a.status !== beforeStatus || JSON.stringify(a.watchedEpisodes || []) !== beforeEpisodes) fixed = true;
   }
   if (fixed) saveData();
   // Migrate from old key
@@ -1556,6 +1554,7 @@ function loadData() {
   }
 }
 function saveData() {
+  for (var i = 0; i < animeList.length; i++) normalizeAnimeProgressStatus(animeList[i]);
   localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
   syncAnimeToCloud();
 }
@@ -2713,6 +2712,53 @@ function normalizeCategory(c) {
   return DEFAULT_CATEGORY;
 }
 
+function getEpisodeTotal(a) {
+  var total = parseInt(a && a.totalEpisodes, 10);
+  return total > 0 ? total : 12;
+}
+
+function normalizeWatchedEpisodes(a) {
+  if (!a) return [];
+  var total = getEpisodeTotal(a);
+  var seen = {};
+  var eps = Array.isArray(a.watchedEpisodes) ? a.watchedEpisodes : [];
+  eps = eps.map(function(ep) { return parseInt(ep, 10); })
+    .filter(function(ep) {
+      if (!ep || ep < 1 || ep > total || seen[ep]) return false;
+      seen[ep] = true;
+      return true;
+    })
+    .sort(function(x, y) { return x - y; });
+  a.watchedEpisodes = eps;
+  return eps;
+}
+
+function normalizeAnimeProgressStatus(a) {
+  if (!a) return 'towatch';
+  var total = getEpisodeTotal(a);
+  var eps = normalizeWatchedEpisodes(a);
+  if (eps.length === 0) a.status = 'towatch';
+  else if (eps.length >= total) a.status = 'watched';
+  else a.status = 'watching';
+  return a.status;
+}
+
+function applyStatusToWatchedEpisodes(a, status) {
+  if (!a) return 'towatch';
+  var total = getEpisodeTotal(a);
+  if (status === 'watched') {
+    a.watchedEpisodes = Array.from({length: total}, function(_, i) { return i + 1; });
+  } else if (status === 'towatch') {
+    a.watchedEpisodes = [];
+  } else if (status === 'watching') {
+    var eps = normalizeWatchedEpisodes(a);
+    if (eps.length === 0) eps = [1];
+    if (eps.length >= total && total > 1) eps = eps.filter(function(ep) { return ep < total; });
+    a.watchedEpisodes = eps;
+  }
+  return normalizeAnimeProgressStatus(a);
+}
+
 // Built-in search sources — immutable, always available
 const BUILTIN_SOURCES = [
   { id: 'builtin_bgm', name: 'Bangumi', url: 'https://bgm.tv/subject_search/{query}?cat=2', enabled: true, builtin: true },
@@ -2983,9 +3029,7 @@ function batchSetStatus(status) {
   if (!status || selectedIds.size === 0) return;
   animeList.forEach(a => {
     if (selectedIds.has(a.id)) {
-      a.status = status;
-      if (status === 'watched') a.watchedEpisodes = Array.from({length: a.totalEpisodes||12}, (_,i)=>i+1);
-      else if (status === 'towatch') a.watchedEpisodes = [];
+      applyStatusToWatchedEpisodes(a, status);
     }
   });
   saveData();
@@ -3119,11 +3163,7 @@ function renderDetailPopup(id) {
   const a = animeList.find(x => x.id === id);
   if (!a) { closeDetailPopup(); return; }
   var total = a.totalEpisodes || 12;
-  // Ensure watched status always has all episodes checked
-  if (a.status === 'watched' && (!a.watchedEpisodes || a.watchedEpisodes.length < total)) {
-    a.watchedEpisodes = Array.from({length: total}, function(_, i) { return i + 1; });
-    saveData();
-  }
+  normalizeAnimeProgressStatus(a);
   const wc = a.watchedEpisodes ? a.watchedEpisodes.length : 0;
   const st = { towatch: '待看', watching: '正在看', watched: '已看完' };
   let epsHTML = '';
@@ -3172,19 +3212,18 @@ function toggleEpisode(animeId, epNum) {
   const idx = a.watchedEpisodes.indexOf(epNum);
   if (idx >= 0) a.watchedEpisodes.splice(idx, 1);
   else { a.watchedEpisodes.push(epNum); a.watchedEpisodes.sort((x,y)=>x-y); }
-  const total = a.totalEpisodes || 12, wc = a.watchedEpisodes.length;
-  if (wc === 0) a.status = 'towatch'; else if (wc >= total) a.status = 'watched'; else a.status = 'watching';
+  normalizeAnimeProgressStatus(a);
   saveData(); refreshAnimeProgressViews(animeId);
 }
 function markAllEpisodes(id) {
   const a = animeList.find(x => x.id === id); if (!a) return;
-  a.watchedEpisodes = Array.from({length: a.totalEpisodes||12}, (_,i)=>i+1); a.status = 'watched';
+  applyStatusToWatchedEpisodes(a, 'watched');
   saveData(); refreshAnimeProgressViews(id);
 }
 function resetEpisodes(id) {
   if (!confirm('确定要重置这部番剧的观看进度吗？所有已看集数将被清空，状态将变为"待看"。')) return;
   const a = animeList.find(x => x.id === id); if (!a) return;
-  a.watchedEpisodes = []; a.status = 'towatch';
+  applyStatusToWatchedEpisodes(a, 'towatch');
   saveData(); refreshAnimeProgressViews(id);
 }
 
@@ -3680,15 +3719,14 @@ function saveAnime() {
     a.score = score; a.cover = finalCover; a.synopsis = synopsis; a.sourceUrl = sourceUrl; a.genres = genres; a.covers = savedCovers;
     a.category = category; a.folderId = folderId;
     if (totalEpisodes < oldTotal && a.watchedEpisodes) a.watchedEpisodes = a.watchedEpisodes.filter(e => e <= totalEpisodes);
-    if (status === 'watched') a.watchedEpisodes = Array.from({length: totalEpisodes}, (_,i)=>i+1);
-    else if (status === 'towatch') a.watchedEpisodes = [];
+    applyStatusToWatchedEpisodes(a, status);
     saveData(); closeModal(); renderCards();
     showToast('已保存 ✓', { type: 'edit', id: editingId, before: before });
   } else {
-    let we = [];
-    if (status === 'watched') we = Array.from({length: totalEpisodes}, (_,i)=>i+1);
     var newId = Date.now();
-    animeList.push({ id: newId, title, status, totalEpisodes, watchedEpisodes: we, score, cover: finalCover, covers: savedCovers, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() });
+    var newAnime = { id: newId, title, status, totalEpisodes, watchedEpisodes: [], score, cover: finalCover, covers: savedCovers, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() };
+    applyStatusToWatchedEpisodes(newAnime, status);
+    animeList.push(newAnime);
     saveData(); closeModal(); renderCards();
     showToast('已添加 ✓', { type: 'add', ids: [newId] });
   }
@@ -3793,13 +3831,12 @@ function batchAddAnime() {
     if (animeList.some(function(a) { return a.title === title; })) continue;
     var nid = Date.now() + i;
     newIds.push(nid);
-    var we = status === 'watched' ? Array.from({length: 12}, function(_,j) { return j+1; }) : [];
-    animeList.push({
+    var item = {
       id: nid,
       title: title,
       status: status,
       totalEpisodes: 12,
-      watchedEpisodes: we,
+      watchedEpisodes: [],
       score: null,
       cover: null,
       synopsis: '',
@@ -3808,7 +3845,9 @@ function batchAddAnime() {
       folderId: null,
       sourceUrl: '',
       addedAt: new Date().toISOString()
-    });
+    };
+    applyStatusToWatchedEpisodes(item, status);
+    animeList.push(item);
     added++;
   }
   if (added > 0) {
@@ -4237,8 +4276,9 @@ async function importAllData() {
         if (!animeList[i].category || VALID_CATEGORIES.indexOf(animeList[i].category) < 0) {
           animeList[i].category = DEFAULT_CATEGORY;
         }
+        normalizeAnimeProgressStatus(animeList[i]);
       }
-      localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
+      saveData();
 
       // Restore folders
       if (data.folderList && Array.isArray(data.folderList)) {
@@ -4865,6 +4905,7 @@ async function loadCloudData() {
       if (!animeList[i].category || VALID_CATEGORIES.indexOf(animeList[i].category) < 0) {
         animeList[i].category = DEFAULT_CATEGORY;
       }
+      normalizeAnimeProgressStatus(animeList[i]);
     }
     localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
   }
