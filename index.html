@@ -1556,16 +1556,34 @@ function loadData() {
 function saveData() {
   for (var i = 0; i < animeList.length; i++) normalizeAnimeProgressStatus(animeList[i]);
   localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
-  syncAnimeToCloud();
+  return syncAnimeToCloud();
 }
-// Debounced cloud sync for anime
+// Serialize cloud sync so older saves cannot finish after and overwrite newer category changes.
 var _cloudSyncTimer = null;
-function syncAnimeToCloud() {
-  if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return;
+var _cloudSyncInFlight = false;
+var _cloudSyncPending = false;
+var _cloudSyncPromise = Promise.resolve();
+async function syncAnimeToCloud() {
+  if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return Promise.resolve();
   clearTimeout(_cloudSyncTimer);
-  window.AnimeCloud.batchSaveAnime(animeList).catch(function(e) {
-    console.error('Cloud sync error:', e);
-  });
+  _cloudSyncPending = true;
+  if (_cloudSyncInFlight) return _cloudSyncPromise;
+  _cloudSyncPromise = (async function drainAnimeSync() {
+    _cloudSyncInFlight = true;
+    try {
+      while (_cloudSyncPending) {
+        _cloudSyncPending = false;
+        var snapshot = JSON.parse(JSON.stringify(animeList));
+        await window.AnimeCloud.batchSaveAnime(snapshot);
+      }
+    } catch(e) {
+      console.error('Cloud sync error:', e);
+      showToast('云端同步失败：' + e.message);
+    } finally {
+      _cloudSyncInFlight = false;
+    }
+  })();
+  return _cloudSyncPromise;
 }
 function loadFolders() {
   try { folderList = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]'); } catch(e) { folderList = []; }
@@ -1746,6 +1764,8 @@ async function backendSearch(q) {
   try {
     var enabledIds = sourceList.filter(function(s) { return s.enabled !== false; }).map(function(s) { return s.id; });
     var params = 'q=' + encodeURIComponent(q);
+    var categoryEl = document.getElementById('mCategory');
+    if (categoryEl && categoryEl.value) params += '&category=' + encodeURIComponent(categoryEl.value);
     if (enabledIds.length > 0) params += '&sources=' + enabledIds.join(',');
     // Also pass custom URLs for each source
     for (var i = 0; i < sourceList.length; i++) {
@@ -1774,14 +1794,16 @@ async function backendFetchUrls(urls) {
   } catch(e) { return []; }
 }
 
-async function aiEnrich(title) {
+async function aiEnrich(title, categoryOverride) {
   if (!backendOnline) throw new Error('后端未连接');
   const apiKey = localStorage.getItem('anime_api_key') || '';
   const apiUrl = localStorage.getItem('anime_api_url') || 'https://api.deepseek.com';
+  const categoryEl = document.getElementById('mCategory');
+  const category = categoryOverride || (categoryEl ? categoryEl.value : '');
   const resp = await fetch(BACKEND_URL + '/api/ai-enrich', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, apiKey, apiUrl }),
+    body: JSON.stringify({ title, category, apiKey, apiUrl }),
     signal: AbortSignal.timeout(60000)
   });
   if (!resp.ok) {
@@ -2996,11 +3018,12 @@ function deselectAllCards() {
   renderCards();
 }
 
-function batchMoveCategory(cat) {
+async function batchMoveCategory(cat) {
   if (!cat || selectedIds.size === 0) return;
   if (!confirm(`将 ${selectedIds.size} 个条目移动到分类"${cat}"？`)) return;
   animeList.forEach(a => { if (selectedIds.has(a.id)) a.category = cat; });
-  saveData();
+  renderCards();
+  await saveData();
   selectedIds.clear();
   selectionMode = false;
   document.getElementById('cardGrid').classList.remove('selection-mode');
@@ -3010,11 +3033,11 @@ function batchMoveCategory(cat) {
   showToast('已批量更新分类 ✓');
 }
 
-function batchMoveFolder(fid) {
+async function batchMoveFolder(fid) {
   if (!fid || selectedIds.size === 0) return;
   const folderId = parseInt(fid) || null;
   animeList.forEach(a => { if (selectedIds.has(a.id)) a.folderId = folderId; });
-  saveData();
+  await saveData();
   selectedIds.clear();
   selectionMode = false;
   document.getElementById('cardGrid').classList.remove('selection-mode');
@@ -3025,14 +3048,14 @@ function batchMoveFolder(fid) {
   showToast('已批量移入收藏夹 ✓');
 }
 
-function batchSetStatus(status) {
+async function batchSetStatus(status) {
   if (!status || selectedIds.size === 0) return;
   animeList.forEach(a => {
     if (selectedIds.has(a.id)) {
       applyStatusToWatchedEpisodes(a, status);
     }
   });
-  saveData();
+  await saveData();
   selectedIds.clear();
   selectionMode = false;
   document.getElementById('cardGrid').classList.remove('selection-mode');
@@ -3042,7 +3065,7 @@ function batchSetStatus(status) {
   showToast('已批量更新状态 ✓');
 }
 
-function batchDelete() {
+async function batchDelete() {
   if (selectedIds.size === 0) return;
   if (!confirm('确定要删除选中的 ' + selectedIds.size + ' 个条目吗？此操作不可撤销。')) return;
   const idsToDelete = Array.from(selectedIds);
@@ -3052,13 +3075,16 @@ function batchDelete() {
   document.getElementById('cardGrid').classList.remove('selection-mode');
   document.getElementById('btnSelectMode').classList.remove('active');
   updateBatchBar();
-  saveData();
-  // Also delete from cloud
-  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
-    window.AnimeCloud.batchDeleteAnime(idsToDelete).catch(function(e) { console.error('Cloud batch delete error:', e); });
-  }
   renderCards();
   renderFolderList();
+  await saveData();
+  // Also delete from cloud
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+    await window.AnimeCloud.batchDeleteAnime(idsToDelete).catch(function(e) {
+      console.error('Cloud batch delete error:', e);
+      showToast('云端删除失败：' + e.message);
+    });
+  }
   showToast('已批量删除 ✓');
 }
 
@@ -3206,25 +3232,28 @@ function renderDetailPopup(id) {
 }
 
 // ===== Episodes =====
-function toggleEpisode(animeId, epNum) {
+async function toggleEpisode(animeId, epNum) {
   const a = animeList.find(x => x.id === animeId); if (!a) return;
   if (!a.watchedEpisodes) a.watchedEpisodes = [];
   const idx = a.watchedEpisodes.indexOf(epNum);
   if (idx >= 0) a.watchedEpisodes.splice(idx, 1);
   else { a.watchedEpisodes.push(epNum); a.watchedEpisodes.sort((x,y)=>x-y); }
   normalizeAnimeProgressStatus(a);
-  saveData(); refreshAnimeProgressViews(animeId);
+  refreshAnimeProgressViews(animeId);
+  await saveData();
 }
-function markAllEpisodes(id) {
+async function markAllEpisodes(id) {
   const a = animeList.find(x => x.id === id); if (!a) return;
   applyStatusToWatchedEpisodes(a, 'watched');
-  saveData(); refreshAnimeProgressViews(id);
+  refreshAnimeProgressViews(id);
+  await saveData();
 }
-function resetEpisodes(id) {
+async function resetEpisodes(id) {
   if (!confirm('确定要重置这部番剧的观看进度吗？所有已看集数将被清空，状态将变为"待看"。')) return;
   const a = animeList.find(x => x.id === id); if (!a) return;
   applyStatusToWatchedEpisodes(a, 'towatch');
-  saveData(); refreshAnimeProgressViews(id);
+  refreshAnimeProgressViews(id);
+  await saveData();
 }
 
 // ===== Single Anime Cover Fetch =====
@@ -3236,7 +3265,7 @@ async function fetchCoversForAnime(id) {
 
   showToast('正在搜索封面...');
   try {
-    var resp = await aiEnrich(a.title);
+    var resp = await aiEnrich(a.title, a.category);
     var data = (resp && resp.data) ? resp.data : resp;
     var newCovers = (data && data.covers) ? data.covers : [];
     if (newCovers.length === 0) {
@@ -3254,7 +3283,7 @@ async function fetchCoversForAnime(id) {
       }
     }
     a.covers = covers;
-    saveData();
+    await saveData();
     detailPopupId = id;
     renderDetailPopup(id);
     renderCards();
@@ -3269,11 +3298,11 @@ async function fetchCoversForAnime(id) {
   }
 }
 
-function selectCoverForAnime(id, idx) {
+async function selectCoverForAnime(id, idx) {
   var a = animeList.find(function(x) { return x.id === id; });
   if (!a || !a.covers || !a.covers[idx]) return;
   a.cover = a.covers[idx].url;
-  saveData();
+  await saveData();
   detailPopupId = id;
   renderDetailPopup(id);
   renderCards();
@@ -3295,7 +3324,7 @@ async function batchAiFillAll() {
     btn.textContent = `⏳ 补全中 ${done+1}/${all.length}...`;
     let updated = false;
     try {
-      const resp = await aiEnrich(a.title);
+      const resp = await aiEnrich(a.title, a.category);
       const data = (resp && resp.data) ? resp.data : resp;
       if (data) {
         if (data.synopsis && data.synopsis.trim()) { a.synopsis = data.synopsis; updated = true; }
@@ -3309,14 +3338,14 @@ async function batchAiFillAll() {
     } catch(e) {}
     done++;
     if (updated) {
-      saveData();
+      await saveData();
       renderCards();
       if (detailPopupId === a.id) renderDetailPopup(a.id);
       await new Promise(r => setTimeout(r, 100));
     }
     if (done < all.length) await new Promise(r => setTimeout(r, 800));
   }
-  saveData();
+  await saveData();
   renderCards();
   btn.textContent = origText;
   btn.disabled = false;
@@ -3358,8 +3387,8 @@ async function reclassifyAll() {
           }
         }
         if (json.results.length > 0) {
-          saveData();
           renderCards();
+          await saveData();
         }
       }
     } catch(e) {}
@@ -3381,7 +3410,7 @@ async function aiFillCard(id) {
   if (!a || !a.title) return;
   showToast('⏳ 正在AI补全...');
   try {
-    const resp = await aiEnrich(a.title);
+    const resp = await aiEnrich(a.title, a.category);
     const data = (resp && resp.data) ? resp.data : resp;
     if (data && data.title) {
       if (data.synopsis && data.synopsis.trim()) a.synopsis = data.synopsis;
@@ -3402,7 +3431,7 @@ async function aiFillCard(id) {
         a.covers = covers;
       }
       if (data.score) a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null;
-      saveData();
+      await saveData();
       renderCards();
       if (detailPopupId === id) renderDetailPopup(id);
       showToast('AI补全完成 ✓');
@@ -3504,19 +3533,11 @@ function chooseSource(idx) {
 }
 
 function autoFill(r, src) {
-  if (r.title) {
-    document.getElementById('mTitle').value = r.title;
-    document.getElementById('mTitle')._aiFilled = true;
-  }
+  // Preserve the exact title typed by the user. Search/AI titles are only metadata hints.
   if (r.episodes > 0) { document.getElementById('mTotalEp').value = r.episodes; document.getElementById('epSourceTag').textContent = `(来自 ${src || r.source || 'API'})`; }
   if (r.synopsis) document.getElementById('mSynopsis').value = r.synopsis;
   if (r.score) document.getElementById('mScore').value = typeof r.score === 'number' ? r.score : parseFloat(r.score) || '';
   if (r.cover) setCover(r.cover);
-  const migrate = { tv:'japanese_anime', movie:'anime_movie', ova:'japanese_anime', ona:'japanese_anime', web:'japanese_anime', special:'japanese_anime', music:'anime_movie' };
-  if (r.animeType) {
-    document.getElementById('mCategory').value = migrate[r.animeType] || r.animeType;
-  }
-  if (r.category) document.getElementById('mCategory').value = migrate[r.category] || r.category;
   document.getElementById('mTitle')._genres = r.genres || [];
   renderCoverOptions(r.covers || (r.cover ? [{ url: r.cover, source: src || r.source || '来源' }] : []));
 }
@@ -3555,7 +3576,7 @@ async function batchFetchCovers() {
     var a = all[i];
     btn.textContent = '⏳ 搜索封面 ' + (done + 1) + '/' + all.length + '...';
     try {
-      var resp = await aiEnrich(a.title);
+      var resp = await aiEnrich(a.title, a.category);
       var data = (resp && resp.data) ? resp.data : resp;
       var newCovers = (data && data.covers) ? data.covers : [];
       if (newCovers.length > 1) {
@@ -3571,7 +3592,7 @@ async function batchFetchCovers() {
         }
         a.covers = covers;
         enriched++;
-        saveData();
+        await saveData();
         renderCards();
         await new Promise(function(r) { return setTimeout(r, 100); });
       }
@@ -3579,7 +3600,7 @@ async function batchFetchCovers() {
     done++;
     if (done < all.length) await new Promise(function(r) { return setTimeout(r, 800); });
   }
-  saveData();
+  await saveData();
   renderCards();
   btn.textContent = origText;
   btn.disabled = false;
@@ -3688,7 +3709,7 @@ function previewCoverFile() {
   reader.readAsDataURL(file);
 }
 
-function saveAnime() {
+async function saveAnime() {
   const title = document.getElementById('mTitle').value.trim();
   if (!title) { document.getElementById('mTitle').focus(); return; }
   const status = document.getElementById('mStatus').value;
@@ -3720,28 +3741,33 @@ function saveAnime() {
     a.category = category; a.folderId = folderId;
     if (totalEpisodes < oldTotal && a.watchedEpisodes) a.watchedEpisodes = a.watchedEpisodes.filter(e => e <= totalEpisodes);
     applyStatusToWatchedEpisodes(a, status);
-    saveData(); closeModal(); renderCards();
+    closeModal(); renderCards();
+    await saveData();
     showToast('已保存 ✓', { type: 'edit', id: editingId, before: before });
   } else {
     var newId = Date.now();
     var newAnime = { id: newId, title, status, totalEpisodes, watchedEpisodes: [], score, cover: finalCover, covers: savedCovers, synopsis, genres, category, folderId, sourceUrl, addedAt: new Date().toISOString() };
     applyStatusToWatchedEpisodes(newAnime, status);
     animeList.push(newAnime);
-    saveData(); closeModal(); renderCards();
+    closeModal(); renderCards();
+    await saveData();
     showToast('已添加 ✓', { type: 'add', ids: [newId] });
   }
 }
 
-function deleteAnime(id) {
+async function deleteAnime(id) {
   animeList = animeList.filter(function(a) { return a.id !== id; });
   if (detailPopupId === id) { detailPopupId = null; document.getElementById('detailOverlay').style.display = 'none'; }
   if (editingId === id) editingId = null;
-  saveData();
+  renderCards();
+  await saveData();
   // Also delete from cloud
   if (useCloudAuth() && window.AnimeCloud.loggedIn) {
-    window.AnimeCloud.deleteAnime(id).catch(function(e) { console.error('Cloud delete error:', e); });
+    await window.AnimeCloud.deleteAnime(id).catch(function(e) {
+      console.error('Cloud delete error:', e);
+      showToast('云端删除失败：' + e.message);
+    });
   }
-  renderCards();
 }
 
 let pendingDeleteId = null;
@@ -3761,14 +3787,14 @@ function closeDeleteConfirm() {
   if (editingId) document.getElementById('modalOverlay').style.display = 'flex';
 }
 
-document.getElementById('btnConfirmDelete').addEventListener('click', function() {
+document.getElementById('btnConfirmDelete').addEventListener('click', async function() {
   if (!pendingDeleteId) return;
   const id = pendingDeleteId;
   const deletedItem = animeList.find(function(x) { return x.id === id; });
   pendingDeleteId = null;
   document.getElementById('deleteConfirmOverlay').style.display = 'none';
   document.getElementById('modalOverlay').style.display = 'none';
-  deleteAnime(id);
+  await deleteAnime(id);
   if (deletedItem) {
     showToast('已删除 ✓', { type: 'delete', items: [deletedItem] });
   } else {
@@ -3816,7 +3842,7 @@ function closeBatchAddModal() {
   document.getElementById('batchAddOverlay').style.display = 'none';
 }
 
-function batchAddAnime() {
+async function batchAddAnime() {
   var raw = document.getElementById('batchAddNames').value.trim();
   if (!raw) { showToast('请输入至少一个番剧名称'); return; }
   var names = raw.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
@@ -3851,8 +3877,8 @@ function batchAddAnime() {
     added++;
   }
   if (added > 0) {
-    saveData();
     renderCards();
+    await saveData();
     showToast('已批量添加 ' + added + ' 部番剧 ✓', { type: 'add', ids: newIds });
   } else {
     showToast('没有新番剧被添加（可能已存在）');
@@ -3946,26 +3972,29 @@ function saveFolder() {
   showToast(editId ? '收藏夹已更新 ✓' : '收藏夹已创建 ✓');
 }
 
-function deleteFolder(id) {
+async function deleteFolder(id) {
   if (!confirm('确定删除此收藏夹？番剧不会被删除。')) return;
   animeList.forEach(function(a) { if (a.folderId === id) a.folderId = null; });
   folderList = folderList.filter(function(f) { return f.id !== id; });
-  saveData();
-  saveFolders();
-  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
-    window.AnimeCloud.deleteFolder(id).catch(function(e) { console.error('Cloud folder delete error:', e); });
-  }
   renderCards();
   renderFolderList();
+  await saveData();
+  saveFolders();
+  if (useCloudAuth() && window.AnimeCloud.loggedIn) {
+    await window.AnimeCloud.deleteFolder(id).catch(function(e) {
+      console.error('Cloud folder delete error:', e);
+      showToast('云端收藏夹删除失败：' + e.message);
+    });
+  }
 }
 
-function moveToFolder(animeId, folderId) {
+async function moveToFolder(animeId, folderId) {
   const a = animeList.find(x => x.id === animeId);
   if (!a) return;
   a.folderId = folderId || null;
-  saveData();
   renderCards();
   renderFolderList();
+  await saveData();
   showToast(folderId ? '已移入收藏夹 ✓' : '已移出收藏夹 ✓');
 }
 
@@ -4278,7 +4307,7 @@ async function importAllData() {
         }
         normalizeAnimeProgressStatus(animeList[i]);
       }
-      saveData();
+      await saveData();
 
       // Restore folders
       if (data.folderList && Array.isArray(data.folderList)) {
@@ -4358,7 +4387,7 @@ function pushUndo(action) {
   _undoAction = action;
 }
 
-function undoLastAction() {
+async function undoLastAction() {
   if (!_undoAction) { showToast('没有可撤销的操作'); return; }
   var a = _undoAction;
   _undoAction = null;
@@ -4366,19 +4395,19 @@ function undoLastAction() {
     for (var i = 0; i < a.ids.length; i++) {
       animeList = animeList.filter(function(x) { return x.id !== a.ids[i]; });
     }
-    saveData(); renderCards();
+    renderCards(); await saveData();
     showToast('已撤销添加 ' + a.ids.length + ' 部番剧 ✓');
   } else if (a.type === 'delete' && a.items) {
     for (var i = 0; i < a.items.length; i++) {
       animeList.push(a.items[i]);
     }
-    saveData(); renderCards();
+    renderCards(); await saveData();
     showToast('已撤销删除 ' + a.items.length + ' 部番剧 ✓');
   } else if (a.type === 'edit' && a.id && a.before) {
     var target = animeList.find(function(x) { return x.id === a.id; });
     if (target) {
       Object.assign(target, a.before);
-      saveData(); renderCards();
+      renderCards(); await saveData();
       showToast('已撤销编辑 ✓');
     }
   } else {
@@ -4887,6 +4916,9 @@ async function loadCloudData() {
   if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return false;
 
   showToast('正在同步云端数据...');
+  const localAnimeBeforeCloud = JSON.parse(localStorage.getItem(DATA_KEY) || '[]');
+  const localFoldersBeforeCloud = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]');
+  const localSourcesBeforeCloud = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]');
 
   const [cloudAnime, cloudFolders, cloudSources, cloudHistory, cloudSettings] = await Promise.all([
     window.AnimeCloud.loadAnimeList(),
@@ -4940,22 +4972,21 @@ async function loadCloudData() {
 
   // Auto-migrate localStorage data to cloud if cloud is empty
   if (cloudAnime !== null && cloudAnime.length === 0 && cloudFolders !== null && cloudFolders.length === 0) {
-    const localAnime = JSON.parse(localStorage.getItem(DATA_KEY) || '[]');
+    const localAnime = localAnimeBeforeCloud;
     if (localAnime.length > 0) {
       showToast('检测到本地数据，正在上传到云端...');
       animeList = localAnime;
-      saveData();
-      syncAnimeToCloud();
+      await saveData();
       // Force immediate sync
       clearTimeout(_cloudSyncTimer);
       await window.AnimeCloud.batchSaveAnime(localAnime);
-      const localFolders = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]');
+      const localFolders = localFoldersBeforeCloud;
       if (localFolders.length > 0) {
         folderList = localFolders;
         saveFolders();
         await window.AnimeCloud.saveAllFolders(localFolders);
       }
-      const localSources = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]');
+      const localSources = localSourcesBeforeCloud;
       if (localSources.length > 0) {
         sourceList = localSources;
         saveSourceList();
@@ -4965,6 +4996,9 @@ async function loadCloudData() {
     }
   }
 
+  renderFolderList();
+  renderSourceList();
+  renderCards();
   showToast('云端数据同步完成 ✓');
   return true;
 }

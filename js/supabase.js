@@ -150,6 +150,9 @@
         episodes: d.episodes || 0,
         currentEp: d.current_ep || 0,
         totalEpisodes: d.total_episodes || 0,
+        watchedEpisodes: Array.isArray(d.watched_episodes)
+          ? d.watched_episodes
+          : Array.from({ length: d.current_ep || 0 }, function(_, i) { return i + 1; }),
         cover: d.cover || '',
         url: d.url || '',
         synopsis: d.synopsis || '',
@@ -174,7 +177,7 @@
       category: anime.category || 'japanese_anime',
       status: anime.status || 'towatch',
       episodes: anime.episodes || 0,
-      current_ep: anime.currentEp || 0,
+      current_ep: Array.isArray(anime.watchedEpisodes) ? anime.watchedEpisodes.length : (anime.currentEp || 0),
       total_episodes: anime.totalEpisodes || 0,
       cover: anime.cover || '',
       url: anime.url || '',
@@ -193,24 +196,29 @@
 
   CLOUD.saveAnime = async function(anime) {
     if (!CLOUD.loggedIn) return;
-    await animeTbl().upsert(animeRow(anime), { onConflict: 'user_id,id' });
+    const { error } = await animeTbl().upsert(animeRow(anime), { onConflict: 'user_id,id' });
+    if (error) throw new Error(error.message);
   };
 
   CLOUD.deleteAnime = async function(id) {
     if (!CLOUD.loggedIn) return;
-    await animeTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+    const { error } = await animeTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+    if (error) throw new Error(error.message);
   };
 
   CLOUD.batchSaveAnime = async function(list) {
     if (!CLOUD.loggedIn) return;
+    if (!list || list.length === 0) return;
     const rows = list.map(function(a) { return animeRow(a); });
-    await animeTbl().upsert(rows, { onConflict: 'user_id,id' });
+    const { error } = await animeTbl().upsert(rows, { onConflict: 'user_id,id' });
+    if (error) throw new Error(error.message);
   };
 
   CLOUD.batchDeleteAnime = async function(ids) {
     if (!CLOUD.loggedIn) return;
     for (var i = 0; i < ids.length; i++) {
-      await animeTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(ids[i]));
+      const { error } = await animeTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(ids[i]));
+      if (error) throw new Error(error.message);
     }
   };
 
@@ -240,20 +248,24 @@
 
   CLOUD.saveFolder = async function(folder) {
     if (!CLOUD.loggedIn) return;
-    await folderTbl().upsert(folderRow(folder), { onConflict: 'user_id,id' });
+    const { error } = await folderTbl().upsert(folderRow(folder), { onConflict: 'user_id,id' });
+    if (error) throw new Error(error.message);
   };
 
   CLOUD.deleteFolder = async function(id) {
     if (!CLOUD.loggedIn) return;
-    await folderTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+    const { error } = await folderTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+    if (error) throw new Error(error.message);
   };
 
   CLOUD.saveAllFolders = async function(list) {
     if (!CLOUD.loggedIn) return;
     // Delete existing then insert new
-    await folderTbl().delete().eq('user_id', CLOUD.uid);
+    let result = await folderTbl().delete().eq('user_id', CLOUD.uid);
+    if (result.error) throw new Error(result.error.message);
     if (list.length > 0) {
-      await folderTbl().insert(list.map(function(f) { return folderRow(f); }));
+      result = await folderTbl().insert(list.map(function(f) { return folderRow(f); }));
+      if (result.error) throw new Error(result.error.message);
     }
   };
 
@@ -283,19 +295,23 @@
 
   CLOUD.saveSource = async function(source) {
     if (!CLOUD.loggedIn) return;
-    await sourceTbl().upsert(sourceRow(source), { onConflict: 'user_id,id' });
+    const { error } = await sourceTbl().upsert(sourceRow(source), { onConflict: 'user_id,id' });
+    if (error) throw new Error(error.message);
   };
 
   CLOUD.deleteSource = async function(id) {
     if (!CLOUD.loggedIn) return;
-    await sourceTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+    const { error } = await sourceTbl().delete().eq('user_id', CLOUD.uid).eq('id', String(id));
+    if (error) throw new Error(error.message);
   };
 
   CLOUD.saveAllSources = async function(list) {
     if (!CLOUD.loggedIn) return;
-    await sourceTbl().delete().eq('user_id', CLOUD.uid);
+    let result = await sourceTbl().delete().eq('user_id', CLOUD.uid);
+    if (result.error) throw new Error(result.error.message);
     if (list.length > 0) {
-      await sourceTbl().insert(list.map(function(s) { return sourceRow(s); }));
+      result = await sourceTbl().insert(list.map(function(s) { return sourceRow(s); }));
+      if (result.error) throw new Error(result.error.message);
     }
   };
 

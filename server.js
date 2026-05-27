@@ -62,6 +62,30 @@ function saveCustomSources(sources) {
 
 let customSources = loadCustomSources();
 
+const VALID_CATEGORIES = new Set([
+  'chinese_anime', 'japanese_anime', 'theatrical_anime', 'anime_movie',
+  'movie', 'tv_drama', 'web_drama', 'documentary',
+]);
+const ANIME_SOURCE_CATEGORIES = new Set(['chinese_anime', 'japanese_anime', 'theatrical_anime', 'anime_movie']);
+const CATEGORY_LABELS = {
+  chinese_anime: '国漫/国产动画',
+  japanese_anime: '日漫/TV番剧',
+  theatrical_anime: '剧场版动画',
+  anime_movie: '动画电影',
+  movie: '真人电影',
+  tv_drama: '电视剧',
+  web_drama: '网剧',
+  documentary: '纪录片',
+};
+
+function normalizeCategory(category) {
+  return VALID_CATEGORIES.has(category) ? category : null;
+}
+
+function shouldUseAnimeSources(category) {
+  return !category || ANIME_SOURCE_CATEGORIES.has(category);
+}
+
 // ========== bgm.tv Parser ==========
 
 async function searchBgm(query) {
@@ -410,6 +434,8 @@ app.get('/api/sources', (_req, res) => {
 app.get('/api/search', async (req, res) => {
   const q = (req.query.q || '').trim();
   const sourceKeys = (req.query.sources || '').split(',').filter(Boolean);
+  const category = normalizeCategory(req.query.category || '');
+  const allowAnimeSources = shouldUseAnimeSources(category);
 
   if (!q) return res.json({ results: [] });
 
@@ -421,11 +447,11 @@ app.get('/api/search', async (req, res) => {
     const customUrl = req.query[`url_${key}`];
     // Detect built-in source by URL pattern or key match
     const builtInKey = matchBuiltInSource(key, customUrl);
-    if (builtInKey && SEARCH_FUNCTIONS[builtInKey]) {
+    if (builtInKey && SEARCH_FUNCTIONS[builtInKey] && allowAnimeSources) {
       promises.push(
         SEARCH_FUNCTIONS[builtInKey](q).then(r => { allResults.push(...r); }).catch(e => console.error(`[${builtInKey}]`, e.message))
       );
-    } else if (customUrl && customUrl.includes('{query}')) {
+    } else if (!builtInKey && customUrl && customUrl.includes('{query}')) {
       // Custom URL override → use generic search
       promises.push(
         genericSearch(customUrl, q).then(r => {
@@ -438,6 +464,7 @@ app.get('/api/search', async (req, res) => {
   // Custom sources
   for (const cs of customSources) {
     if (sourceKeys.includes(cs.id)) {
+      if (!allowAnimeSources && matchBuiltInSource(cs.id, cs.searchUrl)) continue;
       promises.push(
         genericSearch(cs.searchUrl, q).then(r => {
           allResults.push(...r.map(item => ({ ...item, source: cs.name })));
@@ -645,16 +672,18 @@ async function searchAniList(title) {
 }
 
 // ========== AI Enrich ==========
-async function callAI(query, userId) {
+async function callAI(query, userId, category) {
   const apiKey = await resolveApiKey(userId);
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
+  const categoryHint = normalizeCategory(category);
+  const categoryLabel = categoryHint ? CATEGORY_LABELS[categoryHint] : '未指定';
 
-  const prompt = `请识别这部动漫/影视作品：「${query}」，返回严格JSON（不要markdown代码块）：
+  const prompt = `请识别这部影视/动画作品：「${query}」，返回严格JSON（不要markdown代码块）：
 {
-  "title": "最准确的中文名称",
+  "title": "必须原样返回用户输入的名称：${query}",
   "titleEn": "英文/罗马字名称（日漫用罗马字，国产用拼音）",
   "titleJa": "日文原名（不是日漫则填空字符串）",
-  "episodes": 集数(纯数字，TV动画通常12/13/24/25/26，不确定填0)，
+  "episodes": 集数/总篇数(电影通常填1，TV动画/电视剧填实际集数，不确定填0)，
   "category": "必须从以下8个分类中严格选择最合适的一个：",
   "synopsis": "中文剧情简介，必须是中文，200-400字，介绍故事背景和主要内容。禁止英文简介！",
   "score": 评分(1-10的数字，参考豆瓣/Bangumi/MAL综合评分，不确定填null)，
@@ -674,7 +703,10 @@ async function callAI(query, userId) {
 
 【判定优先级】先看形式（动画 vs 真人）→ 再看产地（日本 vs 其他）→ 最后看播出渠道（TV vs 网播 vs 影院）
 
-注意：synopsis和genres都必须是中文！禁止英文标签！category必须从给定的8个选项中选择！如果完全找不到则返回：{"title":"","titleEn":"","titleJa":"","episodes":0,"category":"japanese_anime","synopsis":"","score":null,"genres":[],"year":null}`;
+【用户当前添加分类】${categoryHint || '未指定'}（${categoryLabel}）
+如果用户当前添加分类已指定，请优先按这个分类理解作品；例如分类为 movie 时，「黑客帝国」应按真人电影理解，不能改成《黑客帝国动画版》或其他衍生作品。
+
+注意：title必须严格等于用户输入「${query}」，不能改名、不能翻译、不能替换成别名或衍生作品名。synopsis和genres都必须是中文！禁止英文标签！category必须从给定的8个选项中选择！如果完全找不到则返回：{"title":"${query}","titleEn":"","titleJa":"","episodes":0,"category":"${categoryHint || 'japanese_anime'}","synopsis":"","score":null,"genres":[],"year":null}`;
 
   const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
@@ -682,7 +714,7 @@ async function callAI(query, userId) {
     body: JSON.stringify({
       model: 'deepseek-chat',
       messages: [
-        { role: 'system', content: '你是一个专业的动漫影视信息助手。用户给你一个番剧/影视名称，你需要精准识别出正确的作品并返回准确信息。所有文本内容（标题、剧情简介、标签/类型）都必须使用中文。标签例如：热血、奇幻、战斗、恋爱、科幻、悬疑、搞笑、日常 等。只返回JSON，不要额外解释。' },
+        { role: 'system', content: '你是一个专业的影视/动画信息助手。必须尊重用户选择的分类上下文；用户输入的标题是主键，不能替换成别名、翻译名或衍生作品名。所有文本内容（剧情简介、标签/类型）都必须使用中文。只返回JSON，不要额外解释。' },
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
@@ -718,12 +750,14 @@ function fuzzyMatchScore(a, b) {
 
 app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
   const q = (req.body.query || req.body.title || '').trim();
-  if (!q) return res.status(400).json({ error: '需要番剧名称' });
+  const requestedCategory = normalizeCategory(req.body.category || '');
+  const allowAnimeSources = shouldUseAnimeSources(requestedCategory);
+  if (!q) return res.status(400).json({ error: '需要作品名称' });
   try {
     // Step 1: Get AI identification
     let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
-      aiData = await callAI(q, req.user?.id);
+      aiData = await callAI(q, req.user?.id, requestedCategory);
     } catch(e) { console.error('AI call failed:', e.message); }
 
     // Step 2: Search real sources with multiple title variants
@@ -732,15 +766,17 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
     ].filter(Boolean))];
 
     const allSearchResults = [];
-    for (const title of searchTitles.slice(0, 3)) {
-      try {
-        const [malR, bgmR] = await Promise.allSettled([
-          searchMal(title),
-          searchBgm(title),
-        ]);
-        if (malR.status === 'fulfilled') allSearchResults.push(...malR.value.map(r => ({ ...r, _src: 'mal' })));
-        if (bgmR.status === 'fulfilled') allSearchResults.push(...bgmR.value.map(r => ({ ...r, _src: 'bgm' })));
-      } catch(e) {}
+    if (allowAnimeSources) {
+      for (const title of searchTitles.slice(0, 3)) {
+        try {
+          const [malR, bgmR] = await Promise.allSettled([
+            searchMal(title),
+            searchBgm(title),
+          ]);
+          if (malR.status === 'fulfilled') allSearchResults.push(...malR.value.map(r => ({ ...r, _src: 'mal' })));
+          if (bgmR.status === 'fulfilled') allSearchResults.push(...bgmR.value.map(r => ({ ...r, _src: 'bgm' })));
+        } catch(e) {}
+      }
     }
 
     // Step 3: Find best real source match
@@ -778,9 +814,9 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
 
     // Step 5: Build merged result — real data preferred
     const merged = {
-      title: bestReal?.title || aiData.title || q,
+      title: q,
       episodes: bestReal?.episodes || parseInt(aiData.episodes) || 0,
-      category: mapCategory(bestReal?.category || bestReal?.animeType) || aiData.category || null,
+      category: requestedCategory || mapCategory(bestReal?.category || bestReal?.animeType) || aiData.category || null,
       synopsis: realDetail?.synopsis || bestReal?.synopsis || aiData.synopsis || '',
       score: bestReal?.score || aiData.score || null,
       genres: (realDetail?.genres && realDetail.genres.length > 0)
@@ -814,14 +850,16 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
       if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, r.source || r._src, r.title);
     }
 
-    // Step 7: Also search AniList for additional covers
-    for (const title of searchTitles.slice(0, 2)) {
-      try {
-        const anilistResults = await searchAniList(title);
-        for (const r of anilistResults) {
-          if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, 'AniList', r.title);
-        }
-      } catch(e) {}
+    // Step 7: Also search AniList for additional covers, but only for animation/anime categories.
+    if (allowAnimeSources) {
+      for (const title of searchTitles.slice(0, 2)) {
+        try {
+          const anilistResults = await searchAniList(title);
+          for (const r of anilistResults) {
+            if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, 'AniList', r.title);
+          }
+        } catch(e) {}
+      }
     }
 
     res.json({
