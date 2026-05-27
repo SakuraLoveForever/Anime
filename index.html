@@ -1526,6 +1526,15 @@ let chosenSourceIdx = -1;
 let searchTimer = null;
 let detailPopupId = null;
 let _initAuthReady = null;    // Promise that resolves when auth state is settled
+let _cloudDataLoadedForUid = null;
+
+function refreshAppViews() {
+  updateAuthUI();
+  renderFolderList();
+  renderSourceList();
+  renderCards();
+  applyCompactMode();
+}
 
 function loadData() {
   try { animeList = JSON.parse(localStorage.getItem(DATA_KEY) || '[]'); } catch(e) { animeList = []; }
@@ -4555,6 +4564,24 @@ function updateAuthUI() {
   }
 }
 
+async function refreshAfterAuthChange() {
+  updateAuthUI();
+  if (isLoggedIn()) {
+    syncUserApiKey(null);
+    if (cloudMode) await loadCloudData();
+    await loadSourceList();
+  } else {
+    loadData();
+    loadFolders();
+    await loadSourceList();
+    loadSearchHistory();
+  }
+  updateAuthUI();
+  renderFolderList();
+  renderSourceList();
+  renderCards();
+}
+
 function openAuthModal() {
   if (isLoggedIn()) {
     showAuthUserMenu();
@@ -4658,14 +4685,14 @@ async function handleAuthSubmit() {
       var displayName = account.split('@')[0];
       await window.AnimeCloud.register(account, password, displayName);
       rememberAccount(account, null, true, password);
-      syncUserApiKey(null);
       closeAuthModal();
+      await refreshAfterAuthChange();
       showToast('注册成功，欢迎 ' + displayName + ' ✓');
     } else {
       await window.AnimeCloud.login(account, password);
       rememberAccount(account, null, true, password);
-      syncUserApiKey(null);
       closeAuthModal();
+      await refreshAfterAuthChange();
       showToast('登录成功，欢迎 ' + getUserDisplayName() + ' ✓');
     }
   } catch(e) {
@@ -4754,7 +4781,7 @@ async function switchToRememberedAccount(username, isCloud) {
   renderAuthRememberedAccounts();
   if (hasPwd) {
     // Auto-submit with stored credentials
-    handleAuthSubmit();
+    await handleAuthSubmit();
   }
 }
 
@@ -4769,10 +4796,7 @@ async function tryLocalAutoLogin(entry, username) {
   if (token && window.AnimeCloud.email === username) {
     localStorage.setItem('anime_auth_token', 'supabase');
     localStorage.setItem('anime_auth_username', window.AnimeCloud.displayName || username);
-    syncUserApiKey(token);
-    if (cloudMode) { await loadCloudData(); }
-    await loadSourceList();
-    updateAuthUI();
+    await refreshAfterAuthChange();
     showToast('已切换至 ' + (window.AnimeCloud.displayName || username));
     return true;
   }
@@ -4784,10 +4808,7 @@ async function tryLocalAutoLogin(entry, username) {
       localStorage.setItem('anime_auth_token', 'supabase');
       localStorage.setItem('anime_auth_username', result.displayName || username);
       rememberAccount(username, null, true, atob(entry.password));
-      syncUserApiKey(null);
-      if (cloudMode) { await loadCloudData(); }
-      await loadSourceList();
-      updateAuthUI();
+      await refreshAfterAuthChange();
       showToast('已切换至 ' + (result.displayName || username));
       return true;
     } catch(e) {}
@@ -4907,6 +4928,7 @@ async function handleLogout(quiet) {
   var menu = document.getElementById('authUserMenu');
   if (menu) menu.remove();
   renderFolderList();
+  renderSourceList();
   renderCards();
   if (!quiet) showToast('已退出登录');
 }
@@ -5029,25 +5051,10 @@ function initAuth() {
     window.AnimeCloud.init({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
   }
 
-  var _cloudDataLoaded = false;
   var _authResolved = false;
   _initAuthReady = new Promise(function(resolve) {
     window.AnimeCloud.onAuthChange(async function(loggedIn) {
-      updateAuthUI();
-      if (loggedIn) {
-        syncUserApiKey(null);
-        if (cloudMode && !_cloudDataLoaded) {
-          _cloudDataLoaded = true;
-          await loadCloudData();
-        }
-        await loadSourceList();
-      } else {
-        _cloudDataLoaded = false;
-        loadData();
-        loadFolders();
-        loadSourceList();
-        loadSearchHistory();
-      }
+      await refreshAfterAuthChange();
       if (!_authResolved) { _authResolved = true; resolve(); }
     });
     updateAuthUI();
@@ -5067,6 +5074,7 @@ function initAuth() {
   await checkBackend();
   if (!backendOnline) await loadSourceList();
   renderFolderList();
+  renderSourceList();
   renderCards();
   applyCompactMode();
 })();
