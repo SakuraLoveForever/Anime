@@ -1418,6 +1418,13 @@
       <button class="btn-ai-fill" onclick="testAiApi()" style="width:100%;margin-bottom:4px">🧪 测试 API 连接</button>
     </div>
     <div class="settings-section">
+      <h3>电影/电视剧封面 (TMDB)</h3>
+      <div class="modal-field">
+        <label>TMDB API Key <span style="font-size:0.7rem;opacity:0.5">（<a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--color-primary)">免费注册获取</a>，用于获取电影电视剧封面和简介）</span></label>
+        <input type="password" id="settingsTmdbKey" placeholder="填入 TMDB API Read Access Token 或 API Key...">
+      </div>
+    </div>
+    <div class="settings-section">
       <h3>数据管理</h3>
       <div style="display:flex;gap:8px">
         <button class="btn-ai-fill" onclick="exportAllData()" style="flex:1">📥 导出数据</button>
@@ -1807,12 +1814,13 @@ async function aiEnrich(title, categoryOverride) {
   if (!backendOnline) throw new Error('后端未连接');
   const apiKey = localStorage.getItem('anime_api_key') || '';
   const apiUrl = localStorage.getItem('anime_api_url') || 'https://api.deepseek.com';
+  const tmdbApiKey = localStorage.getItem('tmdb_api_key') || '';
   const categoryEl = document.getElementById('mCategory');
   const category = categoryOverride || (categoryEl ? categoryEl.value : '');
   const resp = await fetch(BACKEND_URL + '/api/ai-enrich', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, category, apiKey, apiUrl }),
+    body: JSON.stringify({ title, category, apiKey, apiUrl, tmdbApiKey }),
     signal: AbortSignal.timeout(60000)
   });
   if (!resp.ok) {
@@ -4126,6 +4134,7 @@ function openSettingsModal() {
   document.getElementById('settingsApiProvider').value = localStorage.getItem('anime_api_provider') || 'deepseek';
   document.getElementById('settingsApiUrl').value = localStorage.getItem('anime_api_url') || 'https://api.deepseek.com';
   document.getElementById('settingsApiKey').value = localStorage.getItem('anime_api_key') || '';
+  document.getElementById('settingsTmdbKey').value = localStorage.getItem('tmdb_api_key') || '';
   document.getElementById('settingsModalOverlay').style.display = 'flex';
 }
 
@@ -4204,6 +4213,10 @@ async function saveSettings() {
   localStorage.setItem('anime_api_url', url);
   if (key) { localStorage.setItem('anime_api_key', key); localStorage.setItem('anime_api_key_server', '1'); }
   else { localStorage.removeItem('anime_api_key'); localStorage.removeItem('anime_api_key_server'); }
+  // TMDB API Key
+  const tmdbKey = document.getElementById('settingsTmdbKey').value.trim();
+  if (tmdbKey) { localStorage.setItem('tmdb_api_key', tmdbKey); }
+  else { localStorage.removeItem('tmdb_api_key'); }
   // Sync API key to server
   var authToken = await getAuthToken();
   if (authToken && BACKEND_URL) {

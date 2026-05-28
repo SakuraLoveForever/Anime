@@ -197,6 +197,33 @@ async function fetchMalFull(id) {
   } catch(e) { return null; }
 }
 
+// ========== TMDB Search (for movies / TV / non-anime) ==========
+const TMDB_API_KEY = process.env.TMDB_API_KEY || '';
+
+async function searchTmdb(query, category, fallbackKey) {
+  const apiKey = TMDB_API_KEY || fallbackKey;
+  if (!apiKey) return [];
+  const mediaType = (category === 'tv_drama' || category === 'web_drama') ? 'tv' : 'movie';
+  try {
+    const resp = await fetch(
+      `https://api.themoviedb.org/3/search/${mediaType}?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=zh-CN`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (!resp.ok) return [];
+    const json = await resp.json();
+    return (json.results || []).slice(0, 6).map(item => ({
+      title: item.title || item.name || '',
+      id: item.id,
+      cover: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : '',
+      synopsis: item.overview || '',
+      score: item.vote_average ? Math.round(item.vote_average * 10) / 10 : null,
+      year: item.release_date ? parseInt(item.release_date.substring(0, 4)) : (item.first_air_date ? parseInt(item.first_air_date.substring(0, 4)) : null),
+      source: 'TMDB',
+      url: `https://www.themoviedb.org/${mediaType}/${item.id}`,
+    }));
+  } catch(e) { return []; }
+}
+
 // ========== Generic Search (for custom sources) ==========
 
 async function genericSearch(searchUrlTemplate, query) {
@@ -858,6 +885,24 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
           const anilistResults = await searchAniList(title);
           for (const r of anilistResults) {
             if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, 'AniList', r.title);
+          }
+        } catch(e) {}
+      }
+    }
+
+    // Step 8: For non-anime categories, search TMDB for covers & metadata
+    if (!allowAnimeSources) {
+      for (const title of searchTitles.slice(0, 2)) {
+        try {
+          const tmdbResults = await searchTmdb(title, requestedCategory, req.body.tmdbApiKey);
+          for (const r of tmdbResults) {
+            if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, 'TMDB', r.title);
+          }
+          // Enrich metadata from TMDB if AI data is lacking
+          if (tmdbResults.length > 0) {
+            const bestTmdb = tmdbResults[0];
+            if (!merged.synopsis && bestTmdb.synopsis) merged.synopsis = bestTmdb.synopsis;
+            if (!merged.score && bestTmdb.score) merged.score = bestTmdb.score;
           }
         } catch(e) {}
       }
