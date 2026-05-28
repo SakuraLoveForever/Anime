@@ -672,8 +672,8 @@ async function searchAniList(title) {
 }
 
 // ========== AI Enrich ==========
-async function callAI(query, userId, category) {
-  const apiKey = await resolveApiKey(userId);
+async function callAI(query, userId, category, fallbackApiKey) {
+  const apiKey = await resolveApiKey(userId) || fallbackApiKey;
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
   const categoryHint = normalizeCategory(category);
   const categoryLabel = categoryHint ? CATEGORY_LABELS[categoryHint] : '未指定';
@@ -757,7 +757,7 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
     // Step 1: Get AI identification
     let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
-      aiData = await callAI(q, req.user?.id, requestedCategory);
+      aiData = await callAI(q, req.user?.id, requestedCategory, req.body.apiKey);
     } catch(e) { console.error('AI call failed:', e.message); }
 
     // Step 2: Search real sources with multiple title variants
@@ -767,15 +767,16 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
 
     const allSearchResults = [];
     if (allowAnimeSources) {
+      const tasks = [];
       for (const title of searchTitles.slice(0, 3)) {
-        try {
-          const [malR, bgmR] = await Promise.allSettled([
-            searchMal(title),
-            searchBgm(title),
-          ]);
-          if (malR.status === 'fulfilled') allSearchResults.push(...malR.value.map(r => ({ ...r, _src: 'mal' })));
-          if (bgmR.status === 'fulfilled') allSearchResults.push(...bgmR.value.map(r => ({ ...r, _src: 'bgm' })));
-        } catch(e) {}
+        tasks.push(
+          searchMal(title).then(r => r.map(x => ({ ...x, _src: 'mal' }))).catch(() => []),
+          searchBgm(title).then(r => r.map(x => ({ ...x, _src: 'bgm' }))).catch(() => [])
+        );
+      }
+      const settled = await Promise.allSettled(tasks);
+      for (const r of settled) {
+        if (r.status === 'fulfilled') allSearchResults.push(...r.value);
       }
     }
 
