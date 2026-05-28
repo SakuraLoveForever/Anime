@@ -66,7 +66,7 @@ const VALID_CATEGORIES = new Set([
   'chinese_anime', 'japanese_anime', 'theatrical_anime', 'anime_movie',
   'movie', 'tv_drama', 'web_drama', 'documentary',
 ]);
-const ANIME_SOURCE_CATEGORIES = new Set(['chinese_anime', 'japanese_anime', 'theatrical_anime', 'anime_movie']);
+const ANIME_SOURCE_CATEGORIES = new Set(['chinese_anime', 'japanese_anime', 'theatrical_anime', 'anime_movie', 'movie', 'tv_drama', 'web_drama', 'documentary']);
 const CATEGORY_LABELS = {
   chinese_anime: '国漫/国产动画',
   japanese_anime: '日漫/TV番剧',

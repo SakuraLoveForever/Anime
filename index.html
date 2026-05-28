@@ -2814,6 +2814,13 @@ const BUILTIN_SOURCES = [
   { id: 'builtin_nimegami', name: 'Nimegami', url: 'https://nimegami.id/?s={query}', enabled: true, builtin: true },
   { id: 'builtin_animetosho', name: 'AnimeTosho', url: 'https://animetosho.org/search?q={query}', enabled: true, builtin: true },
   { id: 'builtin_otakudesu', name: 'OtakuDesu', url: 'https://otakudesu.cloud/?s={query}', enabled: true, builtin: true },
+  { id: 'builtin_tmdb', name: 'TMDB', url: 'https://www.themoviedb.org/search/movie?query={query}', enabled: true, builtin: true },
+  { id: 'builtin_douban', name: '豆瓣电影', url: 'https://search.douban.com/movie/subject_search?search_text={query}', enabled: true, builtin: true },
+  { id: 'builtin_1905', name: '1905电影网', url: 'https://www.1905.com/search/index-p-type-all-q-{query}.html', enabled: true, builtin: true },
+  { id: 'builtin_czzy', name: '厂长资源', url: 'https://www.czzy77.com/search/{query}', enabled: true, builtin: true },
+  { id: 'builtin_letterboxd', name: 'Letterboxd', url: 'https://letterboxd.com/search/{query}', enabled: true, builtin: true },
+  { id: 'builtin_novipnoad', name: 'NO视频', url: 'https://www.novipnoad.net/search/{query}', enabled: true, builtin: true },
+  { id: 'builtin_justwatch', name: 'JustWatch', url: 'https://www.justwatch.com/us/search?q={query}', enabled: true, builtin: true },
 ];
 
 function isBuiltinSource(id) {
@@ -4568,7 +4575,7 @@ async function refreshAfterAuthChange() {
   updateAuthUI();
   if (isLoggedIn()) {
     syncUserApiKey(null);
-    if (cloudMode) await loadCloudData();
+    if (cloudMode && !sessionStorage.getItem('cloud_synced_session')) await loadCloudData();
     await loadSourceList();
   } else {
     loadData();
@@ -4686,12 +4693,14 @@ async function handleAuthSubmit() {
       await window.AnimeCloud.register(account, password, displayName);
       rememberAccount(account, null, true, password);
       closeAuthModal();
+      sessionStorage.removeItem('cloud_synced_session');
       await refreshAfterAuthChange();
       showToast('注册成功，欢迎 ' + displayName + ' ✓');
     } else {
       await window.AnimeCloud.login(account, password);
       rememberAccount(account, null, true, password);
       closeAuthModal();
+      sessionStorage.removeItem('cloud_synced_session');
       await refreshAfterAuthChange();
       showToast('登录成功，欢迎 ' + getUserDisplayName() + ' ✓');
     }
@@ -4924,6 +4933,7 @@ async function handleLogout(quiet) {
   localStorage.removeItem('anime_auth_token');
   localStorage.removeItem('anime_auth_username');
   localStorage.removeItem('anime_api_key_server');
+  sessionStorage.removeItem('cloud_synced_session');
   updateAuthUI();
   var menu = document.getElementById('authUserMenu');
   if (menu) menu.remove();
@@ -5021,6 +5031,7 @@ async function loadCloudData() {
   renderFolderList();
   renderSourceList();
   renderCards();
+  sessionStorage.setItem('cloud_synced_session', '1');
   showToast('云端数据同步完成 ✓');
   return true;
 }
