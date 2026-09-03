@@ -14,6 +14,23 @@
 
 > 首次访问 Render 可能需要等待 ~30 秒唤醒（免费实例休眠）。页面会自动检测并重试后端，唤醒成功后会自动更新为“后端已连接”，无需手动点击。
 
+### 自动保活（可选）
+
+仓库内置了两个 GitHub Actions 定时任务：
+
+- `render-keepalive.yml` 每 10 分钟请求 Render 的 `/health`，尽量减少免费实例休眠后的首次等待；
+- `supabase-keepalive.yml` 每 12 小时查询一次 Supabase REST 接口，尽量避免 Free 项目因数据库活动不足而自动暂停。
+
+在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 中添加：
+
+| Secret | 值 |
+|------|------|
+| `SUPABASE_URL` | 你的 Supabase 项目 URL，例如 `https://项目引用.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase 的 anon/publishable key |
+| `RENDER_HEALTH_URL` | 可选；如果不是 README 中的默认部署地址，再填你的 `/health` 地址 |
+
+这里只需要 anon/publishable key，**不要填写 `service_role` 或 `sb_secret` key**。定时任务是尽量保持活跃，不是服务可用性保证；如果 Supabase 已经暂停，需要先在 Supabase Dashboard 中手动 Resume。Supabase 官方也建议升级到付费计划来彻底避免因低活跃自动暂停。
+
 ### 注册 / 登录
 
 打开网页后，点击右上角 **🔐 登录** 按钮：
