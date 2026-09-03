@@ -8,6 +8,7 @@ const {
   normalizeDeepSeekModel,
   buildDeepSeekChatRequest,
 } = require('./js/deepseek-model-core.js');
+const log = require('./js/logger.js');
 
 const app = express();
 app.use(cors());
@@ -648,11 +649,16 @@ app.post('/api/config', (req, res) => {
 async function searchAniList(title) {
   const query = `
     query ($search: String) {
-      Page(perPage: 5) {
+      Page(perPage: 6) {
         media(search: $search, type: ANIME) {
           id
           title { romaji english native }
           coverImage { extraLarge large medium }
+          episodes
+          averageScore
+          description(asHtml: false)
+          genres
+          format
           siteUrl
         }
       }
@@ -667,12 +673,46 @@ async function searchAniList(title) {
     if (!resp.ok) return [];
     const json = await resp.json();
     return (json.data?.Page?.media || []).map(m => ({
+      id: m.id,
       title: m.title?.romaji || m.title?.english || m.title?.native || '',
+      titleEn: m.title?.english || m.title?.romaji || '',
+      episodes: m.episodes || 0,
+      score: m.averageScore ? m.averageScore / 10 : null,
+      synopsis: (m.description || '').replace(/<[^>]*>/g, ''),
+      genres: m.genres || [],
+      format: (m.format || '').toLowerCase(),
       cover: m.coverImage?.extraLarge || m.coverImage?.large || m.coverImage?.medium || '',
       url: m.siteUrl || `https://anilist.co/anime/${m.id}`,
       source: 'anilist.co',
     }));
   } catch(e) { return []; }
+}
+
+// ========== Web Cover Search (fallback) ==========
+
+// Search Baidu image for cover art of ANY title (anime, tokusatsu, live-action, Chinese).
+// AniList only indexes anime, so this is the fallback that covers everything else.
+async function webCoverSearch(title) {
+  try {
+    const url = 'https://image.baidu.com/search/acjson?tn=resultjson_com&ipn=rj&word=' +
+      encodeURIComponent(title + ' 封面') + '&pn=0&rn=20&ie=utf-8&oe=utf-8';
+    const resp = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        'Referer': 'https://image.baidu.com/',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) { log.warn('网络图片搜索失败 HTTP ' + resp.status + '：「' + title + '」'); return []; }
+    const txt = await resp.text();
+    const json = JSON.parse(txt);
+    const urls = [];
+    for (const d of (json.data || [])) {
+      if (d.thumbURL && urls.length < 10) urls.push(d.thumbURL);
+    }
+    log.debug('webCoverSearch', { title, count: urls.length });
+    return urls;
+  } catch(e) { log.warn('网络图片搜索出错：「' + title + '」' + e.message); return []; }
 }
 
 // ========== AI Enrich ==========
@@ -713,27 +753,44 @@ async function callAI(query, userId, category, fallbackApiKey, requestedModel) {
 
 注意：title必须严格等于用户输入「${query}」，不能改名、不能翻译、不能替换成别名或衍生作品名。synopsis和genres都必须是中文！禁止英文标签！category必须从给定的8个选项中选择！如果完全找不到则返回：{"title":"${query}","titleEn":"","titleJa":"","episodes":0,"category":"${categoryHint || 'japanese_anime'}","synopsis":"","score":null,"genres":[],"year":null}`;
 
-  const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify(buildDeepSeekChatRequest({
-      model,
-      messages: [
-        { role: 'system', content: '你是一个专业的影视/动画信息助手。必须尊重用户选择的分类上下文；用户输入的标题是主键，不能替换成别名、翻译名或衍生作品名。所有文本内容（剧情简介、标签/类型）都必须使用中文。只返回JSON，不要额外解释。' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      maxTokens: 2000,
-    })),
-    signal: AbortSignal.timeout(25000),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error?.message || `DeepSeek API ${resp.status}`);
+  async function request(useModel) {
+    const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify(buildDeepSeekChatRequest({
+        model: useModel,
+        messages: [
+          { role: 'system', content: '你是一个专业的影视/动画信息助手。必须尊重用户选择的分类上下文；用户输入的标题是主键，不能替换成别名、翻译名或衍生作品名。所有文本内容（剧情简介、标签/类型）都必须使用中文。只返回JSON，不要额外解释。' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.3,
+        maxTokens: 2000,
+      })),
+      signal: AbortSignal.timeout(25000),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const e = new Error(err.error?.message || `DeepSeek API ${resp.status}`);
+      e.status = resp.status;
+      throw e;
+    }
+    return await resp.json();
   }
 
-  const json = await resp.json();
+  let json;
+  try {
+    json = await request(model);
+  } catch (e) {
+    // If the selected model is rejected (bad id / not found) or a server error,
+    // retry once with the well-known deepseek-chat so the fill still works.
+    // (401 = bad API key, retrying won't help.)
+    if (model !== 'deepseek-chat' && e.status !== 401) {
+      json = await request('deepseek-chat');
+    } else {
+      throw e;
+    }
+  }
+
   const content = json.choices?.[0]?.message?.content || '';
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('AI 返回格式异常');
@@ -758,119 +815,82 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
   const requestedCategory = normalizeCategory(req.body.category || '');
   const allowAnimeSources = shouldUseAnimeSources(requestedCategory);
   if (!q) return res.status(400).json({ error: '需要作品名称' });
+  log.debug('ai-enrich request', { title: q, category: requestedCategory, allowAnimeSources, model: req.body.model });
   try {
     // Step 1: Get AI identification
     let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
       aiData = await callAI(q, req.user?.id, requestedCategory, req.body.apiKey, req.body.model);
-    } catch(e) { console.error('AI call failed:', e.message); }
-
-    // Step 2: Search real sources with multiple title variants
-    const searchTitles = [...new Set([
-      aiData.title, aiData.titleEn, aiData.titleJa, q
-    ].filter(Boolean))];
-
-    const allSearchResults = [];
-    if (allowAnimeSources) {
-      const tasks = [];
-      for (const title of searchTitles.slice(0, 3)) {
-        tasks.push(
-          searchMal(title).then(r => r.map(x => ({ ...x, _src: 'mal' }))).catch(() => []),
-          searchBgm(title).then(r => r.map(x => ({ ...x, _src: 'bgm' }))).catch(() => [])
-        );
-      }
-      const settled = await Promise.allSettled(tasks);
-      for (const r of settled) {
-        if (r.status === 'fulfilled') allSearchResults.push(...r.value);
-      }
+      log.debug('ai-enrich callAI ok', { titleEn: aiData.titleEn, titleJa: aiData.titleJa, episodes: aiData.episodes, score: aiData.score, synopsisLen: (aiData.synopsis || '').length, genres: (aiData.genres || []).length });
+    } catch(e) {
+      log.warn('AI 补全识别失败：「' + q + '」（' + e.message + '）');
     }
 
-    // Step 3: Find best real source match
-    let bestReal = null;
-    let bestScore = 0;
-    const seen = new Set();
-    for (const r of allSearchResults) {
-      const key = (r.title || '').toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      let score = 0;
-      for (const t of searchTitles.slice(0, 4)) {
-        score = Math.max(score, fuzzyMatchScore(r.title, t));
-      }
-      if (score > bestScore) { bestScore = score; bestReal = r; }
-    }
-
-    // Step 4: If good real match found (score >= 30), fetch full details
-    let realDetail = null;
-    if (bestReal && bestReal.id && bestScore >= 30) {
-      try {
-        if (bestReal._src === 'bgm') {
-          realDetail = await parseBgmSubject(bestReal.id);
-        } else if (bestReal._src === 'mal') {
-          realDetail = await fetchMalFull(bestReal.id);
-        }
-      } catch(e) {}
-    }
-
-    // Map raw animeType to category values matching frontend <select>
+    // DeepSeek fills text fields; AniList provides covers and fills any text gaps
+    // (safety net so a top title never comes back almost-empty).
     const mapCategory = (raw) => {
-      const m = { tv: 'japanese_anime', movie: 'anime_movie', ova: 'japanese_anime', ona: 'japanese_anime', web: 'japanese_anime', special: 'japanese_anime', music: 'anime_movie' };
-      return m[raw] || raw || null;
+      const m = { tv: 'japanese_anime', movie: 'anime_movie', ova: 'japanese_anime', ona: 'japanese_anime', web: 'japanese_anime', special: 'japanese_anime', music: 'anime_movie', tv_short: 'japanese_anime' };
+      return (raw ? m[raw.toLowerCase()] : null) || null;
     };
-
-    // Step 5: Build merged result — real data preferred
-    const merged = {
-      title: q,
-      episodes: bestReal?.episodes || parseInt(aiData.episodes) || 0,
-      category: requestedCategory || mapCategory(bestReal?.category || bestReal?.animeType) || aiData.category || null,
-      synopsis: realDetail?.synopsis || bestReal?.synopsis || aiData.synopsis || '',
-      score: bestReal?.score || aiData.score || null,
-      genres: (realDetail?.genres && realDetail.genres.length > 0)
-        ? realDetail.genres
-        : ((bestReal?.genres && bestReal.genres.length > 0) ? bestReal.genres : (aiData.genres || [])),
-      sourceUrl: bestReal?.url || aiData.sourceUrl || '',
-      source: bestReal ? (bestReal.source || bestReal._src) : 'DeepSeek AI',
-    };
-
-    // Helper to check if a result is a reasonable match for the query
-    const isRelevantMatch = (r, minScore) => {
-      let score = 0;
-      for (const t of searchTitles.slice(0, 3)) {
-        score = Math.max(score, fuzzyMatchScore(r.title, t));
-      }
-      score = Math.max(score, fuzzyMatchScore(r.title, q));
-      return score >= minScore;
-    };
-
-    // Step 6: Collect covers from matching real sources only
     const covers = [];
     const coverSeen = new Set();
-    const addCover = (url, src, title) => {
-      if (url && !coverSeen.has(url)) {
-        coverSeen.add(url);
-        covers.push({ url, source: src, title: title || '' });
+    let anilistBest = null;
+    if (allowAnimeSources) {
+      // AniList is indexed by English/romaji/Japanese, not Chinese. DeepSeek supplies the
+      // romanized/Japanese title (titleEn/titleJa); search those first, then the raw query.
+      // Require a strong title match (>=60) so a loose hit (e.g. a knockoff like "Chaoren
+      // TIGA" for Ultraman Tiga) is not used as the cover.
+      const variants = [...new Set([aiData.titleEn, aiData.titleJa, q].filter(Boolean))];
+      for (const title of variants.slice(0, 3)) {
+        try {
+          const results = await searchAniList(title);
+          log.debug('ai-enrich anilist search', { variant: title, results: results.length });
+          for (const r of results) {
+            const score = Math.max(fuzzyMatchScore(r.title, title), fuzzyMatchScore(r.titleEn || '', title));
+            if (score >= 60) {
+              if (!anilistBest) anilistBest = r;
+              if (r.cover && !coverSeen.has(r.cover)) {
+                coverSeen.add(r.cover);
+                covers.push({ url: r.cover, source: 'AniList', title: r.title || '' });
+              }
+            }
+          }
+        } catch(e) { log.warn('AniList 检索出错：「' + title + '」（' + e.message + '）'); }
       }
-    };
-    if (realDetail?.cover) addCover(realDetail.cover, realDetail._src === 'bgm' ? 'Bangumi' : 'MyAnimeList', realDetail.title);
-    for (const r of allSearchResults) {
-      if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, r.source || r._src, r.title);
     }
 
-    // Step 7: Also search AniList for additional covers, but only for animation/anime categories.
-    if (allowAnimeSources) {
-      for (const title of searchTitles.slice(0, 2)) {
-        try {
-          const anilistResults = await searchAniList(title);
-          for (const r of anilistResults) {
-            if (r.cover && isRelevantMatch(r, 30)) addCover(r.cover, 'AniList', r.title);
-          }
-        } catch(e) {}
+    // If AniList gave fewer than a handful of covers (e.g. tokusatsu / live-action /
+    // Chinese-only titles, or an anime with only one official cover), also pull several
+    // covers from a web image search so the card gets a real multi-cover set. This is what
+    // makes "获取多张封面" return multiple images for any title.
+    if (covers.length < 3) {
+      const web = await webCoverSearch(q);
+      for (const u of web.slice(0, 10)) {
+        if (u && !coverSeen.has(u)) {
+          coverSeen.add(u);
+          covers.push({ url: u, source: '网络图片', title: q });
+        }
       }
     }
+
+    const coverSummary = covers.reduce((a, c) => { a[c.source] = (a[c.source] || 0) + 1; return a; }, {});
+    log.debug('ai-enrich covers', { total: covers.length, cover: covers[0] ? covers[0].url : '', bySource: coverSummary });
+    log.info(covers.length > 0
+      ? 'AI 补全成功：「' + q + '」获得 ' + covers.length + ' 张封面'
+      : 'AI 补全完成：「' + q + '」未找到封面');
 
     res.json({
       data: {
-        ...merged,
+        title: q,
+        titleEn: aiData.titleEn || anilistBest?.titleEn || '',
+        titleJa: aiData.titleJa || '',
+        episodes: parseInt(aiData.episodes) || anilistBest?.episodes || 0,
+        category: requestedCategory || aiData.category || mapCategory(anilistBest?.format) || null,
+        synopsis: aiData.synopsis || anilistBest?.synopsis || '',
+        score: aiData.score || anilistBest?.score || null,
+        genres: (aiData.genres && aiData.genres.length > 0) ? aiData.genres : (anilistBest?.genres || []),
+        sourceUrl: anilistBest?.url || aiData.sourceUrl || '',
+        source: aiData.synopsis ? 'DeepSeek AI' : (anilistBest ? 'AniList' : 'DeepSeek AI'),
         cover: covers.length > 0 ? covers[0].url : '',
         covers: covers,
       },
@@ -1057,33 +1077,7 @@ app.post('/api/semantic-search', async (req, res) => {
       } catch(e) { /* skip */ }
     }
 
-    // 3. Also try generic search on Bangumi for Chinese queries
-    if (/[一-鿿]/.test(query)) {
-      try {
-        var bgmResults = await searchBgm(query);
-        for (var bi = 0; bi < bgmResults.length; bi++) {
-          var br = bgmResults[bi];
-          if (!seenUrls.has(br.url)) {
-            seenUrls.add(br.url);
-            allResults.push({
-              title: br.title,
-              titleEn: '',
-              cover: br.cover || '',
-              url: br.url,
-              score: br.score || null,
-              episodes: br.episodes || 0,
-              genres: [],
-              synopsis: '',
-              source: 'bgm.tv',
-              relevance: 5,
-              year: null,
-            });
-          }
-        }
-      } catch(e) { /* skip */ }
-    }
-
-    // 4. Sort by relevance
+    // 3. Sort by relevance
     allResults.sort(function(a, b) { return b.relevance - a.relevance; });
 
     res.json({ results: allResults.slice(0, 15) });
@@ -1202,6 +1196,36 @@ app.get('/api/proxy-image', async (req, res) => {
     res.send(Buffer.from(buf));
   } catch(e) {
     res.status(500).send(e.message);
+  }
+});
+
+// ========== Logs ==========
+const LOG_FILE = log.LOG_FILE;
+
+// GET /api/logs?lines=N&level=info — tail of the runtime log file
+app.get('/api/logs', (req, res) => {
+  const level = (req.query.level || '').toLowerCase();
+  const lines = Math.min(Math.max(parseInt(req.query.lines, 10) || 200, 1), 1000);
+  try {
+    if (!fs.existsSync(LOG_FILE)) return res.json({ logs: [], total: 0, file: LOG_FILE });
+    let arr = fs.readFileSync(LOG_FILE, 'utf-8').split('\n').filter(Boolean);
+    if (['debug', 'info', 'warn', 'error'].includes(level)) {
+      arr = arr.filter(l => l.includes(`[${level}]`));
+    }
+    const total = arr.length;
+    res.json({ logs: arr.slice(-lines), total, file: LOG_FILE });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/logs/clear — truncate the runtime log file
+app.post('/api/logs/clear', (_req, res) => {
+  try {
+    fs.writeFileSync(LOG_FILE, '', 'utf-8');
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

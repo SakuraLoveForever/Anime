@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
   api_key text DEFAULT '',
   api_provider text DEFAULT 'deepseek',
   api_url text DEFAULT 'https://api.deepseek.com',
-  api_model text DEFAULT 'deepseek-v4-flash',
+  api_model text DEFAULT 'deepseek-chat',
   theme text DEFAULT 'anime',
   search_history jsonb DEFAULT '[]'::jsonb,
   created_at timestamptz DEFAULT now(),
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
 );
 
 -- Add the model field for existing Supabase projects created before model selection was added.
-ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS api_model text DEFAULT 'deepseek-v4-flash';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS api_model text DEFAULT 'deepseek-chat';
 
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 

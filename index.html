@@ -771,6 +771,29 @@
   .btn-ai-fill:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
   .btn-ai-fill:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  /* ===== Log Panel ===== */
+  .log-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .log-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; opacity: 0.75; }
+  .log-toolbar select {
+    padding: 6px 8px; background: color-mix(in srgb, var(--color-primary) 3%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 8%, transparent);
+    border-radius: 6px; color: var(--color-base-content); font-family: inherit; font-size: 0.82rem; outline: none;
+  }
+  .log-toolbar select:focus { border-color: var(--color-primary); }
+  .log-toolbar select option, .log-toolbar select optgroup { background: var(--color-base-100); color: var(--color-base-content); }
+  .log-toolbar .btn-cancel { padding: 6px 12px; font-size: 0.8rem; }
+  .log-autorefresh { cursor: pointer; user-select: none; }
+  .log-view {
+    background: #0b0f1a; color: #d6e2ff;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border-radius: 8px; padding: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.78rem; line-height: 1.55;
+    white-space: pre-wrap; word-break: break-word;
+    height: 56vh; overflow: auto;
+  }
+  .log-footer { margin-top: 10px; font-size: 0.74rem; opacity: 0.5; }
+
   /* ===== Search Dropdown ===== */
   .search-field-wrap { position: relative; }
   .search-results {
@@ -1021,12 +1044,17 @@
         <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12,2 20,12 12,22 4,12"/></svg></span><span class="nav-label">纪录片</span><span class="nav-badge" id="badgeDocumentary">0</span>
       </button>
-    </nav>
 
-    <div class="sidebar-section">
-      <button class="src-add-btn" onclick="openSourceManager()" style="width:100%">🔍 管理搜索来源</button>
-    </div>
-    <button class="sidebar-collapsed-btn" onclick="openSourceManager()" title="搜索来源">🔍</button>
+      <div class="nav-section-header">
+        <span class="nav-section-geo-decor bg-primary"></span>
+        <span class="nav-section-glow-label text-base-content opacity-50">系统</span>
+        <span class="nav-section-energy-line bg-primary/20"></span>
+      </div>
+      <button class="nav-item" onclick="openLogPanel()" title="运行日志">
+        <span class="nav-energy-bar"></span><span class="nav-glow-dot"></span>
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h9"/></svg></span><span class="nav-label">运行日志</span>
+      </button>
+    </nav>
 
     <button class="sidebar-toggle" onclick="toggleSidebar()" title="收起侧边栏"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="15 5 8 12 15 19"/></svg></button>
   </aside>
@@ -1438,6 +1466,43 @@
   </div>
 </div>
 
+<!-- ===== Log Modal ===== -->
+<div class="modal-overlay" id="logModalOverlay" style="display:none;z-index:230">
+  <div class="edit-modal-box" style="max-width:880px">
+    <h2 id="logModalTitle">运行日志</h2>
+    <div class="log-toolbar" style="font-size:0.8rem;margin-bottom:4px">
+      <span style="opacity:0.5">后端日志文件：<code id="logFile" style="font-family:inherit">…</code></span>
+    </div>
+    <div class="log-toolbar">
+      <label>级别
+        <select id="logLevel" onchange="loadLogs()">
+          <option value="">全部</option>
+          <option value="debug">debug</option>
+          <option value="info">info</option>
+          <option value="warn">warn</option>
+          <option value="error">error</option>
+        </select>
+      </label>
+      <label>数量
+        <select id="logLines" onchange="loadLogs()">
+          <option value="100">100</option>
+          <option value="200" selected>200</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+        </select>
+      </label>
+      <label class="log-autorefresh"><input type="checkbox" id="logAutoRefresh" onchange="toggleLogAutoRefresh()"> 自动刷新</label>
+      <span style="flex:1"></span>
+      <button class="btn-cancel" onclick="loadLogs()" title="重新读取日志">🔄 刷新</button>
+      <button class="btn-cancel" onclick="downloadLogs()" title="导出为 .txt">⬇ 导出</button>
+      <button class="btn-cancel" onclick="clearLogs()" title="清空日志文件">🗑 清空</button>
+      <button class="btn-cancel" onclick="closeLogPanel()">关闭</button>
+    </div>
+    <div class="log-view" id="logView">加载中…</div>
+    <div class="log-footer" id="logFooter"></div>
+  </div>
+</div>
+
 <!-- ===== Auth Modal ===== -->
 <div class="modal-overlay" id="authModalOverlay" style="display:none">
   <div class="edit-modal-box small">
@@ -1471,7 +1536,7 @@
 
 <!-- ===== Detail Popup ===== -->
 <div class="detail-overlay" id="detailOverlay" style="display:none" onclick="closeDetailPopup()"></div>
-<div class="detail-popup" id="detailPopup"></div>
+<div class="detail-popup" id="detailPopup" style="display:none"></div>
 
 <!-- ===== Cloud Mode Popover ===== -->
 <div class="theme-popover-backdrop" id="cloudModeBackdrop" onclick="closeCloudModePopover()"></div>
@@ -1501,6 +1566,7 @@
 <script src="js/cloud-session-core.js"></script>
 <script src="js/backend-health-core.js"></script>
 <script src="js/deepseek-model-core.js"></script>
+<script src="js/modal-request-core.js"></script>
 
 <script>
 // ===== Config =====
@@ -1582,6 +1648,7 @@ let pendingCoverDataUrl = null;
 let sourceResults = [];
 let chosenSourceIdx = -1;
 let searchTimer = null;
+let modalRequestGuard = window.ModalRequestCore.createModalRequestGuard();
 let detailPopupId = null;
 let _initAuthReady = null;    // Promise that resolves when auth state is settled
 let _cloudDataLoadedForUid = null;
@@ -2873,33 +2940,23 @@ function applyStatusToWatchedEpisodes(a, status) {
 
 // Built-in search sources — immutable, always available
 const BUILTIN_SOURCES = [
-  { id: 'builtin_bgm', name: 'Bangumi', url: 'https://bgm.tv/subject_search/{query}?cat=2', enabled: true, builtin: true },
   { id: 'builtin_mal', name: 'MyAnimeList', url: 'https://myanimelist.net/anime.php?q={query}', enabled: true, builtin: true },
   { id: 'builtin_acfun', name: 'AcFun', url: 'https://www.acfun.cn/search?keyword={query}', enabled: true, builtin: true },
   { id: 'builtin_bilibili', name: 'Bilibili', url: 'https://search.bilibili.com/bangumi?keyword={query}', enabled: true, builtin: true },
-  { id: 'builtin_livechart', name: 'LiveChart', url: 'https://www.livechart.me/search?q={query}', enabled: true, builtin: true },
   { id: 'builtin_notifymoe', name: 'Notify.moe', url: 'https://notify.moe/search/{query}', enabled: true, builtin: true },
   { id: 'builtin_anisearch', name: 'AniSearch', url: 'https://www.anisearch.com/anime/index?char={query}', enabled: true, builtin: true },
   { id: 'builtin_amazon', name: 'AmazonPrimeVideo', url: 'https://www.amazon.com/s?k={query}&i=instant-video', enabled: true, builtin: true },
-  { id: 'builtin_netflix', name: 'Netflix', url: 'https://www.netflix.com/search?q={query}', enabled: true, builtin: true },
   { id: 'builtin_hulu', name: 'Hulu', url: 'https://www.hulu.com/search?q={query}', enabled: true, builtin: true },
   { id: 'builtin_danime', name: 'DAnimeStore', url: 'https://animestore.docomo.ne.jp/animestore/sch_pc?searchKey={query}', enabled: true, builtin: true },
   { id: 'builtin_unext', name: 'UNEXT', url: 'https://video.unext.jp/freeword?query={query}', enabled: true, builtin: true },
   { id: 'builtin_anime1', name: 'Anime1', url: 'https://anime1.me/?s={query}', enabled: true, builtin: true },
-  { id: 'builtin_nyaa', name: 'Nyaa', url: 'https://nyaa.si/?f=0&c=1_2&q={query}', enabled: true, builtin: true },
-  { id: 'builtin_mikan', name: '蜜柑计划', url: 'https://mikanani.me/Home/Search?searchstr={query}', enabled: true, builtin: true },
-  { id: 'builtin_masteranime', name: 'MasterAnime', url: 'https://masteranime.tv/search?key={query}', enabled: true, builtin: true },
   { id: 'builtin_jkanime', name: 'JKAnime', url: 'https://jkanime.net/buscar/{query}', enabled: true, builtin: true },
   { id: 'builtin_subsplease', name: 'SubsPlease', url: 'https://subsplease.org/shows/?search={query}', enabled: true, builtin: true },
-  { id: 'builtin_erairaws', name: 'Erai-raws', url: 'https://www.erai-raws.info/?s={query}', enabled: true, builtin: true },
   { id: 'builtin_nimegami', name: 'Nimegami', url: 'https://nimegami.id/?s={query}', enabled: true, builtin: true },
   { id: 'builtin_animetosho', name: 'AnimeTosho', url: 'https://animetosho.org/search?q={query}', enabled: true, builtin: true },
-  { id: 'builtin_otakudesu', name: 'OtakuDesu', url: 'https://otakudesu.cloud/?s={query}', enabled: true, builtin: true },
   { id: 'builtin_tmdb', name: 'TMDB', url: 'https://www.themoviedb.org/search/movie?query={query}', enabled: true, builtin: true },
   { id: 'builtin_douban', name: '豆瓣电影', url: 'https://search.douban.com/movie/subject_search?search_text={query}', enabled: true, builtin: true },
-  { id: 'builtin_1905', name: '1905电影网', url: 'https://www.1905.com/search/index-p-type-all-q-{query}.html', enabled: true, builtin: true },
   { id: 'builtin_czzy', name: '厂长资源', url: 'https://www.czzy77.com/search/{query}', enabled: true, builtin: true },
-  { id: 'builtin_letterboxd', name: 'Letterboxd', url: 'https://letterboxd.com/search/{query}', enabled: true, builtin: true },
   { id: 'builtin_novipnoad', name: 'NO视频', url: 'https://www.novipnoad.net/search/{query}', enabled: true, builtin: true },
   { id: 'builtin_justwatch', name: 'JustWatch', url: 'https://www.justwatch.com/us/search?q={query}', enabled: true, builtin: true },
 ];
@@ -3407,41 +3464,52 @@ async function selectCoverForAnime(id, idx) {
 }
 
 // ===== AI Batch Fill =====
+function _needsAIFill(a) {
+  return !a.synopsis || !a.genres || !a.genres.length || !a.category || !a.score || !a.totalEpisodes || !a.cover;
+}
 async function batchAiFillAll() {
   if (!backendOnline) { showToast('后端未连接'); return; }
   if (!isApiKeyConfigured()) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
   const all = animeList.filter(a => a && a.title);
   if (all.length === 0) { showToast('还没有添加任何番剧'); return; }
-  if (!confirm(`即将对全部 ${all.length} 部番剧进行 AI 信息补全，过程中请勿关闭页面。\n\n已有信息不会被覆盖，仅补充缺失字段（简介、集数、分类、评分、标签、封面）。\n\n是否继续？`)) return;
+  const targets = all.filter(_needsAIFill);
+  if (targets.length === 0) { showToast('没有需要补全的番剧 ✓'); return; }
+  if (!confirm(`即将对 ${targets.length} 部缺失信息的番剧进行 AI 补全（含封面），过程中请勿关闭页面。\n\n已有信息不会被覆盖，仅补充缺失字段（简介、集数、分类、评分、标签、封面）。\n\n是否继续？`)) return;
   const btn = document.getElementById('btnBatchAi');
   const origText = btn.textContent;
   btn.disabled = true;
-  let done = 0;
-  for (const a of all) {
-    btn.textContent = `⏳ 补全中 ${done+1}/${all.length}...`;
-    let updated = false;
-    try {
-      const resp = await aiEnrich(a.title, a.category);
-      const data = (resp && resp.data) ? resp.data : resp;
-      if (data) {
-        if (data.synopsis && data.synopsis.trim()) { a.synopsis = data.synopsis; updated = true; }
-        if (data.episodes > 0 && !a.totalEpisodes) { a.totalEpisodes = data.episodes; updated = true; }
-        if (data.category && data.category.trim() && !a.category) { a.category = normalizeCategory(data.category); updated = true; }
-        if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) { a.genres = data.genres; updated = true; }
-        if (data.score && !a.score) { a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null; updated = true; }
-        if (!a.cover && data.cover) { a.cover = data.cover; updated = true; }
-        if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; updated = true; }
-      }
-    } catch(e) {}
-    done++;
-    if (updated) {
-      await saveData();
-      renderCards();
-      if (detailPopupId === a.id) renderDetailPopup(a.id);
-      await new Promise(r => setTimeout(r, 100));
+  let done = 0, updated = 0, idx = 0;
+  const CONCURRENCY = 3;
+
+  // Bounded-concurrency workers: several enrich calls in flight at once.
+  async function worker() {
+    while (idx < targets.length) {
+      const a = targets[idx++];
+      btn.textContent = `⏳ 补全中 ${done}/${targets.length}...`;
+      let changed = false;
+      try {
+        const resp = await aiEnrich(a.title, a.category); // full path: AI + covers
+        const data = (resp && resp.data) ? resp.data : resp;
+        if (data) {
+          if (data.synopsis && data.synopsis.trim() && !a.synopsis) { a.synopsis = data.synopsis; changed = true; }
+          if (data.episodes > 0 && !a.totalEpisodes) { a.totalEpisodes = data.episodes; changed = true; }
+          if (data.category && data.category.trim() && !a.category) { a.category = normalizeCategory(data.category); changed = true; }
+          if (data.genres && data.genres.length > 0 && (!a.genres || a.genres.length === 0)) { a.genres = data.genres; changed = true; }
+          if (data.score && !a.score) { a.score = typeof data.score === 'number' ? data.score : parseFloat(data.score) || null; changed = true; }
+          if (!a.cover && data.cover) { a.cover = data.cover; changed = true; }
+          if (!a.covers && data.covers && data.covers.length > 1) { a.covers = data.covers; changed = true; }
+        }
+      } catch(e) {}
+      if (changed) updated++;
+      done++;
     }
-    if (done < all.length) await new Promise(r => setTimeout(r, 800));
   }
+
+  const workers = [];
+  for (let i = 0; i < Math.min(CONCURRENCY, targets.length); i++) workers.push(worker());
+  await Promise.all(workers);
+
+  // Save + render once at the end (avoids full re-render/serialize per item).
   await saveData();
   renderCards();
   btn.textContent = origText;
@@ -3542,14 +3610,19 @@ async function aiFillCard(id) {
 
 async function onTitleInput() {
   clearTimeout(searchTimer);
+  modalRequestGuard.cancel('titleSearch');
   var inp = document.getElementById('mTitle');
   if (inp._aiFilled) { inp._aiFilled = false; return; }
   const q = inp.value.trim();
   if (q.length < 2) { document.getElementById('searchResults').classList.remove('show'); return; }
+  const searchRequest = modalRequestGuard.begin('titleSearch', q);
   searchTimer = setTimeout(async () => {
+    if (!modalRequestGuard.isCurrent(searchRequest) || document.getElementById('modalOverlay').style.display === 'none' || document.getElementById('mTitle').value.trim() !== q) return;
     document.getElementById('searchResults').innerHTML = '<div class="search-result-item"><span class="spinner"></span> 搜索中...</div>';
     document.getElementById('searchResults').classList.add('show');
-    renderSearchResults(await backendSearch(q));
+    const results = await backendSearch(q);
+    if (!modalRequestGuard.isCurrent(searchRequest) || document.getElementById('modalOverlay').style.display === 'none' || document.getElementById('mTitle').value.trim() !== q) return;
+    renderSearchResults(results);
   }, 500);
 }
 
@@ -3558,11 +3631,16 @@ async function aiFillInfo() {
   if (!q || q.length < 2) { showToast('请先输入番剧名称'); return; }
   if (!backendOnline) { showToast('后端未连接'); return; }
   if (!isApiKeyConfigured()) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  clearTimeout(searchTimer);
+  modalRequestGuard.cancel('titleSearch');
+  const aiRequest = modalRequestGuard.begin('aiFill', q);
+  document.getElementById('searchResults').classList.remove('show');
   const btn = document.getElementById('btnAiFill');
   btn.textContent = '⏳ 分析中...';
   btn.disabled = true;
   try {
     const resp = await aiEnrich(q);
+    if (!modalRequestGuard.isCurrent(aiRequest) || document.getElementById('modalOverlay').style.display === 'none' || document.getElementById('mTitle').value.trim() !== q) return;
     const data = (resp && resp.data) ? resp.data : resp;
     if (data && data.title) {
       autoFill(data, 'DeepSeek AI');
@@ -3571,9 +3649,14 @@ async function aiFillInfo() {
     } else {
       showToast('AI 未找到匹配结果');
     }
-  } catch(e) { showToast('AI 填充失败：' + e.message); }
-  btn.textContent = '🤖 AI 填充';
-  btn.disabled = false;
+  } catch(e) {
+    if (modalRequestGuard.isCurrent(aiRequest)) showToast('AI 填充失败：' + e.message);
+  } finally {
+    if (modalRequestGuard.isCurrent(aiRequest)) {
+      btn.textContent = '🤖 AI 填充';
+      btn.disabled = false;
+    }
+  }
 }
 
 function renderSearchResults(results) {
@@ -3746,6 +3829,8 @@ document.addEventListener('click', e => {
 
 // ===== CRUD =====
 function openAddModal() {
+  clearTimeout(searchTimer);
+  modalRequestGuard.reset();
   editingId = null; pendingCoverDataUrl = null; sourceResults = []; chosenSourceIdx = -1;
   document.getElementById('coverPicker').style.display = 'none';
   document.getElementById('modalTitle').textContent = '添加番剧';
@@ -3771,6 +3856,8 @@ function openAddModal() {
 function openEditModal(animeId) {
   const a = animeList.find(x => x.id === animeId);
   if (!a) { showToast('未找到番剧'); return; }
+  clearTimeout(searchTimer);
+  modalRequestGuard.reset();
   editingId = animeId; pendingCoverDataUrl = null; sourceResults = []; chosenSourceIdx = -1;
   document.getElementById('modalTitle').textContent = '编辑番剧';
   document.getElementById('btnSave').textContent = '保存';
@@ -3904,6 +3991,8 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
 });
 
 function closeModal(e) {
+  clearTimeout(searchTimer);
+  modalRequestGuard.reset();
   document.getElementById('modalOverlay').style.display = 'none';
   editingId = null; pendingCoverDataUrl = null; sourceResults = []; chosenSourceIdx = -1;
 }
@@ -4125,6 +4214,7 @@ document.addEventListener('keydown', e => {
     else if (visible('recommendOverlay')) closeRecommendModal();
     else if (visible('deleteConfirmOverlay')) closeDeleteConfirm();
     else if (visible('modalOverlay')) closeModal();
+    else if (visible('logModalOverlay')) closeLogPanel();
     else if (visible('batchAddOverlay')) closeBatchAddModal();
     else if (visible('detailOverlay')) closeDetailPopup();
   }
@@ -4225,7 +4315,7 @@ function openSettingsModal() {
   var savedModel = getScopedItem('anime_api_model', '') || '';
   document.getElementById('settingsApiModel').value = window.DeepSeekModelCore
     ? window.DeepSeekModelCore.normalizeDeepSeekModel(savedModel)
-    : (savedModel || 'deepseek-v4-flash');
+    : (savedModel || 'deepseek-chat');
   document.getElementById('settingsApiModelCustom').value = savedModel;
   updateSettingsApiModelUI();
   document.getElementById('settingsModalOverlay').style.display = 'flex';
@@ -4233,6 +4323,58 @@ function openSettingsModal() {
 
 function closeSettingsModal() {
   document.getElementById('settingsModalOverlay').style.display = 'none';
+}
+
+// ===== Log Panel =====
+let logAutoRefreshTimer = null;
+function openLogPanel() {
+  document.getElementById('logModalOverlay').style.display = 'flex';
+  loadLogs();
+  toggleLogAutoRefresh();
+}
+function closeLogPanel() {
+  document.getElementById('logModalOverlay').style.display = 'none';
+  if (logAutoRefreshTimer) { clearInterval(logAutoRefreshTimer); logAutoRefreshTimer = null; }
+}
+function toggleLogAutoRefresh() {
+  if (logAutoRefreshTimer) { clearInterval(logAutoRefreshTimer); logAutoRefreshTimer = null; }
+  if (document.getElementById('logAutoRefresh').checked) {
+    logAutoRefreshTimer = setInterval(loadLogs, 3000);
+  }
+}
+async function loadLogs() {
+  const view = document.getElementById('logView');
+  if (!view) return;
+  const level = document.getElementById('logLevel').value;
+  const lines = document.getElementById('logLines').value;
+  try {
+    const resp = await fetch(BACKEND_URL + '/api/logs?lines=' + encodeURIComponent(lines) + '&level=' + encodeURIComponent(level));
+    const data = await resp.json();
+    if (data.error) { view.textContent = '读取失败：' + data.error; return; }
+    view.textContent = (data.logs || []).join('\n') || '（暂无日志）';
+    document.getElementById('logFile').textContent = data.file || '';
+    document.getElementById('logFooter').textContent = '共 ' + data.total + ' 条 · 当前显示 ' + (data.logs || []).length + ' 条';
+  } catch (e) {
+    view.textContent = '读取日志失败：' + e.message;
+  }
+}
+async function clearLogs() {
+  if (!confirm('确定要清空后端日志文件吗？此操作不可撤销。')) return;
+  try {
+    await fetch(BACKEND_URL + '/api/logs/clear', { method: 'POST' });
+    showToast('日志已清空 ✓');
+    loadLogs();
+  } catch (e) { showToast('清空失败：' + e.message); }
+}
+function downloadLogs() {
+  const text = (document.getElementById('logView').textContent || '');
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'anime-logs-' + new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-') + '.txt';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function updateSettingsApiUrl() {
@@ -4282,7 +4424,7 @@ function getConfiguredApiModel() {
   if (provider === 'deepseek' && window.DeepSeekModelCore) {
     return window.DeepSeekModelCore.normalizeDeepSeekModel(model);
   }
-  return model || 'deepseek-v4-flash';
+  return model || 'deepseek-chat';
 }
 
 function toggleApiKeyVisibility() {
@@ -4342,8 +4484,8 @@ async function saveSettings() {
   const selectedModel = provider === 'deepseek'
     ? (window.DeepSeekModelCore
       ? window.DeepSeekModelCore.normalizeDeepSeekModel(document.getElementById('settingsApiModel').value)
-      : 'deepseek-v4-flash')
-    : (document.getElementById('settingsApiModelCustom').value.trim() || 'deepseek-v4-flash');
+      : 'deepseek-chat')
+    : (document.getElementById('settingsApiModelCustom').value.trim() || 'deepseek-chat');
 
   // Update backend URL
   if (backendUrl !== BACKEND_URL) {

@@ -5,8 +5,14 @@
     root.DeepSeekModelCore = factory();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-flash';
+  const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
   const MODEL_OPTIONS = [
+    {
+      id: 'deepseek-chat',
+      label: 'DeepSeek Chat（推荐·快）',
+      description: '通用聊天模型，速度快、成本低，适合日常补全使用',
+      supportsVision: false,
+    },
     {
       id: 'deepseek-v4-flash',
       label: 'DeepSeek V4 Flash',
@@ -33,7 +39,6 @@
 
   function normalizeDeepSeekModel(model) {
     var value = String(model || '').trim();
-    if (value === 'deepseek-chat' || value === 'deepseek-reasoner') return DEFAULT_DEEPSEEK_MODEL;
     return MODEL_OPTIONS.some(function (option) { return option.id === value; })
       ? value
       : DEFAULT_DEEPSEEK_MODEL;

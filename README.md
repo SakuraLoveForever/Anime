@@ -26,9 +26,12 @@
 
 点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys) → 选择模型 → 点击「🧪 测试」→ 保存。API 地址默认使用 `https://api.deepseek.com`。
 
+- **DeepSeek Chat**（`deepseek-chat`）— 通用快捷模型，速度快、成本低，适合日常补全使用（默认）；
 - **DeepSeek V4 Flash**（`deepseek-v4-flash`）— 速度快、成本低，推荐日常使用；
 - **DeepSeek V4 Pro**（`deepseek-v4-pro`）— 复杂推理和信息整理质量更高；
 - **DeepSeek V4 Flash Vision（实验版）**（`deepseek-v4-flash-vision-exp`）— 支持图片输入。当前项目的 AI 补全流程仍以文字为主，选择该模型不会自动上传封面图片。
+
+> 「一键AI补全」只对**缺失信息**的番剧执行，用有限并发同时补全，并只在全部结束后保存/渲染一次。**文字（简介/分类/评分/标签/集数）优先由 DeepSeek 生成**（模型报错时自动回退到 `deepseek-chat`，避免卡在无效模型上）；**封面通过 AniList 获取，且 AniList 会在 AI 缺数据时兜底补齐动画信息**，实测其它源在当前网络下不可用（已移除）。批量速度显著提升。
 
 模型名称和能力以 [DeepSeek 官方模型文档](https://api-docs.deepseek.com/quick_start/pricing) 为准；Vision 的图片输入格式见 [官方 Vision 文档](https://api-docs.deepseek.com/guides/vision/)。
 
@@ -118,14 +121,14 @@ npm start
 1. 打开浏览器访问 `http://localhost:3456`
 2. 点击顶栏右侧 ⚙ 齿轮按钮
 3. 粘贴你的 DeepSeek API Key（以 `sk-` 开头）
-4. 选择要使用的 DeepSeek 模型（默认 Flash）
+4. 选择要使用的 DeepSeek 模型（默认 DeepSeek Chat）
 5. 点击「🧪 测试」验证连通性
 6. 测试成功后点击「保存」
 
 如果是已有的 Supabase 项目，需要在 Supabase SQL Editor 中执行一次以下迁移，为账号设置增加模型字段：
 
 ```sql
-ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS api_model text DEFAULT 'deepseek-v4-flash';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS api_model text DEFAULT 'deepseek-chat';
 ```
 
 ### 添加番剧
