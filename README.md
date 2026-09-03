@@ -64,24 +64,126 @@
 
 ## 本地搭建
 
+本地版是一个 Node.js + Express 服务，前端静态文件也由这个服务提供，**不需要单独启动前端开发服务器，也不需要执行 `npm run build`**。
+
 ### 准备工作
 
-- 安装 [Node.js](https://nodejs.org/)（建议 18 以上版本）
-- 准备一个 [DeepSeek API Key](https://platform.deepseek.com/api_keys)
+- 安装 [Node.js](https://nodejs.org/) **20 或更高版本**。当前 Supabase 依赖要求 Node.js 20+；安装后重新打开终端。
+- 安装 Git（或者在 GitHub 页面下载 ZIP 并解压）。
+- DeepSeek API Key **不是启动必需项**，只有使用 AI 填充、智能推荐等功能时才需要。
 
-### 安装 & 启动
+先确认 Node.js 和 npm 已安装：
 
 ```bash
-# 1. 克隆项目
-git clone <repo-url> && cd Anime
-
-# 2. 安装依赖（只需一次）
-npm install
-
-# 3. 启动
-# Windows: 双击 start.bat
-# 其他: node server.js
+node --version
+npm --version
 ```
+
+### 安装依赖
+
+在项目根目录执行（根目录应能看到 `package.json`、`server.js` 和 `start.bat`）：
+
+```bash
+# 克隆项目
+git clone https://github.com/SakuraLoveForever/Anime.git
+cd Anime
+
+# 安装依赖
+npm install
+```
+
+#### npm 12 报 EALLOWREMOTE 的处理方法
+
+本仓库的 `package-lock.json` 使用了 `registry.npmmirror.com` 的依赖下载地址。npm 12 默认将 `allow-remote` 设为 `none`；如果你本机的 npm registry 是 `registry.npmjs.org`，npm 可能会把锁文件中的镜像 tarball 误判为“远程依赖”，并报如下错误：
+
+```text
+npm error code EALLOWREMOTE
+npm error Fetching packages of type "remote" have been disabled
+npm error Refusing to fetch "tslib@https://registry.npmmirror.com/..."
+```
+
+优先使用与锁文件一致的镜像执行安装（只影响本次命令）：
+
+```bash
+npm install --registry=https://registry.npmmirror.com/ --no-audit --no-fund
+```
+
+如果你必须使用 npm 官方源，也可以在确认仓库和锁文件可信后临时允许远程 tarball：
+
+```bash
+npm install --allow-remote=all --no-audit --no-fund
+```
+
+检查当前 npm 配置：
+
+```bash
+npm config get registry
+npm config get allow-remote
+```
+
+`tslib` 是 `@supabase/supabase-js` 的传递依赖，不需要单独执行 `npm install tslib`。如果安装被中断，修复 registry 配置后重新执行上面的安装命令即可。
+
+### 启动服务
+
+#### Windows（推荐先用终端启动）
+
+在项目根目录打开 PowerShell 或命令提示符：
+
+```powershell
+npm start
+```
+
+看到以下提示后，保持这个窗口不要关闭：
+
+```text
+Anime tracker backend running at http://localhost:3456
+Open http://localhost:3456 in your browser
+```
+
+然后打开浏览器访问：
+
+<http://localhost:3456/>
+
+也可以双击项目根目录的 `start.bat`。它会启动 Node.js 服务并自动打开浏览器；如果窗口一闪而过，请改用 `npm start`，这样可以直接看到启动报错。
+
+#### Linux / macOS
+
+```bash
+npm start
+# 或使用 Node.js 的监听模式
+npm run dev
+```
+
+### 启动故障排查
+
+#### 浏览器显示 `ERR_CONNECTION_REFUSED`
+
+这表示 `3456` 端口没有服务监听，通常是服务没有启动或启动后报错，不是页面本身的问题。回到启动服务的终端，确认没有 `Cannot find module`、`EADDRINUSE` 等错误。
+
+Windows PowerShell 可检查端口：
+
+```powershell
+Get-NetTCPConnection -LocalPort 3456 -State Listen
+```
+
+能看到监听记录后，再访问 `http://localhost:3456/`。也可以直接检查 HTTP 响应：
+
+```powershell
+Invoke-WebRequest http://localhost:3456/ -UseBasicParsing
+```
+
+如果提示找不到模块，回到项目根目录重新安装依赖；如果提示端口已占用，关闭占用该端口的旧 Node.js 服务后再执行 `npm start`。
+
+#### 修改端口
+
+如果 `3456` 已被其他程序使用，可临时换一个端口：
+
+```powershell
+$env:PORT=3457
+npm start
+```
+
+然后访问 <http://localhost:3457/>。使用自定义端口时不要双击 `start.bat`，因为它固定打开 `3456`。
 
 ### 配置 API Key
 
