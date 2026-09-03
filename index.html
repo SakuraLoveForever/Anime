@@ -1403,6 +1403,12 @@
           <option value="custom">自定义</option>
         </select>
       </div>
+      <div class="modal-field" id="settingsApiModelWrap">
+        <label id="settingsApiModelLabel">DeepSeek 模型</label>
+        <select id="settingsApiModel" onchange="updateSettingsApiModelHint()"></select>
+        <input type="text" id="settingsApiModelCustom" placeholder="输入兼容接口的模型名称" style="display:none;margin-top:8px">
+        <div id="settingsApiModelHint" style="font-size:0.7rem;opacity:0.55;margin-top:5px"></div>
+      </div>
       <div class="modal-field">
         <label>API 地址</label>
         <input type="text" id="settingsApiUrl" placeholder="https://api.deepseek.com">
@@ -1494,6 +1500,7 @@
 <script src="js/local-auth.js"></script>
 <script src="js/cloud-session-core.js"></script>
 <script src="js/backend-health-core.js"></script>
+<script src="js/deepseek-model-core.js"></script>
 
 <script>
 // ===== Config =====
@@ -1524,7 +1531,7 @@ function getScopedItem(baseKey, fallback) {
   // Compatibility with versions that used offline_<key> before local accounts existed.
   if (value === null && !isCloudDataMode() && !localUser) {
     value = localStorage.getItem('offline_' + baseKey);
-    if (value === null && ['anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url', 'app-theme', 'anime_compact_mode'].indexOf(baseKey) !== -1) {
+    if (value === null && ['anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url', 'anime_api_model', 'app-theme', 'anime_compact_mode'].indexOf(baseKey) !== -1) {
       value = localStorage.getItem(baseKey);
     }
   }
@@ -1885,7 +1892,7 @@ async function aiEnrich(title, categoryOverride) {
   const resp = await fetch(BACKEND_URL + '/api/ai-enrich', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, category, apiKey, apiUrl }),
+    body: JSON.stringify({ title, category, apiKey, apiUrl, model: getConfiguredApiModel() }),
     signal: AbortSignal.timeout(60000)
   });
   if (!resp.ok) {
@@ -3463,7 +3470,11 @@ async function reclassifyAll() {
       var resp = await fetch(BACKEND_URL + '/api/reclassify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titles: batch.map(function(a) { return a.title; }), apiKey: getScopedItem('anime_api_key', '') || '' }),
+        body: JSON.stringify({
+          titles: batch.map(function(a) { return a.title; }),
+          apiKey: getScopedItem('anime_api_key', '') || '',
+          model: getConfiguredApiModel(),
+        }),
         signal: AbortSignal.timeout(35000),
       });
       var json = await resp.json();
@@ -4206,9 +4217,17 @@ function isApiKeyConfigured() {
 
 function openSettingsModal() {
   document.getElementById('settingsBackendUrl').value = BACKEND_URL;
-  document.getElementById('settingsApiProvider').value = getScopedItem('anime_api_provider', 'deepseek') || 'deepseek';
+  var provider = getScopedItem('anime_api_provider', 'deepseek') || 'deepseek';
+  document.getElementById('settingsApiProvider').value = provider;
   document.getElementById('settingsApiUrl').value = getScopedItem('anime_api_url', 'https://api.deepseek.com') || 'https://api.deepseek.com';
   document.getElementById('settingsApiKey').value = getScopedItem('anime_api_key', '') || '';
+  populateDeepSeekModelOptions();
+  var savedModel = getScopedItem('anime_api_model', '') || '';
+  document.getElementById('settingsApiModel').value = window.DeepSeekModelCore
+    ? window.DeepSeekModelCore.normalizeDeepSeekModel(savedModel)
+    : (savedModel || 'deepseek-v4-flash');
+  document.getElementById('settingsApiModelCustom').value = savedModel;
+  updateSettingsApiModelUI();
   document.getElementById('settingsModalOverlay').style.display = 'flex';
 }
 
@@ -4220,6 +4239,50 @@ function updateSettingsApiUrl() {
   const provider = document.getElementById('settingsApiProvider').value;
   const urlInput = document.getElementById('settingsApiUrl');
   if (provider === 'deepseek') urlInput.value = 'https://api.deepseek.com';
+  updateSettingsApiModelUI();
+}
+
+function populateDeepSeekModelOptions() {
+  var select = document.getElementById('settingsApiModel');
+  if (!select || !window.DeepSeekModelCore) return;
+  select.innerHTML = window.DeepSeekModelCore.getDeepSeekModelOptions().map(function (model) {
+    return '<option value="' + model.id + '">' + model.label + '</option>';
+  }).join('');
+}
+
+function updateSettingsApiModelHint() {
+  var select = document.getElementById('settingsApiModel');
+  var hint = document.getElementById('settingsApiModelHint');
+  if (!select || !hint || !window.DeepSeekModelCore) return;
+  var model = window.DeepSeekModelCore.getDeepSeekModelOptions().find(function (option) {
+    return option.id === select.value;
+  });
+  hint.textContent = model ? model.description : '';
+}
+
+function updateSettingsApiModelUI() {
+  var provider = document.getElementById('settingsApiProvider').value;
+  var label = document.getElementById('settingsApiModelLabel');
+  var select = document.getElementById('settingsApiModel');
+  var customInput = document.getElementById('settingsApiModelCustom');
+  var hint = document.getElementById('settingsApiModelHint');
+  var isDeepSeek = provider === 'deepseek';
+  if (label) label.textContent = isDeepSeek ? 'DeepSeek 模型' : '模型名称';
+  if (select) select.style.display = isDeepSeek ? '' : 'none';
+  if (customInput) customInput.style.display = isDeepSeek ? 'none' : '';
+  if (hint) hint.textContent = isDeepSeek
+    ? (hint.textContent || '选择 DeepSeek 官方模型')
+    : '自定义兼容接口请填写该接口支持的模型名称';
+  if (isDeepSeek) updateSettingsApiModelHint();
+}
+
+function getConfiguredApiModel() {
+  var provider = getScopedItem('anime_api_provider', 'deepseek') || 'deepseek';
+  var model = getScopedItem('anime_api_model', '') || '';
+  if (provider === 'deepseek' && window.DeepSeekModelCore) {
+    return window.DeepSeekModelCore.normalizeDeepSeekModel(model);
+  }
+  return model || 'deepseek-v4-flash';
 }
 
 function toggleApiKeyVisibility() {
@@ -4230,11 +4293,15 @@ function toggleApiKeyVisibility() {
 async function testAiApi() {
   var key = document.getElementById('settingsApiKey').value.trim();
   if (!key) { showToast('请先输入 API Key'); return; }
+  var model = document.getElementById('settingsApiProvider').value === 'deepseek'
+    ? document.getElementById('settingsApiModel').value
+    : document.getElementById('settingsApiModelCustom').value.trim();
+  model = (model || getConfiguredApiModel());
   var resultDiv = document.getElementById('aiTestResult');
   resultDiv.style.display = 'block';
   resultDiv.style.color = 'var(--color-base-content)';
   resultDiv.style.opacity = '0.7';
-  resultDiv.textContent = '正在测试 DeepSeek API...';
+  resultDiv.textContent = '正在测试 DeepSeek API（' + model + '）...';
 
   if (!backendOnline) {
     resultDiv.style.color = 'var(--color-warning, #f59e0b)';
@@ -4247,13 +4314,13 @@ async function testAiApi() {
     var testResp = await fetch(BACKEND_URL + '/api/test-ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: key })
+      body: JSON.stringify({ apiKey: key, model: model })
     });
     if (testResp.ok) {
       var data = await testResp.json();
       resultDiv.style.color = 'var(--color-success)';
       resultDiv.style.opacity = '1';
-      resultDiv.innerHTML = '✓ API 连接成功！模型：' + (data.model || 'deepseek-chat');
+      resultDiv.innerHTML = '✓ API 连接成功！模型：' + (data.model || model);
     } else {
       var err = await testResp.json().catch(function() { return { error: 'HTTP ' + testResp.status }; });
       resultDiv.style.color = 'var(--color-error)';
@@ -4272,6 +4339,11 @@ async function saveSettings() {
   const provider = document.getElementById('settingsApiProvider').value;
   const url = document.getElementById('settingsApiUrl').value.trim();
   const key = document.getElementById('settingsApiKey').value.trim();
+  const selectedModel = provider === 'deepseek'
+    ? (window.DeepSeekModelCore
+      ? window.DeepSeekModelCore.normalizeDeepSeekModel(document.getElementById('settingsApiModel').value)
+      : 'deepseek-v4-flash')
+    : (document.getElementById('settingsApiModelCustom').value.trim() || 'deepseek-v4-flash');
 
   // Update backend URL
   if (backendUrl !== BACKEND_URL) {
@@ -4285,6 +4357,7 @@ async function saveSettings() {
 
   setScopedItem('anime_api_provider', provider);
   setScopedItem('anime_api_url', url);
+  setScopedItem('anime_api_model', selectedModel);
   if (key) { setScopedItem('anime_api_key', key); setScopedItem('anime_api_key_server', '1'); }
   else { removeScopedItem('anime_api_key'); removeScopedItem('anime_api_key_server'); }
   // Sync API key to server
@@ -4293,12 +4366,12 @@ async function saveSettings() {
     fetch(BACKEND_URL + '/api/auth/api-key', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-      body: JSON.stringify({ apiKey: key, apiProvider: provider, apiUrl: url })
+      body: JSON.stringify({ apiKey: key, apiProvider: provider, apiUrl: url, apiModel: selectedModel })
     }).catch(function(e) { console.error('API key sync error:', e); });
   }
   // Sync settings to cloud
   if (useCloudAuth() && window.AnimeCloud.loggedIn) {
-    window.AnimeCloud.saveSettings({ apiKey: key, apiProvider: provider, apiUrl: url, theme: currentTheme }).catch(function(e) {
+    window.AnimeCloud.saveSettings({ apiKey: key, apiProvider: provider, apiUrl: url, apiModel: selectedModel, theme: currentTheme }).catch(function(e) {
       console.error('Cloud settings sync error:', e);
     });
   }
@@ -4322,6 +4395,7 @@ async function exportAllData() {
       backendUrl: BACKEND_URL,
       apiProvider: getScopedItem('anime_api_provider', 'deepseek') || 'deepseek',
       apiUrl: getScopedItem('anime_api_url', 'https://api.deepseek.com') || 'https://api.deepseek.com',
+      apiModel: getConfiguredApiModel(),
       apiKey: getScopedItem('anime_api_key', '') || ''
     }
   };
@@ -4432,6 +4506,7 @@ async function importAllData() {
         }
         if (data.settings.apiProvider) setScopedItem('anime_api_provider', data.settings.apiProvider);
         if (data.settings.apiUrl) setScopedItem('anime_api_url', data.settings.apiUrl);
+        if (data.settings.apiModel) setScopedItem('anime_api_model', data.settings.apiModel);
         if (data.settings.apiKey) setScopedItem('anime_api_key', data.settings.apiKey);
       }
 
@@ -4447,6 +4522,7 @@ async function importAllData() {
             apiKey: getScopedItem('anime_api_key', '') || '',
             apiProvider: getScopedItem('anime_api_provider', 'deepseek') || 'deepseek',
             apiUrl: getScopedItem('anime_api_url', '') || '',
+            apiModel: getConfiguredApiModel(),
             theme: currentTheme
           }); } }
         ];
@@ -4603,7 +4679,7 @@ const useCloudAuth = function() { return isCloudDataMode(); };
 const LOCAL_GUEST_MIGRATION_KEY = 'anime_local_guest_migration_v1';
 const LOCAL_SCOPED_KEYS = [
   _DK, _FK, _SK, _SHK,
-  'anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url',
+  'anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url', 'anime_api_model',
   'app-theme', 'anime_compact_mode'
 ];
 
@@ -4871,7 +4947,7 @@ function getGuestItem(baseKey) {
   if (value !== null) return value;
   if (baseKey === _DK) return localStorage.getItem('anime_tracker_v4');
   if (baseKey === _FK) return localStorage.getItem('anime_tracker_folders_v1');
-  if (['anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url', 'app-theme', 'anime_compact_mode'].indexOf(baseKey) !== -1) {
+  if (['anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url', 'anime_api_model', 'app-theme', 'anime_compact_mode'].indexOf(baseKey) !== -1) {
     return localStorage.getItem(baseKey);
   }
   return null;
@@ -5155,6 +5231,7 @@ async function loadCloudData() {
     if (cloudSettings.apiKey) setScopedItem('anime_api_key', cloudSettings.apiKey);
     if (cloudSettings.apiProvider) setScopedItem('anime_api_provider', cloudSettings.apiProvider);
     if (cloudSettings.apiUrl) setScopedItem('anime_api_url', cloudSettings.apiUrl);
+    if (cloudSettings.apiModel) setScopedItem('anime_api_model', cloudSettings.apiModel);
     if (cloudSettings.theme) { currentTheme = cloudSettings.theme; applyTheme(currentTheme); }
   }
 

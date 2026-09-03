@@ -325,6 +325,7 @@
       apiKey: data.api_key || '',
       apiProvider: data.api_provider || 'deepseek',
       apiUrl: data.api_url || 'https://api.deepseek.com',
+      apiModel: data.api_model || 'deepseek-v4-flash',
       theme: data.theme || 'anime',
     };
   };
@@ -336,6 +337,7 @@
       api_key: settings.apiKey || '',
       api_provider: settings.apiProvider || 'deepseek',
       api_url: settings.apiUrl || 'https://api.deepseek.com',
+      api_model: settings.apiModel || 'deepseek-v4-flash',
       theme: settings.theme || 'anime',
       updated_at: new Date().toISOString(),
     };

@@ -24,7 +24,13 @@
 
 ### AI 功能
 
-点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)（或自定义 API 地址）→ 点击「🧪 测试」→ 保存。
+点击右上角 ⚙ → 填入你的 [DeepSeek API Key](https://platform.deepseek.com/api_keys) → 选择模型 → 点击「🧪 测试」→ 保存。API 地址默认使用 `https://api.deepseek.com`。
+
+- **DeepSeek V4 Flash**（`deepseek-v4-flash`）— 速度快、成本低，推荐日常使用；
+- **DeepSeek V4 Pro**（`deepseek-v4-pro`）— 复杂推理和信息整理质量更高；
+- **DeepSeek V4 Flash Vision（实验版）**（`deepseek-v4-flash-vision-exp`）— 支持图片输入。当前项目的 AI 补全流程仍以文字为主，选择该模型不会自动上传封面图片。
+
+模型名称和能力以 [DeepSeek 官方模型文档](https://api-docs.deepseek.com/quick_start/pricing) 为准；Vision 的图片输入格式见 [官方 Vision 文档](https://api-docs.deepseek.com/guides/vision/)。
 
 - 每个人的 API Key 只保存在自己浏览器中，不会上传到服务器
 - 添加番剧时点击「🤖 AI 填充」自动补全信息
@@ -112,8 +118,15 @@ npm start
 1. 打开浏览器访问 `http://localhost:3456`
 2. 点击顶栏右侧 ⚙ 齿轮按钮
 3. 粘贴你的 DeepSeek API Key（以 `sk-` 开头）
-4. 点击「🧪 测试」验证连通性
-5. 测试成功后点击「保存」
+4. 选择要使用的 DeepSeek 模型（默认 Flash）
+5. 点击「🧪 测试」验证连通性
+6. 测试成功后点击「保存」
+
+如果是已有的 Supabase 项目，需要在 Supabase SQL Editor 中执行一次以下迁移，为账号设置增加模型字段：
+
+```sql
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS api_model text DEFAULT 'deepseek-v4-flash';
+```
 
 ### 添加番剧
 

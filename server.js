@@ -4,6 +4,10 @@ const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const {
+  normalizeDeepSeekModel,
+  buildDeepSeekChatRequest,
+} = require('./js/deepseek-model-core.js');
 
 const app = express();
 app.use(cors());
@@ -672,9 +676,10 @@ async function searchAniList(title) {
 }
 
 // ========== AI Enrich ==========
-async function callAI(query, userId, category, fallbackApiKey) {
+async function callAI(query, userId, category, fallbackApiKey, requestedModel) {
   const apiKey = await resolveApiKey(userId) || fallbackApiKey;
   if (!apiKey) throw new Error('未配置 DeepSeek API Key');
+  const model = normalizeDeepSeekModel(requestedModel);
   const categoryHint = normalizeCategory(category);
   const categoryLabel = categoryHint ? CATEGORY_LABELS[categoryHint] : '未指定';
 
@@ -711,15 +716,15 @@ async function callAI(query, userId, category, fallbackApiKey) {
   const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
+    body: JSON.stringify(buildDeepSeekChatRequest({
+      model,
       messages: [
         { role: 'system', content: '你是一个专业的影视/动画信息助手。必须尊重用户选择的分类上下文；用户输入的标题是主键，不能替换成别名、翻译名或衍生作品名。所有文本内容（剧情简介、标签/类型）都必须使用中文。只返回JSON，不要额外解释。' },
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
-      max_tokens: 2000,
-    }),
+      maxTokens: 2000,
+    })),
     signal: AbortSignal.timeout(25000),
   });
 
@@ -757,7 +762,7 @@ app.post('/api/ai-enrich', optionalAuth, async (req, res) => {
     // Step 1: Get AI identification
     let aiData = { title: '', titleEn: '', titleJa: '', episodes: 0, category: null, synopsis: '', score: null, genres: [], year: null };
     try {
-      aiData = await callAI(q, req.user?.id, requestedCategory, req.body.apiKey);
+      aiData = await callAI(q, req.user?.id, requestedCategory, req.body.apiKey, req.body.model);
     } catch(e) { console.error('AI call failed:', e.message); }
 
     // Step 2: Search real sources with multiple title variants
@@ -1091,12 +1096,13 @@ app.post('/api/semantic-search', async (req, res) => {
 app.post('/api/test-ai', optionalAuth, async (req, res) => {
   const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey;
   if (!apiKey) return res.status(400).json({ error: '请先在设置中配置你的 DeepSeek API Key' });
+  const model = normalizeDeepSeekModel(req.body.model);
   try {
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model,
         messages: [{ role: 'user', content: 'Hi' }],
         max_tokens: 10,
       }),
@@ -1104,7 +1110,7 @@ app.post('/api/test-ai', optionalAuth, async (req, res) => {
     });
     if (resp.ok) {
       const data = await resp.json();
-      res.json({ ok: true, model: data.model || 'deepseek-chat', usage: data.usage });
+      res.json({ ok: true, model: data.model || model, usage: data.usage });
     } else {
       const err = await resp.text();
       let msg = `HTTP ${resp.status}`;
@@ -1122,6 +1128,7 @@ app.post('/api/reclassify', optionalAuth, async (req, res) => {
   if (titles.length === 0) return res.status(400).json({ error: '需要至少一个番剧名称' });
   const apiKey = await resolveApiKey(req.user?.id) || req.body.apiKey;
   if (!apiKey) return res.status(400).json({ error: '请先在设置中配置你的 DeepSeek API Key' });
+  const model = normalizeDeepSeekModel(req.body.model);
 
   const rules = `【8大分类 · 严格判定规则】
 1. chinese_anime（国漫/国产动画）→ 中国出品的动画，TV连载或网络播出。例：一人之下、狐妖小红娘、时光代理人、伍六七
@@ -1140,15 +1147,15 @@ app.post('/api/reclassify', optionalAuth, async (req, res) => {
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
+      body: JSON.stringify(buildDeepSeekChatRequest({
+        model,
         messages: [
           { role: 'system', content: `你是一个专业的作品分类助手。根据以下分类规则对每部作品进行分类，只返回JSON。\n\n${rules}` },
           { role: 'user', content: `请为以下作品逐一分类，返回JSON数组（不要markdown）：\n${titleList}\n\n返回格式：[{"index": 1, "category": "japanese_anime"}, ...]\nindex对应序号，category必须是8个分类值之一。不确定时归类为japanese_anime。` },
         ],
         temperature: 0.1,
-        max_tokens: 2000,
-      }),
+        maxTokens: 2000,
+      })),
       signal: AbortSignal.timeout(30000),
     });
 
@@ -1224,6 +1231,7 @@ async function ensureUserSettings(supabase, userId) {
       api_key: '',
       api_provider: 'deepseek',
       api_url: 'https://api.deepseek.com',
+      api_model: 'deepseek-v4-flash',
     });
   }
 }
@@ -1292,20 +1300,22 @@ app.get('/api/auth/api-key', authMiddleware, async (req, res) => {
   if (!supabase) return res.status(500).json({ error: '数据库不可用' });
 
   await ensureUserSettings(supabase, req.user.id);
-  const { data } = await supabase.from('user_settings').select('api_key,api_provider,api_url').eq('user_id', req.user.id).single();
+  const { data } = await supabase.from('user_settings').select('api_key,api_provider,api_url,api_model').eq('user_id', req.user.id).single();
 
   const key = (data && data.api_key) || '';
+  const provider = (data && data.api_provider) || 'deepseek';
   res.json({
     apiKeySet: !!key,
     apiKeyMasked: key ? key.slice(0, 6) + '****' + key.slice(-4) : '',
-    apiProvider: (data && data.api_provider) || 'deepseek',
+    apiProvider: provider,
     apiUrl: (data && data.api_url) || 'https://api.deepseek.com',
+    apiModel: provider === 'deepseek' ? normalizeDeepSeekModel(data && data.api_model) : ((data && data.api_model) || 'deepseek-v4-flash'),
   });
 });
 
 // POST /api/auth/api-key — save user's own API key
 app.post('/api/auth/api-key', authMiddleware, async (req, res) => {
-  const { apiKey, apiUrl, apiProvider } = req.body;
+  const { apiKey, apiUrl, apiProvider, apiModel } = req.body;
   const supabase = getSupabaseAdmin();
   if (!supabase) return res.status(500).json({ error: '数据库不可用' });
 
@@ -1314,6 +1324,11 @@ app.post('/api/auth/api-key', authMiddleware, async (req, res) => {
   if (apiKey !== undefined) updates.api_key = (apiKey || '').trim();
   if (apiUrl !== undefined) updates.api_url = (apiUrl || '').trim();
   if (apiProvider !== undefined) updates.api_provider = apiProvider;
+  if (apiModel !== undefined) {
+    updates.api_model = apiProvider === 'deepseek'
+      ? normalizeDeepSeekModel(apiModel)
+      : String(apiModel || '').trim() || 'deepseek-v4-flash';
+  }
   updates.updated_at = new Date().toISOString();
 
   const { error } = await supabase.from('user_settings').update(updates).eq('user_id', req.user.id);
