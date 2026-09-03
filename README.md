@@ -6,7 +6,7 @@
 
 <img width="1864" height="995" alt="Clip_20260518_004804" src="https://github.com/user-attachments/assets/ee20b1fb-3088-4193-ad52-da9d974d7311" />
 
-Uploading 1.mp4…
+[Uploading 1.mp4…](https://github.com/SakuraLoveForever/Anime/issues/1#issue-5339314170)
 
 ## 在线网页模式
 
