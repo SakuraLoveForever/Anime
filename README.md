@@ -6,6 +6,8 @@
 
 <img width="1864" height="995" alt="Clip_20260518_004804" src="https://github.com/user-attachments/assets/ee20b1fb-3088-4193-ad52-da9d974d7311" />
 
+<video src="https://github.com/user-attachments/assets/27c50817-ea57-45ab-ba78-b9cfc36e9bcf" controls width="100%"></video>
+
 ## 在线网页模式
 
 [番剧管理](https://anime-tracker-0ptb.onrender.com/)
