@@ -1046,7 +1046,7 @@
           </div>
           <div class="search-history-dropdown" id="searchHistoryDropdown"></div>
         </div>
-        <div class="backend-status offline" id="backendStatus" onclick="checkBackend()" title="点击重新检测后端">
+        <div class="backend-status offline" id="backendStatus" onclick="checkBackend(true)" title="点击重新检测后端">
           <span class="bdot"></span>
           <span id="backendLabel">后端未连接</span>
         </div>
@@ -1492,6 +1492,8 @@
 <script src="js/supabase.js"></script>
 <script src="js/local-auth-core.js"></script>
 <script src="js/local-auth.js"></script>
+<script src="js/cloud-session-core.js"></script>
+<script src="js/backend-health-core.js"></script>
 
 <script>
 // ===== Config =====
@@ -1568,6 +1570,7 @@ let sortOrder = 'desc';  // 'asc' | 'desc'
 let selectionMode = false;
 let selectedIds = new Set();
 let backendOnline = false;
+let backendHealthMonitor = null;
 let pendingCoverDataUrl = null;
 let sourceResults = [];
 let chosenSourceIdx = -1;
@@ -1575,6 +1578,7 @@ let searchTimer = null;
 let detailPopupId = null;
 let _initAuthReady = null;    // Promise that resolves when auth state is settled
 let _cloudDataLoadedForUid = null;
+const CLOUD_SESSION_MARKER_KEY = 'cloud_synced_session_uid';
 
 function refreshAppViews() {
   updateAuthUI();
@@ -1797,23 +1801,44 @@ function syncSourcesToCloud() {
 }
 
 // ===== Backend =====
-async function checkBackend() {
-  try {
-    const resp = await fetch(BACKEND_URL + '/api/ping', { signal: AbortSignal.timeout(3000) });
-    backendOnline = resp.ok;
-  } catch(e) { backendOnline = false; }
-  updateBackendStatus();
-  if (backendOnline) {
-    await loadSourceList();
+function ensureBackendHealthMonitor() {
+  if (backendHealthMonitor) return backendHealthMonitor;
+  if (!window.BackendHealthCore) {
+    console.error('后端检测模块未加载');
+    return null;
   }
+  backendHealthMonitor = window.BackendHealthCore.createBackendHealthMonitor({
+    probe: async function () {
+      const resp = await fetch(BACKEND_URL + '/api/ping', { signal: AbortSignal.timeout(3000) });
+      return resp.ok;
+    },
+    onStatus: function (status) {
+      backendOnline = status.state === 'online';
+      updateBackendStatus(status.state);
+    },
+  });
+  return backendHealthMonitor;
 }
 
-function updateBackendStatus() {
+async function checkBackend(force) {
+  const monitor = ensureBackendHealthMonitor();
+  if (!monitor) return false;
+  const online = await (force ? monitor.retryNow() : monitor.start());
+  if (online) await loadSourceList();
+  return online;
+}
+
+function updateBackendStatus(state) {
   const el = document.getElementById('backendStatus');
   const label = document.getElementById('backendLabel');
-  el.classList.toggle('online', backendOnline);
-  el.classList.toggle('offline', !backendOnline);
-  label.textContent = backendOnline ? '后端已连接' : '后端未连接';
+  if (!el || !label) return;
+  const currentState = state || (backendOnline ? 'online' : 'offline');
+  el.classList.toggle('online', currentState === 'online');
+  el.classList.toggle('offline', currentState !== 'online');
+  el.classList.toggle('checking', currentState === 'checking');
+  label.textContent = currentState === 'checking'
+    ? '正在检测后端…'
+    : (backendOnline ? '后端已连接' : '后端未连接');
 }
 
 async function backendSearch(q) {
@@ -4278,7 +4303,7 @@ async function saveSettings() {
     });
   }
   closeSettingsModal();
-  if (backendUrl) checkBackend();
+  if (backendUrl) checkBackend(true);
   showToast('设置已保存 ✓');
 }
 
@@ -4604,6 +4629,12 @@ function getUserDisplayName() {
   return localStorage.getItem('anime_auth_username') || '';
 }
 
+function clearCloudDataSessionMarker() {
+  _cloudDataLoadedForUid = null;
+  sessionStorage.removeItem(CLOUD_SESSION_MARKER_KEY);
+  sessionStorage.removeItem('cloud_synced_session');
+}
+
 function updateAuthUI() {
   const btn = document.getElementById('btnAuth');
   if (!btn) return;
@@ -4621,33 +4652,46 @@ function updateAuthUI() {
   setAuthModeUI();
 }
 
-async function refreshAfterAuthChange() {
-  syncScopedDataKeys();
-  updateAuthUI();
-  if (isLoggedIn()) {
-    if (useCloudAuth()) {
-      syncUserApiKey(null);
-      if (!sessionStorage.getItem('cloud_synced_session')) await loadCloudData();
+let _authRefreshPromise = Promise.resolve();
+function refreshAfterAuthChange() {
+  const task = _authRefreshPromise.catch(function () {}).then(async function () {
+    syncScopedDataKeys();
+    updateAuthUI();
+    if (isLoggedIn()) {
+      if (useCloudAuth()) {
+        syncUserApiKey(null);
+        const activeUid = window.AnimeCloud.uid || '';
+        const sessionMarkerUid = sessionStorage.getItem(CLOUD_SESSION_MARKER_KEY) || '';
+        const shouldReload = window.CloudSessionCore
+          ? window.CloudSessionCore.shouldReloadCloudData(activeUid, _cloudDataLoadedForUid, sessionMarkerUid)
+          : !sessionStorage.getItem('cloud_synced_session');
+        if (shouldReload) await loadCloudData();
+      } else {
+        loadData();
+        loadFolders();
+        loadSearchHistory();
+        await loadSourceList();
+        currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
+        compactMode = getScopedItem('anime_compact_mode', '') === '1';
+        applyTheme(currentTheme);
+        applyCompactMode();
+      }
     } else {
       loadData();
       loadFolders();
-      loadSearchHistory();
       await loadSourceList();
-      currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
-      compactMode = getScopedItem('anime_compact_mode', '') === '1';
-      applyTheme(currentTheme);
-      applyCompactMode();
+      loadSearchHistory();
     }
-  } else {
-    loadData();
-    loadFolders();
-    await loadSourceList();
-    loadSearchHistory();
-  }
-  updateAuthUI();
-  renderFolderList();
-  renderSourceList();
-  renderCards();
+
+    updateAuthUI();
+    renderFolderList();
+    renderSourceList();
+    renderCards();
+  });
+  _authRefreshPromise = task.catch(function (error) {
+    console.error('账号切换后的数据刷新失败：', error);
+  });
+  return task;
 }
 
 function openAuthModal() {
@@ -4793,14 +4837,14 @@ async function handleAuthSubmit() {
       await window.AnimeCloud.register(account, password, displayName);
       rememberAccount(account, null, true);
       closeAuthModal();
-      sessionStorage.removeItem('cloud_synced_session');
+      clearCloudDataSessionMarker();
       await refreshAfterAuthChange();
       showToast('注册成功，欢迎 ' + displayName + ' ✓');
     } else {
       await window.AnimeCloud.login(account, password);
       rememberAccount(account, null, true);
       closeAuthModal();
-      sessionStorage.removeItem('cloud_synced_session');
+      clearCloudDataSessionMarker();
       await refreshAfterAuthChange();
       showToast('登录成功，欢迎 ' + getUserDisplayName() + ' ✓');
     }
@@ -5029,7 +5073,7 @@ async function handleLogout(quiet) {
   localStorage.removeItem('anime_auth_token');
   localStorage.removeItem('anime_auth_username');
   removeScopedItem('anime_api_key_server');
-  sessionStorage.removeItem('cloud_synced_session');
+  clearCloudDataSessionMarker();
   syncScopedDataKeys();
   if (localSession) {
     currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
@@ -5053,6 +5097,7 @@ async function handleLogout(quiet) {
 // ===== Cloud Data Loader =====
 async function loadCloudData() {
   if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return false;
+  const loadUid = window.AnimeCloud.uid || '';
 
   showToast('正在同步云端数据...');
   const localAnimeBeforeCloud = JSON.parse(getScopedItem(_DK, '[]') || '[]');
@@ -5066,6 +5111,10 @@ async function loadCloudData() {
     window.AnimeCloud.loadSearchHistory(),
     window.AnimeCloud.loadSettings(),
   ]);
+
+  if (window.CloudSessionCore && window.CloudSessionCore.isStaleCloudResponse(loadUid, window.AnimeCloud.uid)) {
+    return false;
+  }
 
   if (cloudAnime !== null) {
     animeList = cloudAnime;
@@ -5135,10 +5184,16 @@ async function loadCloudData() {
     }
   }
 
+  if (window.CloudSessionCore && window.CloudSessionCore.isStaleCloudResponse(loadUid, window.AnimeCloud.uid)) {
+    return false;
+  }
+
   renderFolderList();
   renderSourceList();
   renderCards();
-  sessionStorage.setItem('cloud_synced_session', '1');
+  _cloudDataLoadedForUid = loadUid;
+  sessionStorage.setItem(CLOUD_SESSION_MARKER_KEY, loadUid);
+  sessionStorage.removeItem('cloud_synced_session');
   showToast('云端数据同步完成 ✓');
   return true;
 }
@@ -5167,11 +5222,11 @@ function initAuth() {
   var _authResolved = false;
   _initAuthReady = new Promise(function(resolve) {
     if (useCloudAuth()) {
-      window.AnimeCloud.init({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
       window.AnimeCloud.onAuthChange(async function() {
         await refreshAfterAuthChange();
         if (!_authResolved) { _authResolved = true; resolve(); }
       });
+      window.AnimeCloud.init({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
       updateAuthUI();
       return;
     }
@@ -5189,6 +5244,10 @@ function initAuth() {
 
 // ===== Init =====
 (async function() {
+  // Backend 检测与认证、配置加载并行，后端休眠唤醒时无需用户手动点击。
+  checkBackend().catch(function (error) {
+    console.error('后端检测失败：', error);
+  });
   await loadSupabaseConfig(); // load Supabase config from server config.json
   syncScopedDataKeys();
   currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
@@ -5200,7 +5259,6 @@ function initAuth() {
   applyTheme(currentTheme);
   initAuth();
   await _initAuthReady;
-  await checkBackend();
   if (!backendOnline) await loadSourceList();
   renderFolderList();
   renderSourceList();
