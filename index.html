@@ -1490,12 +1490,59 @@
 </script>
 
 <script src="js/supabase.js"></script>
+<script src="js/local-auth-core.js"></script>
+<script src="js/local-auth.js"></script>
 
 <script>
 // ===== Config =====
 let BACKEND_URL = localStorage.getItem('anime_backend_url') || '';
 const CLOUD_MODE_KEY = 'anime_cloud_mode';
 let cloudMode = localStorage.getItem(CLOUD_MODE_KEY) !== 'offline';
+let localUser = window.LocalAuth ? window.LocalAuth.currentUser() : null;
+
+function isSupabaseConfigured() {
+  return !!(window.SUPABASE_URL && window.SUPABASE_ANON_KEY);
+}
+
+function isCloudDataMode() {
+  return cloudMode && isSupabaseConfigured();
+}
+
+function scopedStorageKey(baseKey) {
+  if (isCloudDataMode()) return baseKey;
+  const userId = localUser && localUser.id ? localUser.id : 'guest';
+  if (window.LocalAuthCore && window.LocalAuthCore.createUserStorageKey) {
+    return window.LocalAuthCore.createUserStorageKey(userId, baseKey);
+  }
+  return 'offline_' + userId + '_' + baseKey;
+}
+
+function getScopedItem(baseKey, fallback) {
+  let value = localStorage.getItem(scopedStorageKey(baseKey));
+  // Compatibility with versions that used offline_<key> before local accounts existed.
+  if (value === null && !isCloudDataMode() && !localUser) {
+    value = localStorage.getItem('offline_' + baseKey);
+    if (value === null && ['anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url', 'app-theme', 'anime_compact_mode'].indexOf(baseKey) !== -1) {
+      value = localStorage.getItem(baseKey);
+    }
+  }
+  return value === null ? (fallback === undefined ? null : fallback) : value;
+}
+
+function setScopedItem(baseKey, value) {
+  localStorage.setItem(scopedStorageKey(baseKey), value);
+}
+
+function removeScopedItem(baseKey) {
+  localStorage.removeItem(scopedStorageKey(baseKey));
+}
+
+function syncScopedDataKeys() {
+  DATA_KEY = isCloudDataMode() ? _DK : scopedStorageKey(_DK);
+  FOLDERS_KEY = isCloudDataMode() ? _FK : scopedStorageKey(_FK);
+  SOURCES_KEY = isCloudDataMode() ? _SK : scopedStorageKey(_SK);
+  SEARCH_HISTORY_KEY = isCloudDataMode() ? _SHK : scopedStorageKey(_SHK);
+}
 
 // ===== Data =====
 const _DK = 'anime_tracker_data';
@@ -1503,10 +1550,11 @@ const _FK = 'anime_folders';
 const _SK = 'anime_sources_v2';
 const _SHK = 'anime_search_history';
 const _RAK = 'anime_remembered_accounts';
-let DATA_KEY = cloudMode ? _DK : 'offline_' + _DK;
-let FOLDERS_KEY = cloudMode ? _FK : 'offline_' + _FK;
-let SOURCES_KEY = cloudMode ? _SK : 'offline_' + _SK;
-let SEARCH_HISTORY_KEY = cloudMode ? _SHK : 'offline_' + _SHK;
+let DATA_KEY = '';
+let FOLDERS_KEY = '';
+let SOURCES_KEY = '';
+let SEARCH_HISTORY_KEY = '';
+syncScopedDataKeys();
 let animeList = [];
 let folderList = [];
 let sourceList = [];
@@ -1537,7 +1585,7 @@ function refreshAppViews() {
 }
 
 function loadData() {
-  try { animeList = JSON.parse(localStorage.getItem(DATA_KEY) || '[]'); } catch(e) { animeList = []; }
+  try { animeList = JSON.parse(getScopedItem(_DK, '[]') || '[]'); } catch(e) { animeList = []; }
   var fixed = false;
   for (var i = 0; i < animeList.length; i++) {
     var a = animeList[i];
@@ -1555,7 +1603,7 @@ function loadData() {
   }
   if (fixed) saveData();
   // Migrate from old key
-  if (animeList.length === 0) {
+  if (animeList.length === 0 && !isCloudDataMode() && !localUser) {
     try {
       const old = localStorage.getItem('anime_tracker_v4');
       if (old) { animeList = JSON.parse(old); saveData(); }
@@ -1564,7 +1612,7 @@ function loadData() {
 }
 function saveData() {
   for (var i = 0; i < animeList.length; i++) normalizeAnimeProgressStatus(animeList[i]);
-  localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
+  setScopedItem(_DK, JSON.stringify(animeList));
   return syncAnimeToCloud();
 }
 // Serialize cloud sync so older saves cannot finish after and overwrite newer category changes.
@@ -1595,7 +1643,7 @@ async function syncAnimeToCloud() {
   return _cloudSyncPromise;
 }
 function loadFolders() {
-  try { folderList = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]'); } catch(e) { folderList = []; }
+  try { folderList = JSON.parse(getScopedItem(_FK, '[]') || '[]'); } catch(e) { folderList = []; }
   var ff = false;
   for (var fi = 0; fi < folderList.length; fi++) {
     var fid = parseInt(folderList[fi].id, 10);
@@ -1603,7 +1651,7 @@ function loadFolders() {
   }
   if (ff) saveFolders();
   // Migrate from old key
-  if (folderList.length === 0) {
+  if (folderList.length === 0 && !isCloudDataMode() && !localUser) {
     try {
       const old = localStorage.getItem('anime_tracker_folders_v1');
       if (old) { folderList = JSON.parse(old); saveFolders(); }
@@ -1611,7 +1659,7 @@ function loadFolders() {
   }
 }
 function saveFolders() {
-  localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList));
+  setScopedItem(_FK, JSON.stringify(folderList));
   syncFoldersToCloud();
 }
 var _cloudFolderTimer = null;
@@ -1630,7 +1678,7 @@ async function loadSourceList() {
 
   // 2. Load custom sources from localStorage (user-added only)
   var customSources = [];
-  try { customSources = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]'); } catch(e) { customSources = []; }
+  try { customSources = JSON.parse(getScopedItem(_SK, '[]') || '[]'); } catch(e) { customSources = []; }
 
   // 3. Build URL set of built-in sources for dedup
   var builtinUrls = {};
@@ -1670,7 +1718,7 @@ async function loadSourceList() {
   if (customSources.length === 0) {
     var migrated = false;
     try {
-      var oldSettings = JSON.parse(localStorage.getItem('anime_tracker_settings_v2') || '{}');
+      var oldSettings = JSON.parse(getScopedItem('anime_tracker_settings_v2', '{}') || '{}');
       var hidden = oldSettings.hiddenBuiltIn || [];
       var nameOverrides = oldSettings.builtInNames || {};
       var urlOverrides = oldSettings.builtInUrls || {};
@@ -1736,7 +1784,7 @@ function saveSourceList() {
       customOnly.push({ id: sourceList[i].id, builtin: true, enabled: sourceList[i].enabled !== false });
     }
   }
-  localStorage.setItem(SOURCES_KEY, JSON.stringify(customOnly));
+  setScopedItem(_SK, JSON.stringify(customOnly));
   syncSourcesToCloud();
 }
 var _cloudSourceTimer = null;
@@ -1805,8 +1853,8 @@ async function backendFetchUrls(urls) {
 
 async function aiEnrich(title, categoryOverride) {
   if (!backendOnline) throw new Error('后端未连接');
-  const apiKey = localStorage.getItem('anime_api_key') || '';
-  const apiUrl = localStorage.getItem('anime_api_url') || 'https://api.deepseek.com';
+  const apiKey = getScopedItem('anime_api_key', '') || '';
+  const apiUrl = getScopedItem('anime_api_url', 'https://api.deepseek.com') || 'https://api.deepseek.com';
   const categoryEl = document.getElementById('mCategory');
   const category = categoryOverride || (categoryEl ? categoryEl.value : '');
   const resp = await fetch(BACKEND_URL + '/api/ai-enrich', {
@@ -1825,6 +1873,7 @@ async function aiEnrich(title, categoryOverride) {
 // ===== Sources =====
 function renderSourceList() {
   const container = document.getElementById('sidebarSources');
+  if (!container) return;
   container.innerHTML = sourceList.map(s => {
     var sourceId = JSON.stringify(s.id);
     var delBtn = s.builtin ? '' : `<span class="src-del" onclick="event.stopPropagation();deleteSource(${sourceId})" title="删除来源">✕</span>`;
@@ -2018,7 +2067,7 @@ async function importSources() {
       }
       if (!confirm('导入将覆盖当前 ' + sourceList.length + ' 个搜索源（文件包含 ' + data.length + ' 个），确定继续？')) return;
       sourceList = data;
-      localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+      setScopedItem(_SK, JSON.stringify(sourceList));
       syncSourcesToCloud();
       renderSourceManagerList();
       showToast('搜索源已导入 ✓ (' + sourceList.length + ' 个)');
@@ -2372,7 +2421,7 @@ const MAX_HISTORY = 20;
 let searchHistory = [];
 
 function loadSearchHistory() {
-  try { searchHistory = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'); } catch(e) { searchHistory = []; }
+  try { searchHistory = JSON.parse(getScopedItem(_SHK, '[]') || '[]'); } catch(e) { searchHistory = []; }
 }
 
 function saveSearchTerm() {
@@ -2381,7 +2430,7 @@ function saveSearchTerm() {
   searchHistory = searchHistory.filter(function(t) { return t !== q; });
   searchHistory.unshift(q);
   if (searchHistory.length > MAX_HISTORY) searchHistory.pop();
-  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+  setScopedItem(_SHK, JSON.stringify(searchHistory));
   syncSearchHistoryToCloud();
   renderCards();
   hideSearchHistory();
@@ -2420,7 +2469,7 @@ function hideSearchHistory() {
 
 function clearSearchHistory() {
   searchHistory = [];
-  localStorage.removeItem(SEARCH_HISTORY_KEY);
+  removeScopedItem(_SHK);
   syncSearchHistoryToCloud();
   document.getElementById('searchHistoryDropdown').innerHTML = '';
   hideSearchHistory();
@@ -2989,7 +3038,7 @@ function toggleSelectionMode() {
   document.getElementById('btnSelectMode').classList.toggle('active', selectionMode);
 }
 
-let compactMode = localStorage.getItem('anime_compact_mode') === '1';
+let compactMode = getScopedItem('anime_compact_mode', '') === '1';
 function applyCompactMode() {
   document.getElementById('cardGrid').classList.toggle('compact', compactMode);
   document.getElementById('btnCompactMode').classList.toggle('active', compactMode);
@@ -2998,7 +3047,7 @@ function applyCompactMode() {
 }
 function toggleCompactMode() {
   compactMode = !compactMode;
-  localStorage.setItem('anime_compact_mode', compactMode ? '1' : '0');
+  setScopedItem('anime_compact_mode', compactMode ? '1' : '0');
   applyCompactMode();
 }
 
@@ -3277,7 +3326,7 @@ async function fetchCoversForAnime(id) {
   var a = animeList.find(function(x) { return x.id === id; });
   if (!a) return;
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先配置 API Key'); return; }
+  if (!isApiKeyConfigured()) { showToast('请先配置 API Key'); return; }
 
   showToast('正在搜索封面...');
   try {
@@ -3328,7 +3377,7 @@ async function selectCoverForAnime(id, idx) {
 // ===== AI Batch Fill =====
 async function batchAiFillAll() {
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  if (!isApiKeyConfigured()) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
   const all = animeList.filter(a => a && a.title);
   if (all.length === 0) { showToast('还没有添加任何番剧'); return; }
   if (!confirm(`即将对全部 ${all.length} 部番剧进行 AI 信息补全，过程中请勿关闭页面。\n\n已有信息不会被覆盖，仅补充缺失字段（简介、集数、分类、评分、标签、封面）。\n\n是否继续？`)) return;
@@ -3371,7 +3420,7 @@ async function batchAiFillAll() {
 // ===== Reclassify All =====
 async function reclassifyAll() {
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  if (!isApiKeyConfigured()) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
   var all = animeList.filter(function(a) { return a && a.title; });
   if (all.length === 0) { showToast('还没有添加任何番剧'); return; }
   if (!confirm(`即将对全部 ${all.length} 部番剧使用 AI 重新分类（基于分类标准文档）。\n\n原有分类将被覆盖，是否继续？`)) return;
@@ -3389,7 +3438,7 @@ async function reclassifyAll() {
       var resp = await fetch(BACKEND_URL + '/api/reclassify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titles: batch.map(function(a) { return a.title; }), apiKey: localStorage.getItem('anime_api_key') || '' }),
+        body: JSON.stringify({ titles: batch.map(function(a) { return a.title; }), apiKey: getScopedItem('anime_api_key', '') || '' }),
         signal: AbortSignal.timeout(35000),
       });
       var json = await resp.json();
@@ -3421,7 +3470,7 @@ async function reclassifyAll() {
 
 async function aiFillCard(id) {
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  if (!isApiKeyConfigured()) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
   const a = animeList.find(x => x.id === id);
   if (!a || !a.title) return;
   showToast('⏳ 正在AI补全...');
@@ -3472,7 +3521,7 @@ async function aiFillInfo() {
   const q = document.getElementById('mTitle').value.trim();
   if (!q || q.length < 2) { showToast('请先输入番剧名称'); return; }
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  if (!isApiKeyConfigured()) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
   const btn = document.getElementById('btnAiFill');
   btn.textContent = '⏳ 分析中...';
   btn.disabled = true;
@@ -3566,7 +3615,7 @@ function setCover(url) {
 // ===== Batch Fetch Covers =====
 async function batchFetchCovers() {
   if (!backendOnline) { showToast('后端未连接'); return; }
-  if (!apiKeyConfigured) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
+  if (!isApiKeyConfigured()) { showToast('请先在设置中配置 DeepSeek API Key'); return; }
   // Support selection mode: if cards are selected, only process those
   var useSelection = selectionMode && selectedIds.size > 0;
   var all;
@@ -4056,12 +4105,12 @@ const THEMES = [
   { id: 'lovable', name: 'Lovable', icon: '◇', desc: '羊皮纸暖灰 — DESIGN_loveable.md' },
   { id: 'tesla',   name: 'Tesla',   icon: '○', desc: '极简纯白展厅 — DESIGN_tesla.md' },
 ];
-let currentTheme = localStorage.getItem('app-theme') || 'anime';
+let currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
 
 function applyTheme(id) {
   currentTheme = id;
   document.documentElement.setAttribute('data-theme', id);
-  localStorage.setItem('app-theme', id);
+  setScopedItem('app-theme', id);
   updateThemeButton();
 }
 
@@ -4126,13 +4175,15 @@ function updateThemeButton() {
 }
 
 // ===== Settings =====
-const apiKeyConfigured = !!(localStorage.getItem('anime_api_key') || localStorage.getItem('anime_api_key_server'));
+function isApiKeyConfigured() {
+  return !!(getScopedItem('anime_api_key', '') || getScopedItem('anime_api_key_server', ''));
+}
 
 function openSettingsModal() {
   document.getElementById('settingsBackendUrl').value = BACKEND_URL;
-  document.getElementById('settingsApiProvider').value = localStorage.getItem('anime_api_provider') || 'deepseek';
-  document.getElementById('settingsApiUrl').value = localStorage.getItem('anime_api_url') || 'https://api.deepseek.com';
-  document.getElementById('settingsApiKey').value = localStorage.getItem('anime_api_key') || '';
+  document.getElementById('settingsApiProvider').value = getScopedItem('anime_api_provider', 'deepseek') || 'deepseek';
+  document.getElementById('settingsApiUrl').value = getScopedItem('anime_api_url', 'https://api.deepseek.com') || 'https://api.deepseek.com';
+  document.getElementById('settingsApiKey').value = getScopedItem('anime_api_key', '') || '';
   document.getElementById('settingsModalOverlay').style.display = 'flex';
 }
 
@@ -4207,10 +4258,10 @@ async function saveSettings() {
     }
   }
 
-  localStorage.setItem('anime_api_provider', provider);
-  localStorage.setItem('anime_api_url', url);
-  if (key) { localStorage.setItem('anime_api_key', key); localStorage.setItem('anime_api_key_server', '1'); }
-  else { localStorage.removeItem('anime_api_key'); localStorage.removeItem('anime_api_key_server'); }
+  setScopedItem('anime_api_provider', provider);
+  setScopedItem('anime_api_url', url);
+  if (key) { setScopedItem('anime_api_key', key); setScopedItem('anime_api_key_server', '1'); }
+  else { removeScopedItem('anime_api_key'); removeScopedItem('anime_api_key_server'); }
   // Sync API key to server
   var authToken = await getAuthToken();
   if (authToken && BACKEND_URL) {
@@ -4244,9 +4295,9 @@ async function exportAllData() {
       theme: currentTheme,
       cloudMode: cloudMode ? 'online' : 'offline',
       backendUrl: BACKEND_URL,
-      apiProvider: localStorage.getItem('anime_api_provider') || 'deepseek',
-      apiUrl: localStorage.getItem('anime_api_url') || 'https://api.deepseek.com',
-      apiKey: localStorage.getItem('anime_api_key') || ''
+      apiProvider: getScopedItem('anime_api_provider', 'deepseek') || 'deepseek',
+      apiUrl: getScopedItem('anime_api_url', 'https://api.deepseek.com') || 'https://api.deepseek.com',
+      apiKey: getScopedItem('anime_api_key', '') || ''
     }
   };
   var now = new Date();
@@ -4328,35 +4379,35 @@ async function importAllData() {
       // Restore folders
       if (data.folderList && Array.isArray(data.folderList)) {
         folderList = data.folderList;
-        localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList));
+        setScopedItem(_FK, JSON.stringify(folderList));
       }
 
       // Restore sources
       if (data.sourceList && Array.isArray(data.sourceList)) {
         sourceList = data.sourceList;
-        localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+        setScopedItem(_SK, JSON.stringify(sourceList));
       }
 
       // Restore search history
       if (data.searchHistory && Array.isArray(data.searchHistory)) {
         searchHistory = data.searchHistory;
-        localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+        setScopedItem(_SHK, JSON.stringify(searchHistory));
       }
 
       // Restore settings
       if (data.settings) {
         if (data.settings.theme) {
           currentTheme = data.settings.theme;
-          localStorage.setItem('app-theme', currentTheme);
+          setScopedItem('app-theme', currentTheme);
           applyTheme(currentTheme);
         }
         if (data.settings.backendUrl) {
           BACKEND_URL = data.settings.backendUrl;
           localStorage.setItem('anime_backend_url', BACKEND_URL);
         }
-        if (data.settings.apiProvider) localStorage.setItem('anime_api_provider', data.settings.apiProvider);
-        if (data.settings.apiUrl) localStorage.setItem('anime_api_url', data.settings.apiUrl);
-        if (data.settings.apiKey) localStorage.setItem('anime_api_key', data.settings.apiKey);
+        if (data.settings.apiProvider) setScopedItem('anime_api_provider', data.settings.apiProvider);
+        if (data.settings.apiUrl) setScopedItem('anime_api_url', data.settings.apiUrl);
+        if (data.settings.apiKey) setScopedItem('anime_api_key', data.settings.apiKey);
       }
 
       // Sync to cloud if logged in
@@ -4368,9 +4419,9 @@ async function importAllData() {
           { name: '搜索源', fn: function() { return window.AnimeCloud.saveAllSources(sourceList); } },
           { name: '历史', fn: function() { return window.AnimeCloud.saveSearchHistory(searchHistory); } },
           { name: '设置', fn: function() { return window.AnimeCloud.saveSettings({
-            apiKey: localStorage.getItem('anime_api_key') || '',
-            apiProvider: localStorage.getItem('anime_api_provider') || 'deepseek',
-            apiUrl: localStorage.getItem('anime_api_url') || '',
+            apiKey: getScopedItem('anime_api_key', '') || '',
+            apiProvider: getScopedItem('anime_api_provider', 'deepseek') || 'deepseek',
+            apiUrl: getScopedItem('anime_api_url', '') || '',
             theme: currentTheme
           }); } }
         ];
@@ -4523,36 +4574,39 @@ function updateCloudModeUI() {
 
 // ===== Auth =====
 let authMode = 'login'; // 'login' | 'register'
-const useCloudAuth = function() { return window.SUPABASE_URL && window.SUPABASE_ANON_KEY; };
+const useCloudAuth = function() { return isCloudDataMode(); };
+const LOCAL_GUEST_MIGRATION_KEY = 'anime_local_guest_migration_v1';
+const LOCAL_SCOPED_KEYS = [
+  _DK, _FK, _SK, _SHK,
+  'anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url',
+  'app-theme', 'anime_compact_mode'
+];
+
+function isLocalAuthMode() {
+  return !useCloudAuth();
+}
 
 async function getAuthToken() {
-  // Get Supabase session token
-  if (window.AnimeCloud && window.AnimeCloud.ready && window.AnimeCloud.loggedIn) {
+  if (useCloudAuth() && window.AnimeCloud && window.AnimeCloud.ready && window.AnimeCloud.loggedIn) {
     return await window.AnimeCloud.getToken();
   }
-  // Fallback to localStorage (legacy)
-  var t = localStorage.getItem('anime_auth_token') || '';
-  return t === 'supabase' ? null : t;
+  return null;
 }
 
 function isLoggedIn() {
   if (useCloudAuth() && window.AnimeCloud && window.AnimeCloud.loggedIn) return true;
-  return !!(localStorage.getItem('anime_auth_token'));
+  return isLocalAuthMode() && !!localUser;
 }
 
 function getUserDisplayName() {
   if (useCloudAuth() && window.AnimeCloud && window.AnimeCloud.loggedIn) return window.AnimeCloud.displayName;
+  if (isLocalAuthMode() && localUser) return localUser.username;
   return localStorage.getItem('anime_auth_username') || '';
 }
 
 function updateAuthUI() {
   const btn = document.getElementById('btnAuth');
-  if (!useCloudAuth()) {
-    btn.style.opacity = '0.4';
-    btn.style.pointerEvents = 'none';
-    btn.title = '认证服务未配置，请检查 config.json';
-    return;
-  }
+  if (!btn) return;
   btn.style.opacity = '1';
   btn.style.pointerEvents = 'auto';
   const label = document.getElementById('btnAuthLabel');
@@ -4562,21 +4616,28 @@ function updateAuthUI() {
     btn.title = '点击查看账号';
   } else {
     label.textContent = '登录';
-    btn.title = '登录';
+    btn.title = isLocalAuthMode() ? '登录本地账号' : '登录云端账号';
   }
-  // Update label based on auth mode
-  const labelEl = document.getElementById('authModalFieldLabel');
-  if (labelEl) {
-    labelEl.textContent = '邮箱';
-  }
+  setAuthModeUI();
 }
 
 async function refreshAfterAuthChange() {
+  syncScopedDataKeys();
   updateAuthUI();
   if (isLoggedIn()) {
-    syncUserApiKey(null);
-    if (cloudMode && !sessionStorage.getItem('cloud_synced_session')) await loadCloudData();
-    await loadSourceList();
+    if (useCloudAuth()) {
+      syncUserApiKey(null);
+      if (!sessionStorage.getItem('cloud_synced_session')) await loadCloudData();
+    } else {
+      loadData();
+      loadFolders();
+      loadSearchHistory();
+      await loadSourceList();
+      currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
+      compactMode = getScopedItem('anime_compact_mode', '') === '1';
+      applyTheme(currentTheme);
+      applyCompactMode();
+    }
   } else {
     loadData();
     loadFolders();
@@ -4617,33 +4678,18 @@ function renderAuthRememberedAccounts() {
   var html = '';
   for (var i = 0; i < remembered.length; i++) {
     var acc = remembered[i];
-    html += '<button onclick="fillRememberedAccount(\'' + jsStr(acc.username) + '\')" style="padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-family:inherit;font-size:0.78rem;white-space:nowrap;transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'var(--color-primary)\';this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\';this.style.background=\'transparent\'">☁️ ' + escapeHtml(acc.username) + '</button>';
+    var icon = acc.isCloud ? '☁️' : '💻';
+    html += '<button onclick="fillRememberedAccount(\'' + jsStr(acc.username) + '\')" style="padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);background:transparent;color:var(--color-base-content);cursor:pointer;font-family:inherit;font-size:0.78rem;white-space:nowrap;transition:border-color 0.15s ease,background 0.15s ease" onmouseenter="this.style.borderColor=\'var(--color-primary)\';this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.borderColor=\'color-mix(in srgb, var(--color-primary) 15%, transparent)\';this.style.background=\'transparent\'">' + icon + ' ' + escapeHtml(acc.username) + '</button>';
   }
   listEl.innerHTML = html;
 }
 
 function fillRememberedAccount(username) {
   document.getElementById('authUsername').value = username;
+  document.getElementById('authPassword').value = '';
   document.getElementById('authPasswordConfirm').value = '';
   document.getElementById('authMsg').style.display = 'none';
-  // Auto-fill password from remembered entry
-  var list = loadRememberedAccounts();
-  var pwd = '';
-  for (var i = 0; i < list.length; i++) {
-    if (list[i].username.toLowerCase() === username.toLowerCase() && list[i].password) {
-      pwd = atob(list[i].password);
-      break;
-    }
-  }
-  document.getElementById('authPassword').value = pwd;
-  if (pwd) {
-    document.getElementById('authPassword').focus();
-    document.getElementById('authPassword').select();
-    return true;
-  } else {
-    setTimeout(function() { document.getElementById('authPassword').focus(); }, 100);
-    return false;
-  }
+  setTimeout(function() { document.getElementById('authPassword').focus(); }, 100);
 }
 
 function closeAuthModal() {
@@ -4658,58 +4704,108 @@ function toggleAuthMode() {
 
 function setAuthModeUI() {
   const isLogin = authMode === 'login';
-  document.getElementById('authModalTitle').textContent = isLogin ? '登录' : '注册';
+  const localMode = isLocalAuthMode();
+  const titlePrefix = localMode ? '本地' : '';
+  document.getElementById('authModalTitle').textContent = titlePrefix + (isLogin ? '登录' : '注册');
   document.getElementById('btnAuthSubmit').textContent = isLogin ? '登录' : '注册';
   document.getElementById('btnAuthToggle').textContent = isLogin ? '没有账号？点击注册' : '已有账号？点击登录';
   document.getElementById('authConfirmField').style.display = isLogin ? 'none' : 'block';
   const labelEl = document.getElementById('authModalFieldLabel');
-  if (labelEl) labelEl.textContent = '邮箱';
   const userInput = document.getElementById('authUsername');
-  userInput.placeholder = '请输入邮箱';
-  userInput.type = 'email';
+  if (localMode) {
+    if (labelEl) labelEl.textContent = '用户名';
+    userInput.placeholder = '请输入用户名（2-32位）';
+    userInput.type = 'text';
+    userInput.maxLength = 32;
+  } else {
+    if (labelEl) labelEl.textContent = '邮箱';
+    userInput.placeholder = '请输入邮箱';
+    userInput.type = 'email';
+    userInput.maxLength = 50;
+  }
+}
+
+function showAuthError(msgEl, error) {
+  msgEl.style.display = 'block';
+  if (error.code === 'DUPLICATE_USERNAME') msgEl.textContent = '该用户名已存在';
+  else if (error.code === 'INVALID_USERNAME') msgEl.textContent = '用户名需为2-32位字母、数字、下划线、短横线或点';
+  else if (error.code === 'WEAK_PASSWORD') msgEl.textContent = '密码至少需要6位';
+  else if (error.code === 'INVALID_CREDENTIALS') msgEl.textContent = '用户名或密码错误';
+  else if (error.code === 'auth/email-already-in-use' || (error.message && error.message.includes('already registered'))) msgEl.textContent = '该邮箱已注册';
+  else if (error.code === 'auth/weak-password' || (error.message && error.message.includes('weak password'))) msgEl.textContent = '密码强度不够，请至少使用6位密码';
+  else if (error.code === 'auth/invalid-credential' || (error.message && error.message.includes('Invalid login credentials'))) msgEl.textContent = '邮箱或密码错误';
+  else msgEl.textContent = error.message || '操作失败';
 }
 
 async function handleAuthSubmit() {
   const account = document.getElementById('authUsername').value.trim();
   const password = document.getElementById('authPassword').value;
+  const confirmPassword = document.getElementById('authPasswordConfirm').value;
   const msgEl = document.getElementById('authMsg');
+  const localMode = isLocalAuthMode();
 
-  if (!account || !account.includes('@')) {
+  if (!account) {
     msgEl.style.display = 'block';
-    msgEl.textContent = '请输入有效的邮箱地址';
+    msgEl.textContent = localMode ? '请输入用户名' : '请输入有效的邮箱地址';
+    return;
+  }
+  if ((!localMode && !account.includes('@')) || (localMode && !/^[\p{L}\p{N}_.-]{2,32}$/u.test(account))) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = localMode ? '用户名需为2-32位字母、数字、下划线、短横线或点' : '请输入有效的邮箱地址';
     return;
   }
   if (!password || password.length < 6) { msgEl.style.display = 'block'; msgEl.textContent = '密码至少6位'; return; }
+  if (authMode === 'register' && password !== confirmPassword) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = '两次输入的密码不一致';
+    return;
+  }
 
-  if (!window.AnimeCloud || !window.AnimeCloud.ready) {
+  if (localMode && !window.LocalAuth) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = '当前浏览器不支持本地账号，请更新浏览器';
+    return;
+  }
+  if (!localMode && (!window.AnimeCloud || !window.AnimeCloud.ready)) {
     msgEl.style.display = 'block';
     msgEl.textContent = '认证服务未配置';
     return;
   }
 
   try {
+    if (localMode) {
+      const firstLocalAccount = !window.LocalAuth.hasUsers();
+      const result = authMode === 'register'
+        ? await window.LocalAuth.register(account, password)
+        : await window.LocalAuth.login(account, password);
+      localUser = result;
+      syncScopedDataKeys();
+      rememberAccount(result.username, null, false);
+      if (authMode === 'register' && firstLocalAccount) await maybeMigrateGuestData(result.id);
+      closeAuthModal();
+      await refreshAfterAuthChange();
+      showToast((authMode === 'register' ? '注册成功，欢迎 ' : '登录成功，欢迎 ') + result.username + ' ✓');
+      return;
+    }
+
     if (authMode === 'register') {
       var displayName = account.split('@')[0];
       await window.AnimeCloud.register(account, password, displayName);
-      rememberAccount(account, null, true, password);
+      rememberAccount(account, null, true);
       closeAuthModal();
       sessionStorage.removeItem('cloud_synced_session');
       await refreshAfterAuthChange();
       showToast('注册成功，欢迎 ' + displayName + ' ✓');
     } else {
       await window.AnimeCloud.login(account, password);
-      rememberAccount(account, null, true, password);
+      rememberAccount(account, null, true);
       closeAuthModal();
       sessionStorage.removeItem('cloud_synced_session');
       await refreshAfterAuthChange();
       showToast('登录成功，欢迎 ' + getUserDisplayName() + ' ✓');
     }
   } catch(e) {
-    msgEl.style.display = 'block';
-    if (e.code === 'auth/email-already-in-use' || (e.message && e.message.includes('already registered'))) msgEl.textContent = '该邮箱已注册';
-    else if (e.code === 'auth/weak-password' || (e.message && e.message.includes('weak password'))) msgEl.textContent = '密码强度不够，请至少使用6位密码';
-    else if (e.code === 'auth/invalid-credential' || (e.message && e.message.includes('Invalid login credentials'))) msgEl.textContent = '邮箱或密码错误';
-    else msgEl.textContent = e.message || '操作失败';
+    showAuthError(msgEl, e);
   }
 }
 
@@ -4717,9 +4813,77 @@ function jsStr(s) {
   return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
 }
 
+function guestStorageKey(baseKey) {
+  if (window.LocalAuthCore && window.LocalAuthCore.createUserStorageKey) {
+    return window.LocalAuthCore.createUserStorageKey('guest', baseKey);
+  }
+  return 'offline_guest_' + baseKey;
+}
+
+function getGuestItem(baseKey) {
+  var value = localStorage.getItem(guestStorageKey(baseKey));
+  if (value !== null) return value;
+  value = localStorage.getItem('offline_' + baseKey);
+  if (value !== null) return value;
+  if (baseKey === _DK) return localStorage.getItem('anime_tracker_v4');
+  if (baseKey === _FK) return localStorage.getItem('anime_tracker_folders_v1');
+  if (['anime_api_key', 'anime_api_key_server', 'anime_api_provider', 'anime_api_url', 'app-theme', 'anime_compact_mode'].indexOf(baseKey) !== -1) {
+    return localStorage.getItem(baseKey);
+  }
+  return null;
+}
+
+function hasMeaningfulGuestData() {
+  for (var i = 0; i < LOCAL_SCOPED_KEYS.length; i++) {
+    var value = getGuestItem(LOCAL_SCOPED_KEYS[i]);
+    if (value === null || value === '') continue;
+    if (LOCAL_SCOPED_KEYS[i] === 'app-theme' && value === 'anime') continue;
+    if (LOCAL_SCOPED_KEYS[i] === 'anime_compact_mode' && value === '0') continue;
+    try {
+      var parsed = JSON.parse(value);
+      if (Array.isArray(parsed) && parsed.length === 0) continue;
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).length === 0) continue;
+    } catch (e) {}
+    return true;
+  }
+  return false;
+}
+
+async function maybeMigrateGuestData(userId) {
+  if (localStorage.getItem(LOCAL_GUEST_MIGRATION_KEY) || !hasMeaningfulGuestData()) return;
+  if (!confirm('检测到未登录时保存的本地数据，是否迁移到当前账号？')) {
+    localStorage.setItem(LOCAL_GUEST_MIGRATION_KEY, JSON.stringify({ version: 1, decision: 'declined', at: new Date().toISOString() }));
+    return;
+  }
+  var migratedKeys = [];
+  for (var i = 0; i < LOCAL_SCOPED_KEYS.length; i++) {
+    var baseKey = LOCAL_SCOPED_KEYS[i];
+    var sourceValue = getGuestItem(baseKey);
+    var targetKey = scopedStorageKeyForUser(userId, baseKey);
+    if (sourceValue === null || localStorage.getItem(targetKey) !== null) continue;
+    localStorage.setItem(targetKey, sourceValue);
+    migratedKeys.push(baseKey);
+  }
+  localStorage.setItem(LOCAL_GUEST_MIGRATION_KEY, JSON.stringify({
+    version: 1,
+    decision: 'accepted',
+    ownerId: userId,
+    keys: migratedKeys,
+    at: new Date().toISOString()
+  }));
+  if (migratedKeys.length > 0) showToast('本地数据已迁移到当前账号 ✓');
+}
+
+function scopedStorageKeyForUser(userId, baseKey) {
+  if (window.LocalAuthCore && window.LocalAuthCore.createUserStorageKey) {
+    return window.LocalAuthCore.createUserStorageKey(userId, baseKey);
+  }
+  return 'offline_' + userId + '_' + baseKey;
+}
+
 // Sync per-user API key status with server
 async function syncUserApiKey(token) {
-  if (!BACKEND_URL) return;
+  if (!BACKEND_URL || isLocalAuthMode()) return;
   if (!token && window.AnimeCloud && window.AnimeCloud.ready) {
     token = await window.AnimeCloud.getToken();
   }
@@ -4731,9 +4895,9 @@ async function syncUserApiKey(token) {
     if (resp.ok) {
       var data = await resp.json();
       if (data.apiKeySet) {
-        localStorage.setItem('anime_api_key_server', '1');
+        setScopedItem('anime_api_key_server', '1');
       } else {
-        localStorage.removeItem('anime_api_key_server');
+        removeScopedItem('anime_api_key_server');
       }
     }
   } catch(e) {}
@@ -4741,20 +4905,23 @@ async function syncUserApiKey(token) {
 
 // ===== Remembered Accounts =====
 function loadRememberedAccounts() {
-  try { return JSON.parse(localStorage.getItem(_RAK) || '[]'); } catch(e) { return []; }
+  try {
+    var raw = JSON.parse(localStorage.getItem(_RAK) || '[]');
+    if (!Array.isArray(raw)) return [];
+    var cleaned = raw.filter(function(a) { return a && a.username; }).map(function(a) {
+      return { username: String(a.username), isCloud: !!a.isCloud };
+    });
+    if (JSON.stringify(raw) !== JSON.stringify(cleaned)) localStorage.setItem(_RAK, JSON.stringify(cleaned));
+    return cleaned;
+  } catch(e) { return []; }
 }
 function saveRememberedAccounts(list) {
   localStorage.setItem(_RAK, JSON.stringify(list));
 }
-function rememberAccount(username, token, isCloud, password) {
+function rememberAccount(username, token, isCloud) {
   var list = loadRememberedAccounts();
-  // Remove existing entry with same username
   list = list.filter(function(a) { return a.username.toLowerCase() !== username.toLowerCase(); });
-  var entry = { username: username, isCloud: !!isCloud };
-  if (token) entry.token = token;
-  if (password) entry.password = btoa(password); // base64 obfuscation
-  list.unshift(entry); // most recent first
-  // Keep max 5 remembered accounts
+  list.unshift({ username: username, isCloud: !!isCloud });
   if (list.length > 5) list = list.slice(0, 5);
   saveRememberedAccounts(list);
 }
@@ -4763,67 +4930,19 @@ function forgetAccount(username) {
   list = list.filter(function(a) { return a.username.toLowerCase() !== username.toLowerCase(); });
   saveRememberedAccounts(list);
 }
-async function switchToRememberedAccount(username, isCloud) {
+async function switchToRememberedAccount(username) {
   var menu = document.getElementById('authUserMenu');
   if (menu) menu.remove();
-
-  // Quiet logout
   await handleLogout(true);
-
-  var list = loadRememberedAccounts();
-  var entry = null;
-  for (var i = 0; i < list.length; i++) {
-    if (list[i].username.toLowerCase() === username.toLowerCase()) {
-      entry = list[i]; break;
-    }
-  }
-
-  // Try auto-login with stored password (Supabase)
-  var loginOk = await tryLocalAutoLogin(entry, username);
-  if (loginOk) return;
-
-  // Auto-login failed — open modal for manual entry
   authMode = 'login';
   setAuthModeUI();
   document.getElementById('authModalOverlay').style.display = 'flex';
-  var hasPwd = fillRememberedAccount(username);
+  document.getElementById('authUsername').value = username;
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authPasswordConfirm').value = '';
+  document.getElementById('authMsg').style.display = 'none';
   renderAuthRememberedAccounts();
-  if (hasPwd) {
-    // Auto-submit with stored credentials
-    await handleAuthSubmit();
-  }
-}
-
-// Try to log in a remembered account: Supabase session first, then password re-login
-// Returns true if login succeeded
-async function tryLocalAutoLogin(entry, username) {
-  if (!entry) return false;
-  if (!window.AnimeCloud || !window.AnimeCloud.ready) return false;
-
-  // 1) Try restoring existing Supabase session for this account
-  var token = await window.AnimeCloud.getToken();
-  if (token && window.AnimeCloud.email === username) {
-    localStorage.setItem('anime_auth_token', 'supabase');
-    localStorage.setItem('anime_auth_username', window.AnimeCloud.displayName || username);
-    await refreshAfterAuthChange();
-    showToast('已切换至 ' + (window.AnimeCloud.displayName || username));
-    return true;
-  }
-
-  // 2) Re-login with stored password
-  if (entry.password) {
-    try {
-      var result = await window.AnimeCloud.login(username, atob(entry.password));
-      localStorage.setItem('anime_auth_token', 'supabase');
-      localStorage.setItem('anime_auth_username', result.displayName || username);
-      rememberAccount(username, null, true, atob(entry.password));
-      await refreshAfterAuthChange();
-      showToast('已切换至 ' + (result.displayName || username));
-      return true;
-    } catch(e) {}
-  }
-
-  return false;
+  setTimeout(function() { document.getElementById('authPassword').focus(); }, 100);
 }
 
 function showAuthUserMenu() {
@@ -4831,9 +4950,8 @@ function showAuthUserMenu() {
   var menu = document.createElement('div');
   menu.id = 'authUserMenu';
   menu.style.cssText = 'position:fixed;top:56px;right:140px;z-index:300;background:var(--color-base-200);border:2px solid var(--color-primary);border-radius:10px;padding:12px;min-width:200px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
-  var html = '<div style="font-weight:700;margin-bottom:10px;text-align:center;font-size:0.9rem">👤 ' + name + '</div>';
+  var html = '<div style="font-weight:700;margin-bottom:10px;text-align:center;font-size:0.9rem">👤 ' + escapeHtml(name) + '</div>';
 
-  // Show remembered accounts (excluding current)
   var remembered = loadRememberedAccounts();
   var otherAccounts = remembered.filter(function(a) {
     return a.username.toLowerCase() !== name.toLowerCase();
@@ -4843,8 +4961,9 @@ function showAuthUserMenu() {
     html += '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">';
     for (var i = 0; i < otherAccounts.length; i++) {
       var acc = otherAccounts[i];
+      var icon = acc.isCloud ? '☁️' : '💻';
       html += '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s ease;font-size:0.85rem" onclick="switchToRememberedAccount(\'' + jsStr(acc.username) + '\')" onmouseenter="this.style.background=\'color-mix(in srgb, var(--color-primary) 6%, transparent)\'" onmouseleave="this.style.background=\'transparent\'">'
-        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">☁️ ' + escapeHtml(acc.username) + '</span>'
+        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + icon + ' ' + escapeHtml(acc.username) + '</span>'
         + '<span onclick="event.stopPropagation();forgetAccount(\'' + jsStr(acc.username) + '\');showAuthUserMenu()" style="font-size:0.7rem;opacity:0.35;cursor:pointer;padding:2px 4px" title="移除记住">✕</span>'
         + '</div>';
     }
@@ -4873,21 +4992,9 @@ function showAuthUserMenu() {
 async function handleSwitchAccount() {
   var menu = document.getElementById('authUserMenu');
   if (menu) menu.remove();
-  // Remember current account before switching away
   var name = getUserDisplayName();
-  var token = localStorage.getItem('anime_auth_token');
-  // Get password from existing remembered entry if available
-  var existingList = loadRememberedAccounts();
-  var existingPwd = null;
-  for (var i = 0; i < existingList.length; i++) {
-    if (existingList[i].username.toLowerCase() === name.toLowerCase()) {
-      existingPwd = existingList[i].password ? atob(existingList[i].password) : null;
-      break;
-    }
-  }
-  if (name) rememberAccount(name, token, true, existingPwd);
+  if (name) rememberAccount(name, null, !isLocalAuthMode());
   await handleLogout(true);
-  // Open login modal after logout
   authMode = 'login';
   setAuthModeUI();
   document.getElementById('authModalOverlay').style.display = 'flex';
@@ -4895,45 +5002,45 @@ async function handleSwitchAccount() {
   document.getElementById('authPassword').value = '';
   document.getElementById('authPasswordConfirm').value = '';
   document.getElementById('authMsg').style.display = 'none';
+  renderAuthRememberedAccounts();
 }
 
 async function handleLogout(quiet) {
+  var localSession = isLocalAuthMode() && !!localUser;
   var currentName = getUserDisplayName();
-  var token = localStorage.getItem('anime_auth_token');
-  // Remember account before normal logout (switch already saved via handleSwitchAccount)
-  if (currentName && !quiet) {
-    var existingPwd = null;
-    var existingList = loadRememberedAccounts();
-    for (var i = 0; i < existingList.length; i++) {
-      if (existingList[i].username.toLowerCase() === currentName.toLowerCase()) {
-        existingPwd = existingList[i].password ? atob(existingList[i].password) : null;
-        break;
-      }
-    }
-    rememberAccount(currentName, token, true, existingPwd);
-  }
+  if (currentName && !quiet) rememberAccount(currentName, null, !localSession);
 
-  // Clear cloud data before Supabase logout (onAuthStateChange would reload)
-  if (cloudMode) {
+  if (localSession) {
+    window.LocalAuth.logout();
+    localUser = null;
+  } else if (useCloudAuth()) {
     animeList = [];
     folderList = [];
     sourceList = [];
     searchHistory = [];
-    localStorage.removeItem(DATA_KEY);
-    localStorage.removeItem(FOLDERS_KEY);
-    localStorage.removeItem(SOURCES_KEY);
-    localStorage.removeItem(SEARCH_HISTORY_KEY);
+    localStorage.removeItem(_DK);
+    localStorage.removeItem(_FK);
+    localStorage.removeItem(_SK);
+    localStorage.removeItem(_SHK);
     selectedIds.clear();
+    if (window.AnimeCloud && window.AnimeCloud.logout) await window.AnimeCloud.logout().catch(function() {});
   }
-  // Sign out from Supabase
-  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
-    var su = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-    await su.auth.signOut().catch(function() {});
-  }
+
   localStorage.removeItem('anime_auth_token');
   localStorage.removeItem('anime_auth_username');
-  localStorage.removeItem('anime_api_key_server');
+  removeScopedItem('anime_api_key_server');
   sessionStorage.removeItem('cloud_synced_session');
+  syncScopedDataKeys();
+  if (localSession) {
+    currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
+    compactMode = getScopedItem('anime_compact_mode', '') === '1';
+    loadData();
+    loadFolders();
+    loadSearchHistory();
+    await loadSourceList();
+    applyTheme(currentTheme);
+    applyCompactMode();
+  }
   updateAuthUI();
   var menu = document.getElementById('authUserMenu');
   if (menu) menu.remove();
@@ -4948,9 +5055,9 @@ async function loadCloudData() {
   if (!useCloudAuth() || !window.AnimeCloud.loggedIn) return false;
 
   showToast('正在同步云端数据...');
-  const localAnimeBeforeCloud = JSON.parse(localStorage.getItem(DATA_KEY) || '[]');
-  const localFoldersBeforeCloud = JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]');
-  const localSourcesBeforeCloud = JSON.parse(localStorage.getItem(SOURCES_KEY) || '[]');
+  const localAnimeBeforeCloud = JSON.parse(getScopedItem(_DK, '[]') || '[]');
+  const localFoldersBeforeCloud = JSON.parse(getScopedItem(_FK, '[]') || '[]');
+  const localSourcesBeforeCloud = JSON.parse(getScopedItem(_SK, '[]') || '[]');
 
   const [cloudAnime, cloudFolders, cloudSources, cloudHistory, cloudSettings] = await Promise.all([
     window.AnimeCloud.loadAnimeList(),
@@ -4971,7 +5078,7 @@ async function loadCloudData() {
       }
       normalizeAnimeProgressStatus(animeList[i]);
     }
-    localStorage.setItem(DATA_KEY, JSON.stringify(animeList));
+    setScopedItem(_DK, JSON.stringify(animeList));
   }
   if (cloudFolders !== null) {
     folderList = cloudFolders;
@@ -4979,7 +5086,7 @@ async function loadCloudData() {
       var fid = parseInt(folderList[fi].id, 10);
       if (!isNaN(fid)) folderList[fi].id = fid;
     }
-    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folderList));
+    setScopedItem(_FK, JSON.stringify(folderList));
   }
   if (cloudSources !== null) {
     sourceList = cloudSources;
@@ -4987,18 +5094,18 @@ async function loadCloudData() {
       var sid = parseInt(sourceList[si].id, 10);
       if (!isNaN(sid)) sourceList[si].id = sid;
     }
-    localStorage.setItem(SOURCES_KEY, JSON.stringify(sourceList));
+    setScopedItem(_SK, JSON.stringify(sourceList));
   }
   if (cloudHistory !== null && cloudHistory.length > 0) {
     searchHistory = cloudHistory;
-    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+    setScopedItem(_SHK, JSON.stringify(searchHistory));
   } else if (cloudHistory !== null && cloudHistory.length === 0) {
     // Keep local history if cloud is empty (new user)
   }
   if (cloudSettings) {
-    if (cloudSettings.apiKey) localStorage.setItem('anime_api_key', cloudSettings.apiKey);
-    if (cloudSettings.apiProvider) localStorage.setItem('anime_api_provider', cloudSettings.apiProvider);
-    if (cloudSettings.apiUrl) localStorage.setItem('anime_api_url', cloudSettings.apiUrl);
+    if (cloudSettings.apiKey) setScopedItem('anime_api_key', cloudSettings.apiKey);
+    if (cloudSettings.apiProvider) setScopedItem('anime_api_provider', cloudSettings.apiProvider);
+    if (cloudSettings.apiUrl) setScopedItem('anime_api_url', cloudSettings.apiUrl);
     if (cloudSettings.theme) { currentTheme = cloudSettings.theme; applyTheme(currentTheme); }
   }
 
@@ -5055,31 +5162,42 @@ async function loadSupabaseConfig() {
   window.SUPABASE_ANON_KEY = '';
 }
 
-// Init Supabase & Auth
+// Init Supabase or browser-local auth
 function initAuth() {
-  // Always init Supabase for auth (persisted session works regardless of network)
-  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
-    window.AnimeCloud.init({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
-  }
-
   var _authResolved = false;
   _initAuthReady = new Promise(function(resolve) {
-    window.AnimeCloud.onAuthChange(async function(loggedIn) {
-      await refreshAfterAuthChange();
+    if (useCloudAuth()) {
+      window.AnimeCloud.init({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
+      window.AnimeCloud.onAuthChange(async function() {
+        await refreshAfterAuthChange();
+        if (!_authResolved) { _authResolved = true; resolve(); }
+      });
+      updateAuthUI();
+      return;
+    }
+
+    localUser = window.LocalAuth ? window.LocalAuth.currentUser() : null;
+    syncScopedDataKeys();
+    refreshAfterAuthChange().then(function() {
+      if (!_authResolved) { _authResolved = true; resolve(); }
+    }).catch(function(error) {
+      console.error('本地账号初始化失败：', error);
       if (!_authResolved) { _authResolved = true; resolve(); }
     });
-    updateAuthUI();
   });
 }
 
 // ===== Init =====
 (async function() {
+  await loadSupabaseConfig(); // load Supabase config from server config.json
+  syncScopedDataKeys();
+  currentTheme = getScopedItem('app-theme', 'anime') || 'anime';
+  compactMode = getScopedItem('anime_compact_mode', '') === '1';
   updateCloudModeUI();
   loadData();
   loadFolders();
   loadSearchHistory();
   applyTheme(currentTheme);
-  await loadSupabaseConfig(); // load Supabase config from server config.json
   initAuth();
   await _initAuthReady;
   await checkBackend();

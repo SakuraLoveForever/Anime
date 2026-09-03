@@ -18,7 +18,7 @@
 
 打开网页后，点击右上角 **🔐 登录** 按钮：
 
-- 输入用户名和密码，点击注册即可创建账号
+- 输入邮箱和密码，点击注册即可创建账号
 - 注册后自动登录，所有数据保存在云端
 - 后续登录同一账号即可跨设备同步番剧数据
 
@@ -62,128 +62,49 @@
 - **Supabase Database** — 番剧列表、文件夹、搜索源（按用户隔离）
 - 首次登录后，本地存储的番剧数据会自动合并上传到云端
 
-## 本地搭建
+## 本地搭建（最简单方式）
 
-本地版是一个 Node.js + Express 服务，前端静态文件也由这个服务提供，**不需要单独启动前端开发服务器，也不需要执行 `npm run build`**。
+本地版只需要 Node.js。前端文件已经包含在项目中，不需要单独启动前端，也不需要执行构建命令。
 
-### 准备工作
+### 第一次使用
 
-- 安装 [Node.js](https://nodejs.org/) **20 或更高版本**。当前 Supabase 依赖要求 Node.js 20+；安装后重新打开终端。
-- 安装 Git（或者在 GitHub 页面下载 ZIP 并解压）。
-- DeepSeek API Key **不是启动必需项**，只有使用 AI 填充、智能推荐等功能时才需要。
+1. 安装 [Node.js 20+](https://nodejs.org/)，安装后重新打开终端。
+2. 下载项目：
+   - 熟悉 Git：执行 `git clone https://github.com/SakuraLoveForever/Anime.git`，然后进入 `Anime` 文件夹；
+   - 不熟悉 Git：在 GitHub 点击 **Code → Download ZIP**，解压后打开项目文件夹。
+3. 双击项目根目录的 **`start.bat`**。
 
-先确认 Node.js 和 npm 已安装：
+`start.bat` 会自动检查 Node.js、自动安装依赖、启动服务，并在服务准备好后打开浏览器。第一次启动需要等待一会儿，之后直接双击即可。
+
+打开地址：<http://localhost:3456/>
+
+### 离线版登录多个账号
+
+本地部署不需要 Supabase 也可以登录。打开页面后，点击右上角 **🔐 登录**，使用“用户名 + 密码”注册本地账号；在账号菜单中可以退出或切换其他账号。
+
+- 同一台电脑、同一个浏览器可以注册多个本地账号。
+- 每个账号的番剧、收藏夹、搜索记录、主题、精简模式和 API Key 都是独立的。
+- 第一次注册时，如果之前保存过未登录数据，程序会询问是否迁移到新账号。
+- 本地账号只保存在当前浏览器，不是云端账号；清除浏览器数据、更换浏览器或换电脑后不会自动带过去。
+- 如果项目配置了 Supabase，选择在线模式时仍使用邮箱云端账号；没有 Supabase 配置时会自动使用本地账号。
+
+### 其他启动方式
+
+如果不使用 `start.bat`，也可以在包含 `package.json` 和 `server.js` 的项目根目录执行：
 
 ```bash
-node --version
-npm --version
-```
-
-### 安装依赖
-
-在项目根目录执行（根目录应能看到 `package.json`、`server.js` 和 `start.bat`）：
-
-```bash
-# 克隆项目
-git clone https://github.com/SakuraLoveForever/Anime.git
-cd Anime
-
-# 安装依赖
 npm install
-```
-
-#### npm 12 报 EALLOWREMOTE 的处理方法
-
-本仓库的 `package-lock.json` 使用了 `registry.npmmirror.com` 的依赖下载地址。npm 12 默认将 `allow-remote` 设为 `none`；如果你本机的 npm registry 是 `registry.npmjs.org`，npm 可能会把锁文件中的镜像 tarball 误判为“远程依赖”，并报如下错误：
-
-```text
-npm error code EALLOWREMOTE
-npm error Fetching packages of type "remote" have been disabled
-npm error Refusing to fetch "tslib@https://registry.npmmirror.com/..."
-```
-
-优先使用与锁文件一致的镜像执行安装（只影响本次命令）：
-
-```bash
-npm install --registry=https://registry.npmmirror.com/ --no-audit --no-fund
-```
-
-如果你必须使用 npm 官方源，也可以在确认仓库和锁文件可信后临时允许远程 tarball：
-
-```bash
-npm install --allow-remote=all --no-audit --no-fund
-```
-
-检查当前 npm 配置：
-
-```bash
-npm config get registry
-npm config get allow-remote
-```
-
-`tslib` 是 `@supabase/supabase-js` 的传递依赖，不需要单独执行 `npm install tslib`。如果安装被中断，修复 registry 配置后重新执行上面的安装命令即可。
-
-### 启动服务
-
-#### Windows（推荐先用终端启动）
-
-在项目根目录打开 PowerShell 或命令提示符：
-
-```powershell
 npm start
 ```
 
-看到以下提示后，保持这个窗口不要关闭：
+启动后不要关闭终端窗口；停止服务按 `Ctrl+C` 即可。
 
-```text
-Anime tracker backend running at http://localhost:3456
-Open http://localhost:3456 in your browser
-```
+### 常见问题
 
-然后打开浏览器访问：
-
-<http://localhost:3456/>
-
-也可以双击项目根目录的 `start.bat`。它会启动 Node.js 服务并自动打开浏览器；如果窗口一闪而过，请改用 `npm start`，这样可以直接看到启动报错。
-
-#### Linux / macOS
-
-```bash
-npm start
-# 或使用 Node.js 的监听模式
-npm run dev
-```
-
-### 启动故障排查
-
-#### 浏览器显示 `ERR_CONNECTION_REFUSED`
-
-这表示 `3456` 端口没有服务监听，通常是服务没有启动或启动后报错，不是页面本身的问题。回到启动服务的终端，确认没有 `Cannot find module`、`EADDRINUSE` 等错误。
-
-Windows PowerShell 可检查端口：
-
-```powershell
-Get-NetTCPConnection -LocalPort 3456 -State Listen
-```
-
-能看到监听记录后，再访问 `http://localhost:3456/`。也可以直接检查 HTTP 响应：
-
-```powershell
-Invoke-WebRequest http://localhost:3456/ -UseBasicParsing
-```
-
-如果提示找不到模块，回到项目根目录重新安装依赖；如果提示端口已占用，关闭占用该端口的旧 Node.js 服务后再执行 `npm start`。
-
-#### 修改端口
-
-如果 `3456` 已被其他程序使用，可临时换一个端口：
-
-```powershell
-$env:PORT=3457
-npm start
-```
-
-然后访问 <http://localhost:3457/>。使用自定义端口时不要双击 `start.bat`，因为它固定打开 `3456`。
+- **浏览器显示 `ERR_CONNECTION_REFUSED`**：服务没有启动。重新双击 `start.bat`，或在项目根目录执行 `npm start`。
+- **提示找不到 Node.js 或 npm**：重新安装 Node.js 20+，然后重新打开终端。
+- **提示端口 `3456` 已被占用**：关闭已经运行的旧服务后，再启动 `start.bat`。
+- **依赖安装失败**：确认网络正常后重新双击 `start.bat`；脚本会继续补齐缺失依赖。
 
 ### 配置 API Key
 
