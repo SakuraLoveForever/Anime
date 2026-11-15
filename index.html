@@ -697,10 +697,11 @@
     background: rgba(0,0,0,0.7);
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     display: flex; align-items: flex-start; justify-content: center;
-    animation: fadeIn 0.2s ease; padding: 40px 20px 20px; overflow-y: auto;
+    animation: dimModalBackdrop 0.2s ease; padding: 40px 20px 20px; overflow-y: auto;
   }
   .edit-modal-box {
-    background: var(--color-base-200);
+    background: var(--color-base-200, #0a1222);
+    color: var(--color-base-content, #dce4f0);
     border: 2px solid var(--color-primary);
     border-radius: var(--radius-box, 0.5rem);
     padding: 28px; width: 100%; max-width: 540px;
@@ -928,7 +929,8 @@
   /* ===== Keyframes ===== */
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes dimModalBackdrop { from { background-color: transparent; } }
+  @keyframes slideUp { from { transform: translateY(30px); } to { transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes cardIn { from { opacity: 0; transform: translateY(20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
   @keyframes popupIn { from { opacity: 0; transform: scale(0.92) translateY(-8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
